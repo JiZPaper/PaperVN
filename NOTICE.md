@@ -1,6 +1,6 @@
 # Notice
 
-Copyright © 2026 JiZPaper (简纸Paper). All rights reserved except as stated below.
+Copyright © 2026 Paper All rights reserved except as stated below.
 
 ## License
 
