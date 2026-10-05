@@ -63,3 +63,11 @@ iOS 26 이상이 설치된 iPhone 또는 iPadOS 26 이상이 설치된 iPad가 �
 ## 면책 조항
 
 PaperVN은 비공식 서드파티 앱이며 VNDB, Bangumi, Steam, KunGalgame과 제휴하거나 이들의 승인을 받지 않았습니다.
+
+## 후원
+
+<p align="center">
+  <img src="./docs/images/donate/wechat-pay.jpg" height="220" alt="WeChat Pay">
+  &nbsp;&nbsp;
+  <img src="./docs/images/donate/alipay.jpg" height="220" alt="Alipay">
+</p>

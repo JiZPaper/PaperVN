@@ -19,6 +19,7 @@ The following are **not** licensed under CC BY-NC-SA 4.0 or any other license. N
   - `docs/images/app-icon.png`
 
   Adaptations you distribute must replace them with your own artwork.
+- **The donation QR codes** in `docs/images/donate/`. Adaptations you distribute must remove them or replace them with your own.
 
 ## Third-party material
 

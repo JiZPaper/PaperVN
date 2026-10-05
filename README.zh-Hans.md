@@ -63,3 +63,11 @@ PaperVN 已为 VNDB 中 6,000 多个视觉小说标签与角色特征提供本�
 ## 免责声明
 
 PaperVN是非官方的第三方App，与VNDB、Bangumi番组计划、Steam和鲲Galgame均无关联，也未获得其认可。
+
+## 捐赠
+
+<p align="center">
+  <img src="./docs/images/donate/wechat-pay.jpg" height="220" alt="微信支付">
+  &nbsp;&nbsp;
+  <img src="./docs/images/donate/alipay.jpg" height="220" alt="支付宝">
+</p>
