@@ -63,3 +63,11 @@ This project is licensed under [CC BY-NC-SA 4.0](LICENSE). **The PaperVN name an
 ## Disclaimer
 
 PaperVN is an unofficial third-party app. It is not affiliated with or endorsed by VNDB, Bangumi, Steam, or KunGalgame.
+
+## Donate
+
+<p align="center">
+  <img src="./docs/images/donate/wechat-pay.jpg" height="220" alt="WeChat Pay">
+  &nbsp;&nbsp;
+  <img src="./docs/images/donate/alipay.jpg" height="220" alt="Alipay">
+</p>

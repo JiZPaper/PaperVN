@@ -63,3 +63,11 @@ iOS 26以降を搭載したiPhone、またはiPadOS 26以降を搭載したiPad�
 ## 免責事項
 
 PaperVNは非公式のサードパーティ製アプリです。VNDB、Bangumi番組計画、Steam、KunGalgameとは提携しておらず、これらから承認を受けたものでもありません。
+
+## 寄付
+
+<p align="center">
+  <img src="./docs/images/donate/wechat-pay.jpg" height="220" alt="WeChat Pay">
+  &nbsp;&nbsp;
+  <img src="./docs/images/donate/alipay.jpg" height="220" alt="Alipay">
+</p>
