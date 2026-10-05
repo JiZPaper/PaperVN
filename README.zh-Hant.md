@@ -56,11 +56,9 @@ PaperVN 已為 VNDB 中 6,000 多個視覺小說標籤與角色特徵提供在�
 
 需要執行 iOS 26 或更新版本的 iPhone，或執行 iPadOS 26 或更新版本的 iPad。
 
-## 授權條款
+## 授權條款與免責聲明
 
 本專案採用[CC BY-NC-SA 4.0](LICENSE)授權條款。**PaperVN的名稱和圖示不在本授權條款範圍內**。第三方程式碼、圖像和資料適用其各自的條款。詳見[NOTICE.md](NOTICE.md)。
-
-## 免責聲明
 
 PaperVN是非官方的第三方App，與VNDB、Bangumi番組計畫、Steam和鯤Galgame均無關聯，亦未獲其認可。
 
