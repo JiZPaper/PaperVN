@@ -1,0 +1,47 @@
+# Swift and Xcode build output
+.build/
+build/
+DerivedData/
+PaperVN.xcodeproj/-Xcc/
+xcuserdata/
+*.xcuserstate
+*.xccheckout
+*.moved-aside
+
+# Local Python environments and caches
+.venv*/
+__pycache__/
+*.py[cod]
+
+# Generated Apple developer documentation
+Others/Apple Developer Documentation/
+Others/Documentation/AppleDeveloperDocumentation/
+
+# macOS filesystem metadata
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Private configuration kept out of the open-source repository
+Config/PaperVN.private.xcconfig
+PaperVN/Private/
+
+# Files unrelated to the app
+Others/
+.codex-skill-staging/
+Tools/export_apple_developer_docs.py
+.berr.txt
+.build_errors.txt

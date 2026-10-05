@@ -1,0 +1,4 @@
+BANGUMI_OAUTH_CLIENT_ID = bgm69526a888c61b4902
+BANGUMI_OAUTH_CLIENT_SECRET =
+
+#include? "PaperVN.private.xcconfig"

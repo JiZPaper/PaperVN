@@ -1,0 +1,905 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		7CE829D33011C85800E2390F /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7CE829D23011C85800E2390F /* StoreKit.framework */; };
+		7CE829D63011C85800E2390F /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = 7CE829D53011C85800E2390F /* ZIPFoundation */; };
+		7CE82A003011C85800E2390F /* PaperVNLiveActivity.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 7CE82A043011C85800E2390F /* PaperVNLiveActivity.appex */; platformFilter = ios; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		7CE82A013011C85800E2390F /* 偏好分析实时活动属性.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CE82A053011C85800E2390F /* 偏好分析实时活动属性.swift */; };
+		7CE82A023011C85800E2390F /* 偏好分析实时活动属性.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CE82A053011C85800E2390F /* 偏好分析实时活动属性.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		7CBDCC402F5D45DD00652C1F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 7CBDCC2A2F5D45DC00652C1F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 7CBDCC312F5D45DC00652C1F;
+			remoteInfo = PaperVN;
+		};
+		7CBDCC4A2F5D45DD00652C1F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 7CBDCC2A2F5D45DC00652C1F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 7CBDCC312F5D45DC00652C1F;
+			remoteInfo = PaperVN;
+		};
+		7CE82A033011C85800E2390F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 7CBDCC2A2F5D45DC00652C1F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 7CE82A0A3011C85800E2390F;
+			remoteInfo = PaperVNLiveActivity;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		7CE82A0D3011C85800E2390F /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				7CE82A003011C85800E2390F /* PaperVNLiveActivity.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		7CBDCC322F5D45DC00652C1F /* PaperVN.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PaperVN.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		7CBDCC3F2F5D45DD00652C1F /* PaperVNTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PaperVNTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		7CBDCC492F5D45DD00652C1F /* PaperVNUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PaperVNUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		7CE829D23011C85800E2390F /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk/System/Library/Frameworks/StoreKit.framework; sourceTree = DEVELOPER_DIR; };
+		7CE82A043011C85800E2390F /* PaperVNLiveActivity.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PaperVNLiveActivity.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		7CE82A053011C85800E2390F /* 偏好分析实时活动属性.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "偏好分析实时活动属性.swift"; sourceTree = "<group>"; };
+		C0DE00012F00000000000001 /* PaperVN.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = PaperVN.xcconfig; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		7CE829D73011C85800E2390F /* Exceptions for "PaperVN" folder in "PaperVN" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 7CBDCC312F5D45DC00652C1F /* PaperVN */;
+		};
+		7CE82A063011C85800E2390F /* Exceptions for "PaperVNLiveActivity" folder in "PaperVNLiveActivity" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 7CE82A0A3011C85800E2390F /* PaperVNLiveActivity */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		7CBDCC342F5D45DC00652C1F /* PaperVN */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				7CE829D73011C85800E2390F /* Exceptions for "PaperVN" folder in "PaperVN" target */,
+			);
+			path = PaperVN;
+			sourceTree = "<group>";
+		};
+		7CBDCC422F5D45DD00652C1F /* PaperVNTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = PaperVNTests;
+			sourceTree = "<group>";
+		};
+		7CBDCC4C2F5D45DD00652C1F /* PaperVNUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = PaperVNUITests;
+			sourceTree = "<group>";
+		};
+		7CE82A073011C85800E2390F /* PaperVNLiveActivity */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				7CE82A063011C85800E2390F /* Exceptions for "PaperVNLiveActivity" folder in "PaperVNLiveActivity" target */,
+			);
+			path = PaperVNLiveActivity;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		7CBDCC2F2F5D45DC00652C1F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7CE829D33011C85800E2390F /* StoreKit.framework in Frameworks */,
+				7CE829D63011C85800E2390F /* ZIPFoundation in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7CBDCC3C2F5D45DD00652C1F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7CBDCC462F5D45DD00652C1F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7CE82A083011C85800E2390F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		7CBDCC292F5D45DC00652C1F = {
+			isa = PBXGroup;
+			children = (
+				C0DE00022F00000000000001 /* Config */,
+				7CBDCC342F5D45DC00652C1F /* PaperVN */,
+				7CE82A073011C85800E2390F /* PaperVNLiveActivity */,
+				7CE82A093011C85800E2390F /* Shared */,
+				7CBDCC422F5D45DD00652C1F /* PaperVNTests */,
+				7CBDCC4C2F5D45DD00652C1F /* PaperVNUITests */,
+				7CE829D13011C85800E2390F /* Frameworks */,
+				7CBDCC332F5D45DC00652C1F /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		7CBDCC332F5D45DC00652C1F /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				7CBDCC322F5D45DC00652C1F /* PaperVN.app */,
+				7CE82A043011C85800E2390F /* PaperVNLiveActivity.appex */,
+				7CBDCC3F2F5D45DD00652C1F /* PaperVNTests.xctest */,
+				7CBDCC492F5D45DD00652C1F /* PaperVNUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		7CE829D13011C85800E2390F /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				7CE829D23011C85800E2390F /* StoreKit.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		7CE82A093011C85800E2390F /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				7CE82A053011C85800E2390F /* 偏好分析实时活动属性.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		C0DE00022F00000000000001 /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				C0DE00012F00000000000001 /* PaperVN.xcconfig */,
+			);
+			path = Config;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		7CBDCC312F5D45DC00652C1F /* PaperVN */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7CBDCC532F5D45DD00652C1F /* Build configuration list for PBXNativeTarget "PaperVN" */;
+			buildPhases = (
+				7CBDCC2E2F5D45DC00652C1F /* Sources */,
+				7CBDCC2F2F5D45DC00652C1F /* Frameworks */,
+				7CBDCC302F5D45DC00652C1F /* Resources */,
+				7CE82A0D3011C85800E2390F /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				7CE82A0E3011C85800E2390F /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				7CBDCC342F5D45DC00652C1F /* PaperVN */,
+			);
+			name = PaperVN;
+			packageProductDependencies = (
+				7CE829D53011C85800E2390F /* ZIPFoundation */,
+			);
+			productName = PaperVN;
+			productReference = 7CBDCC322F5D45DC00652C1F /* PaperVN.app */;
+			productType = "com.apple.product-type.application";
+		};
+		7CBDCC3E2F5D45DD00652C1F /* PaperVNTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7CBDCC562F5D45DD00652C1F /* Build configuration list for PBXNativeTarget "PaperVNTests" */;
+			buildPhases = (
+				7CBDCC3B2F5D45DD00652C1F /* Sources */,
+				7CBDCC3C2F5D45DD00652C1F /* Frameworks */,
+				7CBDCC3D2F5D45DD00652C1F /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				7CBDCC412F5D45DD00652C1F /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				7CBDCC422F5D45DD00652C1F /* PaperVNTests */,
+			);
+			name = PaperVNTests;
+			packageProductDependencies = (
+			);
+			productName = PaperVNTests;
+			productReference = 7CBDCC3F2F5D45DD00652C1F /* PaperVNTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		7CBDCC482F5D45DD00652C1F /* PaperVNUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7CBDCC592F5D45DD00652C1F /* Build configuration list for PBXNativeTarget "PaperVNUITests" */;
+			buildPhases = (
+				7CBDCC452F5D45DD00652C1F /* Sources */,
+				7CBDCC462F5D45DD00652C1F /* Frameworks */,
+				7CBDCC472F5D45DD00652C1F /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				7CBDCC4B2F5D45DD00652C1F /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				7CBDCC4C2F5D45DD00652C1F /* PaperVNUITests */,
+			);
+			name = PaperVNUITests;
+			packageProductDependencies = (
+			);
+			productName = PaperVNUITests;
+			productReference = 7CBDCC492F5D45DD00652C1F /* PaperVNUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		7CE82A0A3011C85800E2390F /* PaperVNLiveActivity */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7CE82A113011C85800E2390F /* Build configuration list for PBXNativeTarget "PaperVNLiveActivity" */;
+			buildPhases = (
+				7CE82A0C3011C85800E2390F /* Sources */,
+				7CE82A083011C85800E2390F /* Frameworks */,
+				7CE82A0B3011C85800E2390F /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				7CE82A073011C85800E2390F /* PaperVNLiveActivity */,
+			);
+			name = PaperVNLiveActivity;
+			packageProductDependencies = (
+			);
+			productName = PaperVNLiveActivity;
+			productReference = 7CE82A043011C85800E2390F /* PaperVNLiveActivity.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		7CBDCC2A2F5D45DC00652C1F /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2640;
+				LastUpgradeCheck = 2700;
+				TargetAttributes = {
+					7CBDCC312F5D45DC00652C1F = {
+						CreatedOnToolsVersion = 26.4;
+						SystemCapabilities = {
+							com.apple.BackgroundModes = {
+								enabled = 1;
+							};
+							com.apple.InAppPurchase = {
+								enabled = 1;
+							};
+							com.apple.iCloud = {
+								enabled = 1;
+							};
+						};
+					};
+					7CBDCC3E2F5D45DD00652C1F = {
+						CreatedOnToolsVersion = 26.4;
+						TestTargetID = 7CBDCC312F5D45DC00652C1F;
+					};
+					7CBDCC482F5D45DD00652C1F = {
+						CreatedOnToolsVersion = 26.4;
+						TestTargetID = 7CBDCC312F5D45DC00652C1F;
+					};
+					7CE82A0A3011C85800E2390F = {
+						CreatedOnToolsVersion = 26.4;
+					};
+				};
+			};
+			buildConfigurationList = 7CBDCC2D2F5D45DC00652C1F /* Build configuration list for PBXProject "PaperVN" */;
+			developmentRegion = "zh-Hans";
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+				"zh-Hans",
+				ja,
+				"zh-Hant",
+				ko,
+				pl,
+				de,
+			);
+			mainGroup = 7CBDCC292F5D45DC00652C1F;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				7CE829D43011C85800E2390F /* XCLocalSwiftPackageReference "Dependencies/ZIPFoundation" */,
+			);
+			preferredProjectObjectVersion = 77;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				7CBDCC312F5D45DC00652C1F /* PaperVN */,
+				7CE82A0A3011C85800E2390F /* PaperVNLiveActivity */,
+				7CBDCC3E2F5D45DD00652C1F /* PaperVNTests */,
+				7CBDCC482F5D45DD00652C1F /* PaperVNUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		7CBDCC302F5D45DC00652C1F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7CBDCC3D2F5D45DD00652C1F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7CBDCC472F5D45DD00652C1F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7CE82A0B3011C85800E2390F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		7CBDCC2E2F5D45DC00652C1F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7CE82A013011C85800E2390F /* 偏好分析实时活动属性.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7CBDCC3B2F5D45DD00652C1F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7CBDCC452F5D45DD00652C1F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7CE82A0C3011C85800E2390F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7CE82A023011C85800E2390F /* 偏好分析实时活动属性.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		7CBDCC412F5D45DD00652C1F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 7CBDCC312F5D45DC00652C1F /* PaperVN */;
+			targetProxy = 7CBDCC402F5D45DD00652C1F /* PBXContainerItemProxy */;
+		};
+		7CBDCC4B2F5D45DD00652C1F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 7CBDCC312F5D45DC00652C1F /* PaperVN */;
+			targetProxy = 7CBDCC4A2F5D45DD00652C1F /* PBXContainerItemProxy */;
+		};
+		7CE82A0E3011C85800E2390F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			platformFilter = ios;
+			target = 7CE82A0A3011C85800E2390F /* PaperVNLiveActivity */;
+			targetProxy = 7CE82A033011C85800E2390F /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		7CBDCC512F5D45DD00652C1F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = Y3UG3Y8W6N;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		7CBDCC522F5D45DD00652C1F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = Y3UG3Y8W6N;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+			};
+			name = Release;
+		};
+		7CBDCC542F5D45DD00652C1F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = C0DE00012F00000000000001 /* PaperVN.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = PaperVN;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
+				CODE_SIGN_ENTITLEMENTS = PaperVN/PaperVN.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = Y3UG3Y8W6N;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = YES;
+				EXCLUDED_SOURCE_FILE_NAMES = PaperVN.storekit;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = PaperVN/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = PaperVN;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "用于将视觉小说封面、角色图片和屏幕截图保存到照片。";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphoneos*]" = YES;
+				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleDefault;
+				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphoneos*]" = UIStatusBarStyleDefault;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
+				MARKETING_VERSION = 1.8.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jizpaper.PaperVN;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		7CBDCC552F5D45DD00652C1F /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = C0DE00012F00000000000001 /* PaperVN.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = PaperVN;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
+				CODE_SIGN_ENTITLEMENTS = PaperVN/PaperVN.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = Y3UG3Y8W6N;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = YES;
+				EXCLUDED_SOURCE_FILE_NAMES = PaperVN.storekit;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = PaperVN/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = PaperVN;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "用于将视觉小说封面、角色图片和屏幕截图保存到照片。";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphoneos*]" = YES;
+				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleDefault;
+				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphoneos*]" = UIStatusBarStyleDefault;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
+				MARKETING_VERSION = 1.8.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jizpaper.PaperVN;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		7CBDCC572F5D45DD00652C1F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = Y3UG3Y8W6N;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jizpaper.PaperVNTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PaperVN.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PaperVN";
+			};
+			name = Debug;
+		};
+		7CBDCC582F5D45DD00652C1F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = Y3UG3Y8W6N;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jizpaper.PaperVNTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PaperVN.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PaperVN";
+			};
+			name = Release;
+		};
+		7CBDCC5A2F5D45DD00652C1F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = Y3UG3Y8W6N;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jizpaper.PaperVNUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = PaperVN;
+			};
+			name = Debug;
+		};
+		7CBDCC5B2F5D45DD00652C1F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = Y3UG3Y8W6N;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jizpaper.PaperVNUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = PaperVN;
+			};
+			name = Release;
+		};
+		7CE82A0F3011C85800E2390F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = Y3UG3Y8W6N;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = PaperVNLiveActivity/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = PaperVN;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.8.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jizpaper.PaperVN.LiveActivity;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		7CE82A103011C85800E2390F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = Y3UG3Y8W6N;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = PaperVNLiveActivity/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = PaperVN;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.8.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jizpaper.PaperVN.LiveActivity;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		7CBDCC2D2F5D45DC00652C1F /* Build configuration list for PBXProject "PaperVN" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7CBDCC512F5D45DD00652C1F /* Debug */,
+				7CBDCC522F5D45DD00652C1F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		7CBDCC532F5D45DD00652C1F /* Build configuration list for PBXNativeTarget "PaperVN" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7CBDCC542F5D45DD00652C1F /* Debug */,
+				7CBDCC552F5D45DD00652C1F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		7CBDCC562F5D45DD00652C1F /* Build configuration list for PBXNativeTarget "PaperVNTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7CBDCC572F5D45DD00652C1F /* Debug */,
+				7CBDCC582F5D45DD00652C1F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		7CBDCC592F5D45DD00652C1F /* Build configuration list for PBXNativeTarget "PaperVNUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7CBDCC5A2F5D45DD00652C1F /* Debug */,
+				7CBDCC5B2F5D45DD00652C1F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		7CE82A113011C85800E2390F /* Build configuration list for PBXNativeTarget "PaperVNLiveActivity" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7CE82A0F3011C85800E2390F /* Debug */,
+				7CE82A103011C85800E2390F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		7CE829D43011C85800E2390F /* XCLocalSwiftPackageReference "Dependencies/ZIPFoundation" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Dependencies/ZIPFoundation;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		7CE829D53011C85800E2390F /* ZIPFoundation */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7CE829D43011C85800E2390F /* XCLocalSwiftPackageReference "Dependencies/ZIPFoundation" */;
+			productName = ZIPFoundation;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 7CBDCC2A2F5D45DC00652C1F /* Project object */;
+}
