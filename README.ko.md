@@ -56,11 +56,9 @@ PaperVN은 VNDB의 비주얼 노벨 태그와 캐릭터 특성 6,000개 이상�
 
 iOS 26 이상이 설치된 iPhone 또는 iPadOS 26 이상이 설치된 iPad가 필요합니다.
 
-## 라이선스
+## 라이선스 및 면책 조항
 
 이 프로젝트는 [CC BY-NC-SA 4.0](LICENSE) 라이선스를 따릅니다. **PaperVN의 이름과 아이콘은 이 라이선스에 포함되지 않습니다**. 서드파티 코드, 이미지, 데이터에는 각각의 조건이 적용됩니다. 자세한 내용은 [NOTICE.md](NOTICE.md)를 참고하세요.
-
-## 면책 조항
 
 PaperVN은 비공식 서드파티 앱이며 VNDB, Bangumi, Steam, KunGalgame과 제휴하거나 이들의 승인을 받지 않았습니다.
 
