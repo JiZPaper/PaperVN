@@ -85,7 +85,7 @@ extension VNDB简介翻译标题 {
 struct 简介翻译参与按钮: View {
     enum 样式 {
         case icon(tint: Color)
-        case labeled
+        case toolbar
     }
 
     @ObservedObject var auth: 用户登录
@@ -187,18 +187,19 @@ struct 简介翻译参与按钮: View {
             .buttonStyle(.plain)
             .foregroundStyle(tint)
             .accessibilityLabel(translated ? "反馈翻译问题" : "提交翻译")
-        case .labeled:
+        case .toolbar:
             Button(action: open) {
-                Label(
-                    translated ? "反馈翻译问题" : "提交翻译",
-                    systemImage: translated
-                        ? "exclamationmark.bubble"
-                        : "character.bubble"
-                )
+                if isPreparingSubmission {
+                    ProgressView()
+                } else {
+                    Image(
+                        systemName: translated
+                            ? "exclamationmark.bubble"
+                            : "character.bubble"
+                    )
+                }
             }
-            .buttonStyle(.bordered)
-            .buttonBorderShape(.capsule)
-            .disabled(isPreparingSubmission)
+            .accessibilityLabel(translated ? "反馈翻译问题" : "提交翻译")
         }
     }
 
@@ -400,7 +401,10 @@ struct 简介翻译投稿页面: View {
 
                 if !entry.displaySource.isEmpty {
                     Section("原文") {
-                        简介原文展开文本(text: entry.displaySource)
+                        Text(verbatim: entry.displaySource)
+                            .font(.callout)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
 
@@ -429,7 +433,7 @@ struct 简介翻译投稿页面: View {
 
                 if !isReadOnly {
                     Section {
-                        TextField("备注（选填）", text: $note, axis: .vertical)
+                        TextField("备注（可选）", text: $note, axis: .vertical)
                             .lineLimit(1...4)
                     }
 
@@ -456,7 +460,7 @@ struct 简介翻译投稿页面: View {
                     .accessibilityLabel(isReadOnly ? "关闭" : "取消")
                     .disabled(isSubmitting)
                     .confirmationDialog(
-                        "确定要放弃编辑吗？",
+                        "要放弃编辑吗？",
                         isPresented: $showsDiscardConfirmation,
                         titleVisibility: .visible
                     ) {
@@ -485,7 +489,7 @@ struct 简介翻译投稿页面: View {
                     }
                 }
             }
-            .平台滚动几何变化(for: Bool.self) { geometry in
+            .onScrollGeometryChange(for: Bool.self) { geometry in
                 geometry.contentOffset.y <= -geometry.contentInsets.top + 1
             } action: { _, isAtTop in
                 isScrolledToTop = isAtTop
@@ -501,7 +505,7 @@ struct 简介翻译投稿页面: View {
                 switchRecord(from: oldLanguage, to: newLanguage)
             }
             .alert(
-                "提交失败",
+                "无法提交",
                 isPresented: Binding(
                     get: { errorMessage != nil },
                     set: { if !$0 { errorMessage = nil } }
@@ -601,8 +605,13 @@ struct 简介翻译投稿页面: View {
         let count = trimmedTranslation.count
         let limit = VNDB简介翻译投稿服务.译文最大长度
         return Text(verbatim: "\(count.formatted())/\(limit.formatted())")
+            .font(.caption)
             .monospacedDigit()
-            .foregroundStyle(count > limit ? Color.red : Color.secondary)
+            .foregroundStyle(
+                count > limit
+                    ? AnyShapeStyle(Color.red)
+                    : AnyShapeStyle(.tertiary)
+            )
             .contentTransition(.numericText(value: Double(count)))
             .animation(.snappy(duration: 0.25), value: count)
     }
@@ -730,7 +739,7 @@ struct 简介翻译贡献页面: View {
             }
             .environmentObject(auth)
         }
-        .alert("确定要撤回翻译吗？", isPresented: $showsWithdrawalConfirmation) {
+        .alert("要撤回翻译吗？", isPresented: $showsWithdrawalConfirmation) {
             Button("保持", role: .cancel) {
                 pendingWithdrawal = nil
             }
@@ -773,7 +782,7 @@ struct 简介翻译贡献页面: View {
             } else if let errorMessage {
                 Section {
                     平台内容不可用视图(
-                        "加载失败",
+                        "无法载入",
                         systemImage: "exclamationmark.triangle",
                         description: Text(verbatim: errorMessage)
                     )
@@ -781,7 +790,7 @@ struct 简介翻译贡献页面: View {
             } else if submissions.isEmpty {
                 Section {
                     平台内容不可用视图(
-                        "暂无已提交翻译",
+                        "无已提交翻译",
                         systemImage: "character.bubble"
                     )
                 } footer: {
@@ -983,69 +992,5 @@ struct 简介翻译贡献页面: View {
                 withdrawalError = error.localizedDescription
             }
         }
-    }
-}
-
-private struct 简介原文展开文本: View {
-    let text: String
-
-    @State private var 已展开 = false
-    @State private var 完整高度: CGFloat = 0
-    @State private var 收起高度: CGFloat = 0
-
-    private var 展开动画: Animation {
-        .smooth(duration: 0.34, extraBounce: 0)
-    }
-
-    private var 应显示更多按钮: Bool {
-        收起高度 > 0 && 完整高度 > 收起高度 + 1
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            正文
-                .lineLimit(已展开 ? nil : 6)
-                .textSelection(.enabled)
-                .background(alignment: .topLeading) {
-                    正文
-                        .fixedSize(horizontal: false, vertical: true)
-                        .hidden()
-                        .onGeometryChange(for: CGFloat.self) { proxy in
-                            proxy.size.height
-                        } action: { height in
-                            完整高度 = height
-                        }
-                }
-                .onGeometryChange(for: CGFloat.self) { proxy in
-                    proxy.size.height
-                } action: { height in
-                    if !已展开 {
-                        收起高度 = height
-                    }
-                }
-
-            if 应显示更多按钮 {
-                Button {
-                    withAnimation(展开动画) {
-                        已展开.toggle()
-                    }
-                } label: {
-                    Text(已展开 ? "收起" : "更多")
-                        .font(.footnote.weight(.medium))
-                        .foregroundStyle(.secondary)
-                        .contentTransition(.opacity)
-                }
-                .buttonStyle(.plain)
-                .padding(.vertical, 2)
-                .accessibilityLabel(已展开 ? "收起原文" : "展开原文")
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var 正文: some View {
-        Text(verbatim: text)
-            .font(.callout)
-            .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

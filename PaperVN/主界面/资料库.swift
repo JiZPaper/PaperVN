@@ -268,7 +268,7 @@ struct 资料库: View {
                                             }
                                         )
                                     }
-                                    .平台匹配转场源(
+                                    .matchedTransitionSource(
                                         id: editorTransitionID(for: item),
                                         in: namespace
                                     )
@@ -302,7 +302,7 @@ struct 资料库: View {
                                                     string: "https://vndb.org/\(item.id)"
                                                 )!
                                             ) {
-                                                Label("分享", systemImage: "square.and.arrow.up")
+                                                Label("共享", systemImage: "square.and.arrow.up")
                                             }
 
                                             Divider()
@@ -327,7 +327,7 @@ struct 资料库: View {
                     .overlay {
                         if listItems.isEmpty && !isShowingListPlaceholders {
                             平台内容不可用视图(
-                                "暂无视觉小说",
+                                "无视觉小说",
                                 systemImage: "tray",
                                 description: Text("添加视觉小说到资料库。")
                             )
@@ -438,10 +438,10 @@ struct 资料库: View {
                     isPresented: $showAccountSheet
                 )
                 .平台近全屏弹窗(dragIndicator: .hidden)
-                .平台缩放转场(
+                .navigationTransition(.zoom(
                     sourceID: "LibraryAccountSheet",
                     in: namespace
-                )
+                ))
             }
             .sheet(isPresented: $showFeedbackSheet) {
                 NavigationStack {
@@ -451,26 +451,26 @@ struct 资料库: View {
                     )
                 }
                 .平台近全屏弹窗(dragIndicator: .hidden)
-                .平台缩放转场(
+                .navigationTransition(.zoom(
                     sourceID: "LibraryFeedbackSheet",
                     in: namespace
-                )
+                ))
             }
             .sheet(isPresented: $showTranslationContributionSheet) {
                 简介翻译贡献页面(auth: auth)
                     .平台近全屏弹窗(dragIndicator: .hidden)
-                    .平台缩放转场(
+                    .navigationTransition(.zoom(
                         sourceID: "LibraryFeedbackSheet",
                         in: namespace
-                    )
+                    ))
             }
             .sheet(isPresented: $showTodayRecommendationSheet) {
                 Today推荐页面(vndbAccount: auth.vndb账户)
                     .平台近全屏弹窗(dragIndicator: .hidden)
-                    .平台缩放转场(
+                    .navigationTransition(.zoom(
                         sourceID: "LibraryFeedbackSheet",
                         in: namespace
-                    )
+                    ))
             }
             .sheet(item: $editorTarget) { target in
                 let displayedTitle = displayTitle(for: target.item)
@@ -487,10 +487,10 @@ struct 资料库: View {
                     await loadList(forceRefresh: true)
                 }
                 .平台近全屏弹窗(dragIndicator: .visible)
-                .平台缩放转场(
+                .navigationTransition(.zoom(
                     sourceID: editorTransitionID(for: target.item),
                     in: namespace
-                )
+                ))
             }
             .alert(item: $deleteRequest) { request in
                 Alert(
@@ -504,7 +504,7 @@ struct 资料库: View {
                     secondaryButton: .cancel(Text("取消"))
                 )
             }
-            .alert("获取失败", isPresented: .constant(apiService.errorMessage != nil)) {
+            .alert("无法获取", isPresented: .constant(apiService.errorMessage != nil)) {
                 Button("好") {
                     apiService.errorMessage = nil
                 }
@@ -542,7 +542,7 @@ struct 资料库: View {
         }
         .buttonStyle(.plain)
         .contentShape(Circle())
-        .平台匹配转场源(
+        .matchedTransitionSource(
             id: "LibraryAccountSheet",
             in: namespace
         )
@@ -571,7 +571,7 @@ struct 资料库: View {
         } label: {
             Image(systemName: "ellipsis.bubble")
         }
-        .平台匹配转场源(
+        .matchedTransitionSource(
             id: "LibraryFeedbackSheet",
             in: namespace
         )
@@ -717,10 +717,10 @@ struct 资料库: View {
             if error as? VNDB服务错误 == .token无效
                 || (error as? URLError)?.code == .userAuthenticationRequired {
                 apiService.errorMessage = String(
-                    localized: "资料库请求未通过登录验证，请稍后重试。"
+                    localized: "资料库请求未通过登录验证，请稍后再试。"
                 )
             } else if listItems.isEmpty {
-                apiService.errorMessage = String(localized: "无法获取游戏，请检查网络连接或稍后重试。")
+                apiService.errorMessage = String(localized: "无法获取游戏，请检查网络连接或稍后再试。")
             }
             didFinishRequest = true
         }
@@ -821,7 +821,7 @@ struct 资料库: View {
     ) -> String {
         let title = displayTitle(for: item)
         return String(
-            format: String(localized: "确定要从资料库删除“%@”吗？"),
+            format: String(localized: "要从资料库删除“%@”吗？"),
             title.text
         )
     }
@@ -986,7 +986,7 @@ struct 资料库列表行: View {
                     Color.clear
                         .contentShape(Rectangle())
                         .onTapGesture(perform: revealCover)
-                        .accessibilityLabel("轻触两次以解除模糊")
+                        .accessibilityLabel("连按两次以解除模糊")
                 }
             }
             .frame(width: 72, height: 100)

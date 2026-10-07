@@ -93,7 +93,7 @@ struct 更多标签页面: View {
     @Binding var showTranslatedText: Bool
     @Binding var translatedNames: [String: String]
     @State private var isTranslating = false
-    @State private var translationConfiguration: 平台翻译配置?
+    @State private var translationConfiguration: TranslationSession.Configuration?
     @State private var translationError: String?
     @State private var tagsContentOpacity = 1.0
     @State private var isSwitchingTranslation = false
@@ -116,7 +116,7 @@ struct 更多标签页面: View {
 
         ScrollView {
             if visibleTags.isEmpty {
-                平台内容不可用视图("暂无标签", systemImage: "tag")
+                平台内容不可用视图("无标签", systemImage: "tag")
                     .frame(maxWidth: .infinity)
                     .padding(.top, 72)
             } else {
@@ -190,7 +190,7 @@ struct 更多标签页面: View {
                                 .controlSize(.small)
                                 .frame(width: 16, height: 16)
                         } else {
-                            Image(systemName: 平台符号.翻译)
+                            Image(systemName: "translate")
                                 .font(.subheadline.weight(.medium))
                                 .frame(width: 16, height: 16)
                         }
@@ -200,7 +200,7 @@ struct 更多标签页面: View {
                     .accessibilityLabel(
                         showTranslatedText
                             ? "显示未人工翻译标签的原文"
-                            : "翻译未人工翻译的标签"
+                            : "自动翻译没有人工译文的标签"
                     )
                 }
             }
@@ -210,7 +210,7 @@ struct 更多标签页面: View {
                 prepareTranslationIfNeeded()
             }
         }
-        .平台翻译任务(translationConfiguration) { session in
+        .translationTask(translationConfiguration) { session in
             await translateMissingTags(using: session)
         }
         .overlay(alignment: .bottom) {
@@ -223,7 +223,7 @@ struct 更多标签页面: View {
             blurRevealConfirmation.cancel()
         }
         .alert(
-            "翻译失败",
+            "无法翻译",
             isPresented: Binding(
                 get: { translationError != nil },
                 set: { if !$0 { translationError = nil } }
@@ -327,26 +327,20 @@ struct 更多标签页面: View {
 
         guard !missing.isEmpty else { return }
 
-        guard #available(iOS 18.0, *) else { return }
-
         if var configuration = translationConfiguration {
             configuration.source = Locale.Language(identifier: "en")
             configuration.target = targetLanguage.localeLanguage
             configuration.invalidate()
             translationConfiguration = configuration
         } else {
-            translationConfiguration = 平台翻译配置(
+            translationConfiguration = TranslationSession.Configuration(
                 source: Locale.Language(identifier: "en"),
                 target: targetLanguage.localeLanguage
             )
         }
     }
 
-    private func translateMissingTags(using platformSession: 平台翻译会话) async {
-
-        guard #available(iOS 18.0, *) else { return }
-
-        let session = platformSession.session
+    private func translateMissingTags(using session: TranslationSession) async {
         let missing = tags.filter {
             VNDB标签人工翻译.界面译文(for: $0) == nil
                 && translatedNames[$0.id] == nil
@@ -471,7 +465,7 @@ struct 更多特征页面: View {
 
         ScrollView {
             if visibleTraits.isEmpty {
-                平台内容不可用视图("暂无特征", systemImage: "person.text.rectangle")
+                平台内容不可用视图("无特征", systemImage: "person.text.rectangle")
                     .frame(maxWidth: .infinity)
                     .padding(.top, 72)
             } else {
@@ -495,7 +489,7 @@ struct 更多特征页面: View {
                     Button {
                         toggleTranslation()
                     } label: {
-                        Image(systemName: 平台符号.翻译)
+                        Image(systemName: "translate")
                             .font(.subheadline.weight(.medium))
                             .frame(width: 16, height: 16)
                     }

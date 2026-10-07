@@ -21,18 +21,9 @@ nonisolated enum VNDB简介翻译模式: String, CaseIterable, Identifiable, Sen
         }
     }
 
-    /// 设备端模型依赖 iOS 18 的端侧翻译，更早系统不提供。
-    static var 可用模式: [Self] {
-        if #available(iOS 18.0, *) {
-            return allCases
-        }
-        return allCases.filter { $0 != .automaticOnDevice }
-    }
-
     static var current: Self {
         guard let value = UserDefaults.standard.string(forKey: 设置键),
-              let mode = Self(rawValue: value),
-              可用模式.contains(mode) else {
+              let mode = Self(rawValue: value) else {
             return UserDefaults.standard.bool(
                 forKey: VNDB简介人工翻译.完整下载设置键
             ) ? .openSourceOffline : .openSourceFetch
@@ -1062,9 +1053,9 @@ nonisolated enum VNDB简介人工翻译 {
     static func cleanDescription(_ description: String) -> String {
         var text = description
         text = text.replacingOccurrences(
-            of: "\\[/?[a-zA-Z]+[^\\]]*\\]",
+            of: "\\[/?(?:url|spoiler|quote|raw|code|b|i|u|s)(?:=[^\\]]*)?\\]",
             with: "",
-            options: .regularExpression
+            options: [.regularExpression, .caseInsensitive]
         )
         text = text.replacingOccurrences(of: "\\n", with: "\n")
         return text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1478,7 +1469,7 @@ nonisolated enum VNDB简介翻译投稿错误: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .unavailable:
-            String(localized: "服务器当前不可用，请稍后重试。")
+            String(localized: "服务器当前不可用，请稍后再试。")
         case .invalidResponse:
             String(localized: "翻译投稿服务返回了无效响应。")
         case let .server(code, message):

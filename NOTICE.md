@@ -30,11 +30,12 @@ The following material belongs to its respective owners and is not covered by th
 - `PaperVN/Assets.xcassets/LiquidGlassPreviewHoshizora.imageset/` — third-party artwork, used only as a settings preview. All rights belong to its owner.
 - Visual-novel covers, screenshots, and character artwork shown in `docs/images/screenshots/` belong to their respective rights holders and appear only to illustrate the app.
 - Visual-novel metadata and images that the app retrieves or bundles, including data derived from [VNDB](https://vndb.org/), remain subject to the terms of their sources, such as the [VNDB Data License](https://vndb.org/d17).
+- The Hiro智能 search model downloaded by the app includes Chinese titles, aliases, and tags derived from the [Bangumi](https://bgm.tv/) wiki data archive ([bangumi/Archive](https://github.com/bangumi/Archive)), which remain subject to Bangumi's terms.
 - Event data in `PaperVN/Resources/` remains subject to the terms of its original sources.
 
 ## Online services
 
-The PaperVN server and its hosted services (Today, Paparu, PaperVN Event, PaperVN Connect, feedback, system status, and translation submissions) are not part of this repository. They are operated for the official app and are subject to the [Terms of Service](https://papervn.jizpaper.com/TermsOfService.html) and [Privacy Policy](https://papervn.jizpaper.com/PrivacyPolicy.html). Access from other builds may be limited or revoked at any time.
+The PaperVN server and its hosted services (Today, PaperVN Event, PaperVN Connect, feedback, system status, and translation submissions) are not part of this repository. They are operated for the official app and are subject to the [Terms of Service](https://papervn.jizpaper.com/TermsOfService.html) and [Privacy Policy](https://papervn.jizpaper.com/PrivacyPolicy.html). Access from other builds may be limited or revoked at any time.
 
 ## Private configuration
 

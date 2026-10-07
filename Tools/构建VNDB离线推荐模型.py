@@ -67,9 +67,14 @@ ITEM_INITIAL_SCALE = 0.01
 USER_REGULARIZATION_CANDIDATES = (0.5, 1.0, 2.0, 3.0, 5.0, 8.0, 12.0, 20.0)
 INTERCEPT_REGULARIZATION = 0.01
 # The app scores titles by p·q + biasWeight × item bias. Weight 0 keeps only
-# the personal part; 1 is the full prediction, which pushes the same
-# well-liked titles to everyone. The weight with the best held-out recall wins.
-BIAS_WEIGHT_CANDIDATES = (0.0, 0.125, 0.25, 0.5, 1.0)
+# the personal part; larger weights push the same well-liked titles to
+# everyone (on held-out users, 0.25 put one title into 76% of top-20 lists),
+# so the weight with the best held-out recall is chosen from these.
+BIAS_WEIGHT_CANDIDATES = (0.0, 0.0625, 0.125)
+# Item biases of titles with few votes come from a handful of fans and are
+# extreme (a 22-vote title had the second-largest bias). Shrink them like a
+# Bayesian average worth this many votes.
+BIAS_SHRINKAGE_VOTES = 50
 RECALL_DEPTH = 100
 LIKED_SIGNAL = 0.3
 # VNDB本地推荐算法V2 treats a collaborative score of 0.72 as reliable
@@ -77,6 +82,7 @@ LIKED_SIGNAL = 0.3
 RELIABLE_COLLABORATIVE_SCORE = 0.72
 RELIABLE_SCORE_QUANTILE = 0.001
 SERIES_RELATIONS = {"seq", "preq", "fan", "side", "ser"}
+EVALUATION_USERS_FILENAME = "evaluation-users.json.gz"
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -491,6 +497,8 @@ class VoteDataset:
     # Evaluation users: visible training votes and hidden votes, as (item, signal).
     observed: dict[int, list[tuple[int, float]]]
     held_out: dict[int, list[tuple[int, float]]]
+    # The same users as raw (VN number, vote) pairs, for the offline evaluator.
+    evaluation_votes: list[tuple[list[tuple[int, int]], list[tuple[int, int]]]]
 
 
 @dataclass
@@ -500,6 +508,7 @@ class CollaborativeModel:
     factors: list[list[float]]
     biases: list[float]
     parameters: dict[str, Any]
+    evaluation_votes: list[tuple[list[tuple[int, int]], list[tuple[int, int]]]]
 
 
 def load_votes(path: Path, holdout_users: int, seed: int) -> VoteDataset:
@@ -519,6 +528,7 @@ def load_votes(path: Path, holdout_users: int, seed: int) -> VoteDataset:
     users, items, signals = array("i"), array("i"), array("d")
     observed: dict[int, list[tuple[int, float]]] = {}
     held_out: dict[int, list[tuple[int, float]]] = {}
+    evaluation_votes: list[tuple[list[tuple[int, int]], list[tuple[int, int]]]] = []
     user_count = 0
     for user_id in sorted(by_user):
         votes = by_user[user_id]
@@ -542,6 +552,7 @@ def load_votes(path: Path, holdout_users: int, seed: int) -> VoteDataset:
             signals.append(signal)
             visible.append((item, signal))
         if hidden:
+            evaluation_votes.append((list(votes), list(hidden)))
             observed[user] = visible
             held_out[user] = [
                 (
@@ -570,6 +581,7 @@ def load_votes(path: Path, holdout_users: int, seed: int) -> VoteDataset:
         signals=signals,
         observed=observed,
         held_out=held_out,
+        evaluation_votes=evaluation_votes,
     )
 
 
@@ -633,6 +645,13 @@ def train_factors(
             f"{math.sqrt(squared_error / total):.4f} ({time.time() - started:.0f}s)."
         )
     return item_factors, item_bias
+
+
+def shrink_biases(biases: list[float], counts: list[int]) -> list[float]:
+    return [
+        bias * count / (count + BIAS_SHRINKAGE_VOTES)
+        for bias, count in zip(biases, counts)
+    ]
 
 
 def scale_for_released_apps(factors: list[list[float]], counts: list[int]) -> float:
@@ -811,6 +830,17 @@ def evaluate_collaborative_model(
             total += len(liked)
         return hits / max(1, total)
 
+    def top_title_share(weight: float) -> float:
+        """Share of users whose top 20 contains the single most common title."""
+        appearances: Counter[int] = Counter()
+        for personal, seen, _ in rankings:
+            appearances.update(heapq.nlargest(
+                20,
+                (item for item in range(len(factors)) if item not in seen),
+                key=lambda item: personal[item] + weight * biases[item],
+            ))
+        return max(appearances.values(), default=0) / max(1, len(rankings))
+
     recalls = {
         weight: recall(lambda personal, item, weight=weight: personal[item] + weight * biases[item])
         for weight in BIAS_WEIGHT_CANDIDATES
@@ -849,6 +879,7 @@ def evaluate_collaborative_model(
         "biasWeight": bias_weight,
         "scoreScale": score_scale,
         "recallAt100": recalls[bias_weight],
+        "topTitleShare": top_title_share(bias_weight),
         "personalOnlyRecallAt100": recalls[0.0],
         "biasOnlyRecallAt100": recall(lambda personal, item: biases[item]),
         "popularityRecallAt100": recall(lambda personal, item: counts[item]),
@@ -918,6 +949,7 @@ def build_collaborative_model(
         f"{len(dataset.held_out):,} users are partly held out for evaluation."
     )
     factors, biases = train_factors(dataset, factor_count, epochs, seed)
+    biases = shrink_biases(biases, dataset.item_vote_counts)
     factor_scale = scale_for_released_apps(factors, dataset.item_vote_counts)
     metrics = evaluate_collaborative_model(
         dataset, factors, biases, factor_count, related_pairs, seed, factor_scale
@@ -934,6 +966,7 @@ def build_collaborative_model(
         f"(personal only {metrics['personalOnlyRecallAt100']:.4f}, "
         f"bias only {metrics['biasOnlyRecallAt100']:.4f}, "
         f"popularity {metrics['popularityRecallAt100']:.4f}), "
+        f"most common title in {metrics['topTitleShare']:.0%} of top-20 lists, "
         f"regularization {metrics['userRegularization']}, "
         f"bias weight {metrics['biasWeight']}, score scale {metrics['scoreScale']:.4f}."
     )
@@ -957,6 +990,7 @@ def build_collaborative_model(
             "factorScale": round(factor_scale, 6),
             "evaluation": evaluation,
         },
+        evaluation_votes=dataset.evaluation_votes,
     )
 
 
@@ -1031,6 +1065,31 @@ def run_self_test() -> None:
         f"Self-test passed: learned similarity correlation {correlation:.3f}, "
         "the quality gate accepts the trained model and rejects random factors."
     )
+
+
+def write_evaluation_users(
+    output: Path,
+    evaluation_votes: list[tuple[list[tuple[int, int]], list[tuple[int, int]]]],
+) -> None:
+    """Held-out users for Tools/推荐离线评估. Their hidden votes were not trained on.
+
+    Only (VN number, vote) pairs are written; no VNDB user IDs.
+    """
+    with gzip.open(output, "wt", encoding="utf-8") as file:
+        json.dump(
+            {
+                "users": [
+                    {
+                        "visible": [[vn_id, vote] for vn_id, vote in visible],
+                        "hidden": [[vn_id, vote] for vn_id, vote in hidden],
+                    }
+                    for visible, hidden in evaluation_votes
+                ]
+            },
+            file,
+            separators=(",", ":"),
+        )
+    print(f"evaluation: wrote {len(evaluation_votes)} held-out users to {output}.")
 
 
 def write_array_item(file: Any, value: Any, first: bool) -> bool:
@@ -1204,6 +1263,10 @@ def main() -> int:
             arguments.output,
             collaborative,
             arguments.factors,
+        )
+        write_evaluation_users(
+            arguments.output.with_name(EVALUATION_USERS_FILENAME),
+            collaborative.evaluation_votes,
         )
     except RuntimeError as error:
         print(f"Build failed: {error}", file=sys.stderr)

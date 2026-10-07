@@ -543,7 +543,7 @@ struct 评论正文: View {
             guard 需要解除剧透 else { return }
             withAnimation(.easeInOut(duration: 0.2)) { 已解除剧透 = true }
         }
-        .accessibilityHint(需要解除剧透 ? Text("轻触以显示剧透内容") : Text(verbatim: ""))
+        .accessibilityHint(需要解除剧透 ? Text("轻点以显示剧透内容") : Text(verbatim: ""))
         .animation(.easeInOut(duration: 0.2), value: 已解除剧透)
     }
 

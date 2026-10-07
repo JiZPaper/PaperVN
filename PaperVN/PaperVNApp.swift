@@ -25,6 +25,7 @@ struct PaperVNApp: App {
         }
 
         PaperVN设置迁移.应用沉浸详情透明默认迁移()
+        PaperVN设置迁移.清除助手数据()
         PaperVNConnect自动策略.准备初始状态()
         紧急回避中心.shared.startMonitoring()
         强制内容安全策略.应用到用户设置()
@@ -56,17 +57,25 @@ struct PaperVNApp: App {
             "下载偏好分析所需模型",
             isPresented: $showsRecommendationModelPrompt
         ) {
-            Button("禁用“为你推荐”") {
+            Button("关闭“为你推荐”") {
                 recommendationPreferenceAnalysisEnabled = false
                 推荐后台分析中心.shared.停止分析()
             }
-            Button("下载（40.5 MB）") {
-                Task { await recommendationModelDownloadState.download() }
+            if let size = recommendationModelDownloadState.serverFileSizeText {
+                Button("下载（\(size)）") {
+                    Task { await recommendationModelDownloadState.download() }
+                }
+            } else {
+                Button("下载") {
+                    Task { await recommendationModelDownloadState.download() }
+                }
             }
         } message: {
             Text("从此版本开始，偏好分析所需的模型不再包含在PaperVN App中，偏好分析将用于Today页面的“为你推荐”部分。")
         }
         .简介翻译更新提示()
+        .偏好分析模型更新提示()
+        .智能搜索模型更新提示()
         .environment(
             \.openURL,
             OpenURLAction { url in
@@ -103,7 +112,10 @@ struct PaperVNApp: App {
             await 简介翻译下载状态.shared.checkForUpdate()
         }
         .task {
-            await recommendationModelDownloadState.updateIfOutdated()
+            await recommendationModelDownloadState.checkForUpdate()
+        }
+        .task {
+            await 智能搜索模型下载状态.shared.checkForUpdate()
         }
         .task(id: auth.token + "|" + auth.userID) {
             推荐后台分析中心.shared.启动需要的分析()
@@ -135,7 +147,7 @@ struct PaperVNApp: App {
                 await 简介翻译下载状态.shared.checkForUpdate()
             }
             Task {
-                await recommendationModelDownloadState.updateIfOutdated()
+                await recommendationModelDownloadState.checkForUpdate()
             }
         }
 
@@ -166,7 +178,10 @@ struct PaperVNApp: App {
               !recommendationModelDownloadState.isDownloading else {
             return
         }
-        showsRecommendationModelPrompt = true
+        Task {
+            await recommendationModelDownloadState.refreshServerFileSize()
+            showsRecommendationModelPrompt = true
+        }
     }
 
 }
@@ -176,6 +191,35 @@ enum PaperVN设置迁移 {
         "PaperVN.didApplyImmersiveDetailTransparencyMigration.1.5.0.3"
     private static let 旧详情视图设置键 = "visualNovelDetailView"
     private static let 沉浸详情设置值 = "immersive"
+    private static let 助手数据清除键 = "PaperVN.didRemoveAssistantData"
+    private static let 助手本地数据键 = [
+        "paperVNAssistantConversationsV1",
+        "paperVNAssistantHonorific",
+        "paperVNAssistantMemoryEnabledV1",
+        "paperVNAssistantMemorySummaryV2",
+        "paperVNAssistantMemoryClearedAtV1",
+        "paperVNAssistantMemoryICloudSyncEnabledV1",
+        "paperVNAssistantMemoriesV1",
+        "com.jizpaper.PaperVN.paparu.remoteConfiguration",
+    ]
+    private static let 助手云端数据键 = [
+        "paperVNAssistantMemorySummaryV2",
+        "paperVNAssistantMemoryClearedAtV1",
+    ]
+
+    /// Paparu 对话功能已移除，清除它在本机和 iCloud 中留下的对话、称呼与记忆摘要。
+    static func 清除助手数据(defaults: UserDefaults = .standard) {
+        guard !defaults.bool(forKey: 助手数据清除键) else { return }
+        for 键 in 助手本地数据键 {
+            defaults.removeObject(forKey: 键)
+        }
+        let 云端 = NSUbiquitousKeyValueStore.default
+        for 键 in 助手云端数据键 {
+            云端.removeObject(forKey: 键)
+        }
+        云端.synchronize()
+        defaults.set(true, forKey: 助手数据清除键)
+    }
 
     static func 应用沉浸详情透明默认迁移(
         defaults: UserDefaults = .standard

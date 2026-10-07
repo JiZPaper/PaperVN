@@ -99,9 +99,6 @@ struct 角色详情: View {
     @State private var revealedTraitIDs: Set<String> = []
     @State private var showTranslatedTraits = false
     @State private var showAllTraits = false
-    @State private var traitsAreAtEnd = false
-    @State private var traitsOverscrollArmed = false
-    @State private var traitsOverscrollFeedback = 0
     @State private var traitsContentOpacity = 1.0
     @State private var isSwitchingTraitLanguage = false
     @State private var characterInfoPopover: 角色信息提示?
@@ -110,7 +107,7 @@ struct 角色详情: View {
     @State private var translatedDescription: String?
     @State private var isTranslatingDescription = false
     @State private var descriptionTranslationConfiguration:
-        平台翻译配置?
+        TranslationSession.Configuration?
     @State private var translationError: String?
     @State private var manualDescription: String?
     @State private var hasFinishedManualDescriptionLookup = false
@@ -369,7 +366,7 @@ struct 角色详情: View {
             guard !isLoading else { return }
             scheduleImmersiveAppearanceRefresh()
         }
-        .平台翻译任务(descriptionTranslationConfiguration) { session in
+        .translationTask(descriptionTranslationConfiguration) { session in
             await translateDescription(using: session)
         }
         .navigationDestination(isPresented: $showAllTraits) {
@@ -381,10 +378,10 @@ struct 角色详情: View {
         .sheet(isPresented: $showDescriptionSheet) {
             if let detail {
                 characterDescriptionSheet(detail)
-                    .平台缩放转场(
+                    .navigationTransition(.zoom(
                         sourceID: "CharacterDescriptionSheet",
                         in: descriptionNamespace
-                    )
+                    ))
             }
         }
         .overlay(alignment: .bottom) {
@@ -398,7 +395,7 @@ struct 角色详情: View {
             immersiveTextSamplingCoordinator.cancel()
         }
         .alert(
-            "翻译失败",
+            "无法翻译",
             isPresented: Binding(
                 get: { translationError != nil },
                 set: { if !$0 { translationError = nil } }
@@ -775,7 +772,7 @@ struct 角色详情: View {
                     .frame(width: width, height: renderedHeight)
                 } else {
                     平台内容不可用视图(
-                        "暂无角色图片",
+                        "无角色图片",
                         systemImage: "person.crop.rectangle"
                     )
                     .frame(width: width, height: renderedHeight)
@@ -1955,7 +1952,7 @@ struct 角色详情: View {
                                     ProgressView()
                                         .controlSize(.small)
                                 } else {
-                                    Image(systemName: 平台符号.翻译)
+                                    Image(systemName: "translate")
                                 }
                             }
                             .buttonStyle(.plain)
@@ -2007,7 +2004,7 @@ struct 角色详情: View {
         .contentShape(
             RoundedRectangle(cornerRadius: 28, style: .continuous)
         )
-        .平台匹配转场源(
+        .matchedTransitionSource(
             id: "CharacterDescriptionSheet",
             in: descriptionNamespace
         )
@@ -2038,7 +2035,7 @@ struct 角色详情: View {
                         Button {
                             switchTraitTranslation()
                         } label: {
-                            Image(systemName: 平台符号.翻译)
+                            Image(systemName: "translate")
                                 .font(.caption.weight(.semibold))
                                 .frame(width: 30, height: 30)
                         }
@@ -2382,265 +2379,8 @@ struct 角色详情: View {
         .accessibilityLabel("正在载入…")
     }
 
-    @ViewBuilder
-    private func primarySection(_ detail: 角色详细信息) -> some View {
-        if horizontalSizeClass == .regular {
-            HStack(alignment: .center, spacing: 32) {
-                hero(detail)
-                title(detail)
-            }
-            .frame(maxWidth: 900)
-            .padding(.vertical, 12)
-        } else {
-            hero(detail)
-            title(detail)
-        }
-    }
-
     private var isShowingInitialSkeleton: Bool {
         detail == nil && isLoadingDetail && errorMessage == nil
-    }
-
-    @ViewBuilder
-    private var detailFailureSection: some View {
-        if let errorMessage {
-            Section {
-                Label(
-                    detail == nil ? "无法载入" : "无法载入",
-                    systemImage: "exclamationmark.triangle"
-                )
-                    .foregroundStyle(.secondary)
-
-                Text(verbatim: errorMessage)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                Button {
-                    Task {
-                        await loadDetail(forceRefresh: true)
-                    }
-                } label: {
-                    Label("重试", systemImage: "arrow.clockwise")
-                }
-                .disabled(isLoadingDetail)
-            }
-        }
-    }
-
-    private var descriptionLoadingSection: some View {
-        Section("简介") {
-            VStack(alignment: .leading, spacing: 9) {
-                ForEach(0..<4, id: \.self) { index in
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .fill(Color.secondary.opacity(0.14))
-                        .frame(
-                            maxWidth: index == 3 ? 180 : .infinity,
-                            minHeight: 12,
-                            maxHeight: 12,
-                            alignment: .leading
-                        )
-                }
-            }
-            .padding(.vertical, 4)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("正在载入…")
-        }
-    }
-
-    private var appearancesLoadingSection: some View {
-        Section("登场作品") {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 14) {
-                    ForEach(0..<3, id: \.self) { _ in
-                        VStack(alignment: .leading, spacing: 7) {
-                            RoundedRectangle(cornerRadius: 26, style: .continuous)
-                                .fill(Color.secondary.opacity(0.12))
-                                .frame(
-                                    width: 详情卡片样式.角色图片宽度,
-                                    height: 详情卡片样式.角色图片高度
-                                )
-                            RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                .fill(Color.secondary.opacity(0.14))
-                                .frame(width: 92, height: 11)
-                            RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                .fill(Color.secondary.opacity(0.1))
-                                .frame(width: 58, height: 9)
-                        }
-                    }
-                }
-                .padding(.bottom, 14)
-            }
-            .平台横向书架()
-            .listRowInsets(
-                EdgeInsets(top: 0, leading: 0, bottom: 16, trailing: 0)
-            )
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("正在载入…")
-        }
-    }
-
-    private func hero(_ detail: 角色详细信息) -> some View {
-        let needsRestriction = shouldBlurImage(
-            sexual: detail.image?.sexual,
-            violence: detail.image?.violence
-        )
-        let isRestricted = needsRestriction && (
-            contentRestrictionMethod == .hidden || !revealImage
-        )
-        let imageSize = heroImageSize
-
-        return HStack {
-            Spacer(minLength: 0)
-
-            ZStack {
-                if let urlString = detail.image?.url,
-                   let url = URL(string: urlString) {
-                    CachedAsyncImage(
-                        url: url,
-                        contentMode: .fill
-                    )
-                    .frame(width: imageSize.width, height: imageSize.height)
-                    .clipped()
-                    .应用不安全内容限制(
-                        isRestricted,
-                        method: contentRestrictionMethod,
-                        blurRadius: 24
-                    )
-                    .clipShape(
-                        RoundedRectangle(
-                            cornerRadius: 30,
-                            style: .continuous
-                        )
-                    )
-                } else if isShowingInitialSkeleton {
-                    ZStack {
-                        Color.secondary.opacity(0.12)
-                        ProgressView()
-                            .controlSize(.small)
-                    }
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("正在载入…")
-                } else {
-                    平台内容不可用视图("暂无角色图片", systemImage: "person.crop.rectangle")
-                        .background(Color.secondary.opacity(0.08))
-                }
-
-                Color.clear
-                    .contentShape(
-                        RoundedRectangle(
-                            cornerRadius: 30,
-                            style: .continuous
-                        )
-                    )
-                    .onTapGesture {
-                        guard isRestricted,
-                              contentRestrictionMethod == .blurred,
-                              canRevealImage(
-                                sexual: detail.image?.sexual
-                              ) else {
-                            return
-                        }
-                        blurRevealConfirmation.request(id: "character-image") {
-                            withAnimation(.easeInOut(duration: 0.22)) {
-                                revealImage = true
-                            }
-                        }
-                    }
-            }
-            .frame(width: imageSize.width, height: imageSize.height)
-            .background(
-                Color.secondary.opacity(
-                    isRestricted ? 0.18 : 0.08
-                ),
-                in: RoundedRectangle(cornerRadius: 30, style: .continuous)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: 30, style: .continuous)
-                    .stroke(
-                        Color.secondary.opacity(
-                            isRestricted ? 0.34 : 0.14
-                        ),
-                        lineWidth: isRestricted ? 1 : 0.5
-                    )
-            }
-            .clipShape(
-                RoundedRectangle(cornerRadius: 30, style: .continuous)
-            )
-
-            Spacer(minLength: 0)
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    private var heroImageSize: CGSize {
-        horizontalSizeClass == .regular
-            ? CGSize(width: 244, height: 332)
-            : CGSize(width: 204, height: 278)
-    }
-
-    @ViewBuilder
-    private func descriptionSection(_ detail: 角色详细信息) -> some View {
-        if let original = detail.cleanDescription, !original.isEmpty {
-            Section {
-                if shouldDisplayDescription {
-                    简介预览文本视图(
-                        text: displayedDescription(original),
-                        lineLimit: 7
-                    )
-                        .font(.body)
-                        .foregroundStyle(.primary)
-                        .textSelection(.enabled)
-                        .contentTransition(.opacity)
-                        .opacity(manualDescriptionPresentationOpacity)
-                        .animation(
-                            .easeInOut(duration: 0.2),
-                            value: showTranslatedDescription
-                        )
-                        .contentShape(Rectangle())
-                        .平台匹配转场源(
-                            id: "CharacterDescriptionSheet",
-                            in: descriptionNamespace
-                        )
-                        .onTapGesture {
-                            showDescriptionSheet = true
-                        }
-                        .allowsHitTesting(
-                            manualDescriptionPresentationOpacity > 0.99
-                        )
-                } else {
-                    descriptionWaitingPlaceholder
-                }
-            } header: {
-                HStack {
-                    Text("简介")
-                    Spacer()
-
-                    if shouldOfferOnDeviceDescriptionTranslation {
-                        Button {
-                            requestDescriptionTranslation()
-                        } label: {
-                            if isTranslatingDescription {
-                                ProgressView()
-                                    .controlSize(.small)
-                            } else {
-                                Image(systemName: 平台符号.翻译)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(
-                            showTranslatedDescription ? .blue : .secondary
-                        )
-                        .accessibilityLabel(
-                            showTranslatedDescription
-                                ? "显示简介原文"
-                                : "翻译简介"
-                        )
-                    }
-                }
-            }
-        }
     }
 
     private func characterDescriptionSheet(
@@ -2648,32 +2388,29 @@ struct 角色详情: View {
     ) -> some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    Text(
-                        verbatim: displayedDescription(
-                            detail.cleanDescription ?? ""
-                        )
+                Text(
+                    verbatim: 简介预览文本处理.外部显示文本(
+                        displayedDescription(detail.cleanDescription ?? "")
                     )
-                        .font(.body)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .textSelection(.enabled)
-
-                    descriptionParticipationButton(style: .labeled)
-                }
-                .padding()
+                )
+                    .font(.body)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .textSelection(.enabled)
+                    .padding()
             }
             .navigationTitle("简介")
             .平台柔和滚动边缘(for: .top)
             .平台内联导航标题()
             .toolbar {
-                ToolbarItem(placement: .平台主操作) {
-                    Button {
-                        showDescriptionSheet = false
-                    } label: {
-                        Image(systemName: "xmark")
-                    }
-                    .accessibilityLabel("关闭")
-                }
+                Text(
+                    verbatim: 简介预览文本处理.外部显示文本(
+                        displayedDescription(detail.cleanDescription ?? "")
+                    )
+                )
+                    .font(.body)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .textSelection(.enabled)
+                    .padding()
             }
         }
         .平台近全屏弹窗()
@@ -2741,7 +2478,6 @@ struct 角色详情: View {
     }
 
     private var shouldOfferOnDeviceDescriptionTranslation: Bool {
-        guard #available(iOS 18.0, *) else { return false }
         guard manualDescription == nil,
               cachedManualDescription == nil else {
             return false
@@ -2793,24 +2529,6 @@ struct 角色详情: View {
         "\(characterID)|\(targetLanguage.rawValue)|\(mode.rawValue)"
     }
 
-    private var descriptionWaitingPlaceholder: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            ForEach(0..<4, id: \.self) { index in
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .fill(Color.secondary.opacity(0.14))
-                    .frame(
-                        maxWidth: index == 3 ? 180 : .infinity,
-                        minHeight: 12,
-                        maxHeight: 12,
-                        alignment: .leading
-                    )
-            }
-        }
-        .padding(.vertical, 4)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("正在载入…")
-    }
-
     private func updateManualDescriptionPresentation(
         for lookupKey: String,
         updates: () -> Void
@@ -2846,25 +2564,20 @@ struct 角色详情: View {
         }
 
         showTranslatedDescription = true
-        guard #available(iOS 18.0, *) else { return }
         if var configuration = descriptionTranslationConfiguration {
             configuration.source = nil
             configuration.target = targetLanguage.localeLanguage
             configuration.invalidate()
             descriptionTranslationConfiguration = configuration
         } else {
-            descriptionTranslationConfiguration = 平台翻译配置(
+            descriptionTranslationConfiguration = TranslationSession.Configuration(
                 source: nil,
                 target: targetLanguage.localeLanguage
             )
         }
     }
 
-    private func translateDescription(using platformSession: 平台翻译会话) async {
-
-        guard #available(iOS 18.0, *) else { return }
-
-        let session = platformSession.session
+    private func translateDescription(using session: TranslationSession) async {
         guard manualDescription == nil,
               let description = detail?.cleanDescription,
               !description.isEmpty,
@@ -3044,141 +2757,8 @@ struct 角色详情: View {
         return nil
     }
 
-    private func stats(_ detail: 角色详细信息) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if isShowingInitialSkeleton {
-                loadingCharacterStats
-            } else {
-                statRow {
-                    statPill(
-                        icon: "birthday.cake",
-                        text: detail.age.map(ageText) ?? unknownText
-                    )
-                    statPill(
-                        icon: "calendar",
-                        text: birthdayText(detail.birthday) ?? unknownText
-                    )
-                    statPill(
-                        icon: "person.crop.circle",
-                        text: combinedGenderText(detail)
-                    )
-                    infoStatPill(
-                        icon: "drop",
-                        label: "血型",
-                        value: detail.blood_type.map {
-                            bloodTypeText($0)
-                        } ?? unknownText,
-                        info: .bloodType,
-                        showsLabel: false
-                    )
-                }
-
-                statRow {
-                    statPill(
-                        icon: "ruler",
-                        text: detail.height.map(heightText) ?? unknownText
-                    )
-                    statPill(
-                        icon: "scalemass",
-                        text: detail.weight.map(weightText) ?? unknownText
-                    )
-                    statPill(
-                        icon: "circle.lefthalf.filled",
-                        text: bustText(detail.bust)
-                    )
-                    statPill(
-                        icon: "circle.lefthalf.filled",
-                        text: waistText(detail.waist)
-                    )
-                    statPill(
-                        icon: "circle.lefthalf.filled",
-                        text: hipsText(detail.hips)
-                    )
-                    if detail.cup != nil || resolvedCharacterValue(detail.sex) != "m" {
-                        statPill(
-                            icon: "circle.lefthalf.filled",
-                            text: cupText(detail.cup)
-                        )
-                    }
-                }
-
-                traitsRow(detail)
-            }
-        }
-        .padding(.vertical, 2)
-    }
-
-    private var loadingCharacterStats: some View {
-        Group {
-            statRow {
-                statPill(icon: "birthday.cake", text: ageText(18))
-                statPill(
-                    icon: "calendar",
-                    text: birthdayText([1, 1]) ?? unknownText
-                )
-                statPill(icon: "person.crop.circle", text: unknownText)
-                statPill(icon: "drop", text: bloodTypeText("A"))
-            }
-
-            statRow {
-                statPill(icon: "ruler", text: heightText(160))
-                statPill(icon: "scalemass", text: weightText(50))
-                statPill(icon: "circle.lefthalf.filled", text: bustText(80))
-                statPill(icon: "circle.lefthalf.filled", text: waistText(60))
-            }
-
-            statRow {
-                ForEach(
-                    [
-                        String(localized: "角色特征"),
-                        String(localized: "性格特征"),
-                        String(localized: "外观特征")
-                    ],
-                    id: \.self
-                ) { text in
-                    Text(verbatim: text)
-                        .font(.caption.weight(.medium))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 7)
-                        .background(Color.secondary.opacity(0.12), in: Capsule())
-                }
-            }
-        }
-        .redacted(reason: .placeholder)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("正在载入…")
-    }
-
-    private func statRow<Content: View>(
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8, content: content)
-                .padding(.vertical, 3)
-        }
-        .平台横向书架()
-        .contentMargins(.horizontal, 20, for: .scrollContent)
-    }
-
-    private func statPill(icon: String, text: String) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: icon)
-                .font(.caption2)
-            Text(verbatim: text)
-                .font(.caption.weight(.medium))
-        }
-        .foregroundStyle(.secondary)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .background(Color.secondary.opacity(0.12), in: Capsule())
-    }
-
     private func ageText(_ age: Int) -> String {
-        String(
-            format: String(localized: "%lld岁"),
-            locale: Locale.current,
-            arguments: [Int64(age)]
-        )
+        String(localized: "\(age)岁")
     }
 
     private func heightText(_ height: Int) -> String {
@@ -3205,93 +2785,6 @@ struct 角色详情: View {
         )
     }
 
-    private func bustText(_ bust: Int?) -> String {
-        if let bust {
-            return String(
-                format: String(localized: "胸围%lldcm"),
-                locale: Locale.current,
-                arguments: [Int64(bust)]
-            )
-        }
-        return String(
-            format: String(localized: "胸围%@"),
-            locale: Locale.current,
-            arguments: [unknownText]
-        )
-    }
-
-    private func waistText(_ waist: Int?) -> String {
-        if let waist {
-            return String(
-                format: String(localized: "腰围%lldcm"),
-                locale: Locale.current,
-                arguments: [Int64(waist)]
-            )
-        }
-        return String(
-            format: String(localized: "腰围%@"),
-            locale: Locale.current,
-            arguments: [unknownText]
-        )
-    }
-
-    private func hipsText(_ hips: Int?) -> String {
-        if let hips {
-            return String(
-                format: String(localized: "臀围%lldcm"),
-                locale: Locale.current,
-                arguments: [Int64(hips)]
-            )
-        }
-        return String(
-            format: String(localized: "臀围%@"),
-            locale: Locale.current,
-            arguments: [unknownText]
-        )
-    }
-
-    private func cupText(_ cup: String?) -> String {
-        String(
-            format: String(localized: "罩杯%@"),
-            locale: Locale.current,
-            arguments: [cup ?? unknownText]
-        )
-    }
-
-    private func infoStatPill(
-        icon: String,
-        label: String.LocalizationValue,
-        value: String,
-        info: 角色信息提示,
-        showsLabel: Bool = true
-    ) -> some View {
-        let localizedLabel = String(localized: label)
-
-        return statPill(
-            icon: icon,
-            text: showsLabel ? "\(localizedLabel) · \(value)" : value
-        )
-        .contentShape(Capsule())
-        .onTapGesture {
-            characterInfoPopover = info
-        }
-        .popover(
-            isPresented: infoPopoverBinding(info),
-            attachmentAnchor: .rect(.bounds),
-            arrowEdge: .bottom
-        ) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(verbatim: localizedLabel)
-                    .font(.headline)
-                Text(verbatim: value)
-                    .font(.title3.weight(.semibold))
-            }
-            .padding(16)
-            .frame(width: 250, alignment: .leading)
-            .presentationCompactAdaptation(.popover)
-        }
-    }
-
     private func infoPopoverBinding(
         _ info: 角色信息提示
     ) -> Binding<Bool> {
@@ -3305,144 +2798,6 @@ struct 角色详情: View {
         )
     }
 
-    @ViewBuilder
-    private func traitsRow(_ detail: 角色详细信息) -> some View {
-        if let traits = detail.traits, !traits.isEmpty {
-            let visibleTraits = traits.filter { !shouldHideTrait($0) }
-            if !visibleTraits.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        if targetLanguage.supportsAutomaticMetadataTranslation {
-                            Button {
-                                switchTraitTranslation()
-                            } label: {
-                                Image(systemName: 平台符号.翻译)
-                            }
-                            .buttonStyle(.plain)
-                            .foregroundStyle(
-                                showTranslatedTraits ? .blue : .secondary
-                            )
-                            .frame(width: 34, height: 42)
-                            .accessibilityLabel(
-                                showTranslatedTraits
-                                    ? "显示特征原文"
-                                    : "显示特征译文"
-                            )
-                        }
-
-                    ForEach(Array(visibleTraits.prefix(7)), id: \.id) { trait in
-                        traitCapsule(trait, allTraits: traits)
-                            .opacity(traitsContentOpacity)
-                    }
-
-                    if visibleTraits.count > 7 {
-                        Button {
-                            showAllTraits = true
-                        } label: {
-                            Label {
-                                Text(
-                                    traitsOverscrollArmed
-                                        ? "松手查看所有特征"
-                                        : "剩余\(visibleTraits.count - 7)个特征"
-                                )
-                                .contentTransition(.opacity)
-                            } icon: {
-                                Image(
-                                    systemName: traitsOverscrollArmed
-                                        ? "arrow.up.left.and.arrow.down.right"
-                                        : "chevron.right"
-                                )
-                            }
-                        }
-                        .buttonStyle(详情更多入口按钮样式())
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(
-                            traitsOverscrollArmed ? .blue : .secondary
-                        )
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 7)
-                        .background(
-                            Color.secondary.opacity(0.12),
-                            in: Capsule()
-                        )
-                        .contentShape(Capsule())
-                        .opacity(traitsContentOpacity)
-                    }
-                    }
-                    .padding(.vertical, 3)
-                    .scrollTargetLayout()
-                }
-                .平台横向书架()
-                .contentMargins(.horizontal, 20, for: .scrollContent)
-                .平台滚动几何变化(for: Bool.self) { geometry in
-                    geometry.contentOffset.x + geometry.containerSize.width
-                        >= geometry.contentSize.width - 4
-                } action: { _, atEnd in
-                    traitsAreAtEnd = atEnd
-                }
-                .simultaneousGesture(
-                    DragGesture(minimumDistance: 12)
-                        .onChanged { value in
-                            guard traitsAreAtEnd,
-                                  value.translation.width < -42,
-                                  visibleTraits.count > 7,
-                                  !traitsOverscrollArmed else {
-                                return
-                            }
-                            traitsOverscrollArmed = true
-                            traitsOverscrollFeedback += 1
-                        }
-                        .onEnded { _ in
-                            let shouldOpen = traitsOverscrollArmed
-                            traitsOverscrollArmed = false
-                            if shouldOpen {
-                                showAllTraits = true
-                            }
-                        }
-                )
-                .sensoryFeedback(.impact, trigger: traitsOverscrollFeedback)
-            }
-        }
-    }
-
-    private func traitCapsule(
-        _ trait: 角色特征,
-        allTraits: [角色特征]
-    ) -> some View {
-        let blurred = shouldBlurTrait(trait)
-        return traitCapsuleContent(
-            name: displayedTraitText(trait.name),
-            groupName: displayedTraitText(trait.group_name)
-        )
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .background(Color.secondary.opacity(0.12), in: Capsule())
-        .blur(radius: blurred ? 5 : 0)
-        .opacity(blurred ? 0.72 : 1)
-        .contentShape(Capsule())
-        .onTapGesture {
-            guard blurred,
-                  内容安全限制判定.允许手动解除模糊(
-                    色情限制: isAdultTraitRestricted(trait)
-                  ) else {
-                return
-            }
-            blurRevealConfirmation.request(id: "traits") {
-                withAnimation(.easeInOut(duration: 0.22)) {
-                    revealedTraitIDs.formUnion(
-                        allTraits
-                            .filter {
-                                内容安全限制判定.允许手动解除模糊(
-                                    色情限制: isAdultTraitRestricted($0)
-                                )
-                            }
-                            .map(\.id)
-                    )
-                }
-            }
-        }
-    }
-
     private func traitCapsuleContent(
         name: String,
         groupName: String,
@@ -3454,36 +2809,6 @@ struct 角色详情: View {
             Text(verbatim: groupName)
                 .font(.caption2)
                 .foregroundStyle(groupColor)
-        }
-    }
-
-    private var voiceActorSection: some View {
-        Section("声优") {
-            ForEach(uniqueVoiceRelationships, id: \.staff.id) { voice in
-                Label {
-                    VStack(alignment: .leading, spacing: 3) {
-                        多语言列表文本(
-                            文本: voiceActorName(for: voice),
-                            isJapanese: nameLanguage == .original,
-                            层级: .主标题,
-                            日文字体名称: "HiraginoSans-W4",
-                            系统字体粗细: .regular,
-                            语言来源已知: false,
-                            空格视为日语: true
-                        )
-                        if let note = voice.note, !note.isEmpty {
-                            Text(
-                                verbatim: VNDB显示工具.声优语言名称(note)
-                            )
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                } icon: {
-                    Image(systemName: "waveform")
-                        .foregroundStyle(.secondary)
-                }
-            }
         }
     }
 
@@ -3757,7 +3082,7 @@ struct 角色详情: View {
                             }
                         }
                     }
-                    .accessibilityLabel("轻触两次以解除模糊")
+                    .accessibilityLabel("连按两次以解除模糊")
             }
         }
         .frame(width: width, height: height)
@@ -3803,10 +3128,13 @@ struct 角色详情: View {
 
     private func birthdayText(_ birthday: [Int]?) -> String? {
         guard let birthday, birthday.count >= 2 else { return nil }
-        return String(
-            format: String(localized: "%lld月%lld日"),
-            locale: Locale.current,
-            arguments: [Int64(birthday[0]), Int64(birthday[1])]
+        let calendar = Calendar(identifier: .gregorian)
+        // 用闰年承载月日，确保2月29日也能生成日期
+        guard let date = calendar.date(
+            from: DateComponents(year: 2000, month: birthday[0], day: birthday[1])
+        ) else { return nil }
+        return date.formatted(
+            Date.FormatStyle(calendar: calendar, timeZone: calendar.timeZone).month(.wide).day()
         )
     }
 

@@ -173,7 +173,7 @@ struct 探索安全图片: View {
                             }
                         }
                     }
-                    .accessibilityLabel("轻触两次以解除模糊")
+                    .accessibilityLabel("连按两次以解除模糊")
             }
         }
         .frame(width: width, height: height)
@@ -965,7 +965,7 @@ private struct 探索视觉小说资料库操作Modifier: ViewModifier {
                 if !parentalControls.policy.blocksUntrustedExternalLinks,
                    let url = URL(string: "https://vndb.org/\(item.id)") {
                     ShareLink(item: url) {
-                        Label("分享", systemImage: "square.and.arrow.up")
+                        Label("共享", systemImage: "square.and.arrow.up")
                     }
                 }
 
@@ -1057,7 +1057,7 @@ private struct 探索发行版本列表操作Modifier: ViewModifier {
                 if !parentalControls.policy.blocksUntrustedExternalLinks,
                    let url = URL(string: "https://vndb.org/\(item.id)") {
                     ShareLink(item: url) {
-                        Label("分享", systemImage: "square.and.arrow.up")
+                        Label("共享", systemImage: "square.and.arrow.up")
                     }
                 }
 
@@ -1158,7 +1158,7 @@ private extension 探索视觉小说 {
 
 private struct 探索内联视觉小说列表: View {
     @ObservedObject var viewModel: 探索分页视图模型
-    var emptyTitle: LocalizedStringKey = "暂无相关作品"
+    var emptyTitle: LocalizedStringKey = "无相关作品"
     var sectionTitle: String? = nil
 
     @EnvironmentObject private var auth: 用户登录
@@ -1283,7 +1283,7 @@ private struct 探索内联视觉小说列表: View {
             Alert(
                 title: Text("从资料库删除"),
                 message: Text(verbatim: String(
-                    format: String(localized: "确定要从资料库删除“%@”吗？"),
+                    format: String(localized: "要从资料库删除“%@”吗？"),
                     titleResult(for: target.item).text
                 )),
                 primaryButton: .destructive(Text("从资料库删除")) {
@@ -1304,7 +1304,7 @@ private struct 探索内联视觉小说列表: View {
             Text("请先在资料库页面登录VNDB账户。")
         }
         .alert(
-            "资料库操作失败",
+            "无法完成资料库操作",
             isPresented: Binding(
                 get: { libraryActions.errorMessage != nil },
                 set: { if !$0 { libraryActions.errorMessage = nil } }
@@ -1453,7 +1453,7 @@ private struct 探索内联发行版本列表: View {
             } else if visibleItems.isEmpty, !viewModel.hasMore {
                 Section {
                     平台内容不可用视图(
-                        "暂无发行版本",
+                        "无发行版本",
                         systemImage: "shippingbox"
                     )
                 }
@@ -1516,7 +1516,7 @@ private struct 探索内联发行版本列表: View {
             Alert(
                 title: Text("从资料库删除"),
                 message: Text(verbatim: String(
-                    format: String(localized: "确定要从资料库删除“%@”吗？"),
+                    format: String(localized: "要从资料库删除“%@”吗？"),
                     releaseWorkTitleResult(for: target.item).text
                 )),
                 primaryButton: .destructive(Text("从资料库删除")) {
@@ -1537,7 +1537,7 @@ private struct 探索内联发行版本列表: View {
             Text("请先在资料库页面登录VNDB账户。")
         }
         .alert(
-            "资料库操作失败",
+            "无法完成资料库操作",
             isPresented: Binding(
                 get: { libraryActions.errorMessage != nil },
                 set: { if !$0 { libraryActions.errorMessage = nil } }
@@ -3983,9 +3983,14 @@ final class Today推荐视图模型: ObservableObject {
     @Published private(set) var errorMessage: String?
 
     private let service: any VNDB探索服务协议
+    private let feedback: 推荐反馈中心
 
-    init(service: (any VNDB探索服务协议)? = nil) {
+    init(
+        service: (any VNDB探索服务协议)? = nil,
+        feedback: 推荐反馈中心? = nil
+    ) {
         self.service = service ?? VNDB探索服务.shared
+        self.feedback = feedback ?? .shared
     }
 
     func reloadCachedRecommendations(userID: String) async {
@@ -3994,9 +3999,13 @@ final class Today推荐视图模型: ObservableObject {
                 userID: userID,
                 排除ID: []
               ), !cached.isEmpty else { return }
-        recommendations = cached
+        recommendations = feedback.展示排序(cached, userID: userID)
         hasLoaded = true
         errorMessage = nil
+    }
+
+    func 记录展示(_ ids: [String], userID: String) {
+        feedback.记录展示(ids, userID: userID)
     }
 
     func loadCachedRecommendations(userID: String) async {
@@ -4009,10 +4018,10 @@ final class Today推荐视图模型: ObservableObject {
 
         isLoading = true
         errorMessage = nil
-        recommendations = await service.已缓存推荐(
-            userID: userID,
-            排除ID: []
-        ) ?? []
+        recommendations = feedback.展示排序(
+            await service.已缓存推荐(userID: userID, 排除ID: []) ?? [],
+            userID: userID
+        )
         hasLoaded = true
         isLoading = false
     }

@@ -117,7 +117,7 @@ final class PaperVNPremiumStore: ObservableObject {
 
         guard let product else {
             errorMessage = productLoadError ?? String(
-                localized: "App Store商品暂时不可用，请稍后重试。"
+                localized: "App Store商品暂时不可用，请稍后再试。"
             )
             return false
         }
@@ -195,7 +195,7 @@ final class PaperVNPremiumStore: ObservableObject {
         defer { isLoadingProduct = false }
 
         var finalErrorMessage = String(
-            localized: "App Store商品暂时不可用，请稍后重试。"
+            localized: "App Store商品暂时不可用，请稍后再试。"
         )
 
         for attempt in 1...maxAttempts {
@@ -210,7 +210,7 @@ final class PaperVNPremiumStore: ObservableObject {
                 }
 
                 finalErrorMessage = String(
-                    localized: "App Store商品暂时不可用，请稍后重试。"
+                    localized: "App Store商品暂时不可用，请稍后再试。"
                 )
                 Self.logger.error(
                     "Product request attempt \(attempt, privacy: .public) returned no item for ID \(Self.productID, privacy: .public)"
@@ -219,7 +219,7 @@ final class PaperVNPremiumStore: ObservableObject {
                 return
             } catch {
                 finalErrorMessage = String(
-                    localized: "无法连接App Store，请检查网络后重试。"
+                    localized: "无法连接App Store，请检查网络后再试。"
                 )
                 Self.logger.error(
                     "Product request attempt \(attempt, privacy: .public) failed for ID \(Self.productID, privacy: .public): \(error.localizedDescription, privacy: .public)"
@@ -285,9 +285,9 @@ final class PaperVNPremiumStore: ObservableObject {
         var errorDescription: String? {
             switch self {
             case .failedVerification:
-                return String(localized: "购买验证失败，请稍后重试。")
+                return String(localized: "购买验证失败，请稍后再试。")
             case .purchaseFailed:
-                return String(localized: "购买未完成，请稍后重试。")
+                return String(localized: "购买未完成，请稍后再试。")
             case .unexpectedProduct:
                 return String(localized: "返回的商品与PaperVN Premium不匹配。")
             }
@@ -377,7 +377,7 @@ struct PaperVNPremiumView: View {
                 )
 
             Text(
-                "我是一名即将进入大学的高中毕业生，当前我的主力机是一台3000CNY的丐版Mac mini。你的购买将支持我在2028年换一台更好的Mac，并继续认真维护PaperVN。"
+                "我是一名即将进入大学的高中毕业生，当前我的主力机是一台3000元的丐版Mac mini。你的购买将支持我在2028年换一台更好的Mac，并继续认真维护PaperVN。"
             )
             .font(.body)
             .foregroundStyle(.secondary)
@@ -555,7 +555,7 @@ struct PaperVNPremiumView: View {
 
     private var purchaseButtonTitle: LocalizedStringKey {
         if store.isLoadingProduct {
-            return "连接App Store…"
+            return "正在连接App Store…"
         }
         if store.isPurchasing {
             return "正在处理…"

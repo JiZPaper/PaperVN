@@ -38,7 +38,7 @@ private enum 反馈来源: Int, Codable, Sendable {
         case .discord: String(localized: "Discord")
         case .telegram: String(localized: "Telegram")
         case .email: String(localized: "电子邮件")
-        case .other: String(localized: "其它")
+        case .other: String(localized: "其他")
         }
     }
 }
@@ -336,7 +336,7 @@ private enum 反馈服务错误: LocalizedError {
         case .invalidResponse:
             String(localized: "反馈服务返回了无效响应。")
         case .unavailable:
-            String(localized: "服务器当前不可用，请稍后重试。")
+            String(localized: "服务器当前不可用，请稍后再试。")
         case let .server(_, message):
             message
         }
@@ -687,10 +687,10 @@ struct 反馈页面: View {
                         ProgressView()
                             .controlSize(.small)
                     } else {
-                        Image(systemName: 平台符号.反馈编辑)
+                        Image(systemName: "bubble.and.pencil")
                     }
                 }
-                .平台匹配转场源(
+                .matchedTransitionSource(
                     id: "FeedbackComposerSheet",
                     in: composerNamespace
                 )
@@ -720,10 +720,10 @@ struct 反馈页面: View {
                 }
             }
             .平台近全屏弹窗()
-            .平台缩放转场(
+            .navigationTransition(.zoom(
                 sourceID: "FeedbackComposerSheet",
                 in: composerNamespace
-            )
+            ))
         }
         .alert(item: $alert) { alert in
             Alert(
@@ -743,7 +743,7 @@ struct 反馈页面: View {
                 }
             } else if state.publicFeedback.isEmpty {
                 平台内容不可用视图(
-                    "暂无反馈",
+                    "无反馈",
                     systemImage: "exclamationmark.bubble"
                 )
             } else {
@@ -781,7 +781,7 @@ struct 反馈页面: View {
                 }
             } else if state.submittedFeedback.isEmpty {
                 平台内容不可用视图(
-                    "暂无已提交反馈",
+                    "无已提交反馈",
                     systemImage: "exclamationmark.bubble"
                 )
             } else {
@@ -832,7 +832,7 @@ struct 反馈页面: View {
                 case .unavailable, .invalidResponse:
                     alert = 反馈提示(
                         title: String(localized: "无法连接服务器"),
-                        message: String(localized: "服务器当前不可用，请稍后重试。")
+                        message: String(localized: "服务器当前不可用，请稍后再试。")
                     )
                 case let .server(_, message):
                     alert = 反馈提示(
@@ -843,7 +843,7 @@ struct 反馈页面: View {
             } catch {
                 alert = 反馈提示(
                     title: String(localized: "无法连接服务器"),
-                    message: String(localized: "服务器当前不可用，请稍后重试。")
+                    message: String(localized: "服务器当前不可用，请稍后再试。")
                 )
             }
         }
@@ -1054,7 +1054,7 @@ private struct 新建反馈页面: View {
             Section {
                 LabeledContent("用户名", value: auth.username)
                 LabeledContent("VNDB ID", value: auth.userID)
-                TextField("联系方式（选填）", text: $contact, axis: .vertical)
+                TextField("联系方式（可选）", text: $contact, axis: .vertical)
                     .lineLimit(1...3)
             }
 
@@ -1145,7 +1145,7 @@ private struct 新建反馈页面: View {
                 )
             } catch {
                 alert = 反馈提示(
-                    title: String(localized: "提交失败"),
+                    title: String(localized: "无法提交"),
                     message: error.localizedDescription
                 )
             }
@@ -1289,7 +1289,7 @@ private struct 反馈详情页面: View {
             .平台近全屏弹窗()
         }
         .confirmationDialog(
-            "关闭反馈？",
+            "要关闭反馈吗？",
             isPresented: $isCloseConfirmationPresented,
             titleVisibility: .visible
         ) {
@@ -1535,7 +1535,7 @@ private struct 反馈附件下载行: View {
 
     private var attachmentLabel: some View {
         HStack(alignment: .center, spacing: 8) {
-            Image(systemName: 平台符号.文件)
+            Image(systemName: "document")
                 .foregroundStyle(.tint)
                 .frame(width: 17)
 
@@ -1633,7 +1633,7 @@ private struct 添加反馈信息页面: View {
                 dismiss()
             } catch {
                 alert = 反馈提示(
-                    title: String(localized: "提交失败"),
+                    title: String(localized: "无法提交"),
                     message: error.localizedDescription
                 )
             }

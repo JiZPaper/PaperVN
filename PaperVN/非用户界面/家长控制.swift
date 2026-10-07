@@ -369,7 +369,7 @@ final class 家长控制中心: ObservableObject {
     func recordAgeRangeRequestError(_ error: Error) {
         guard !(error is CancellationError) else { return }
         lastErrorMessage = String(
-            localized: "无法获取共享的年龄范围。请稍后重试，或检查系统中的年龄范围共享设置。"
+            localized: "无法获取共享的年龄范围。请稍后再试，或检查系统中的年龄范围共享设置。"
         )
     }
 
@@ -419,18 +419,18 @@ final class 家长控制中心: ObservableObject {
     private static func familyAuthorizationErrorMessage(for error: Error) -> String {
         guard let familyError = error as? FamilyControlsError else {
             return String(
-                localized: "无法完成儿童账户授权。请确认当前Apple账户属于家庭中的儿童成员后重试。"
+                localized: "无法完成儿童账户授权。请确认当前Apple账户属于家庭中的儿童成员后再试。"
             )
         }
 
         switch familyError {
         case .networkError, .unavailable:
             return String(
-                localized: "无法完成儿童账户授权。请稍后重试，并确认设备已联网且当前Apple账户属于家庭中的儿童成员。"
+                localized: "无法完成儿童账户授权。请稍后再试，并确认设备已联网且当前Apple账户属于家庭中的儿童成员。"
             )
         default:
             return String(
-                localized: "无法完成儿童账户授权。请确认当前Apple账户属于家庭中的儿童成员后重试。"
+                localized: "无法完成儿童账户授权。请确认当前Apple账户属于家庭中的儿童成员后再试。"
             )
         }
     }

@@ -459,37 +459,49 @@ struct VNDB本地推荐算法V2Tests {
 
     @Test
     func 单部强正向作品也能形成较低置信度角色偏好() throws {
+        let seedTags = [
+            tag(id: "g1", name: "Drama"),
+            tag(id: "g2", name: "Mystery"),
+            tag(id: "g3", name: "Romance")
+        ]
         let item = try libraryItem(
             id: "v-character-seed",
             vote: 95,
-            tags: [tag(id: "g1", name: "Drama")]
+            tags: seedTags
         )
         let seedCharacter = try character(
             id: "c-seed",
             vnID: item.id,
             role: "main",
-            traits: [trait(id: "i-distinct", name: "Distinct Trait")]
+            traits: [
+                trait(id: "i-distinct", name: "Distinct Trait"),
+                trait(id: "i-second", name: "Second Trait"),
+                trait(id: "i-third", name: "Third Trait")
+            ]
         )
         let profile = VNDB本地推荐算法V2.建立画像(
             library: [item],
             characters: [seedCharacter]
         )
-        let matching = try visualNovel(
+        let matching = try documentedVisualNovel(
             id: "v-matching-character",
-            tags: [tag(id: "g1", name: "Drama")]
-        )
-        let evidence = VNDB候选角色证据(
-            characterID: "c-matching",
-            characterName: "Matching Character",
-            traitID: "i-distinct",
-            traitName: "Distinct Trait",
-            groupName: "Personality",
-            role: "main"
+            tags: seedTags
         )
 
         let recommendations = VNDB本地推荐算法V2.排序候选(
             [matching],
-            charactersByVisualNovel: [matching.id: [evidence]],
+            charactersByVisualNovel: [
+                matching.id: characterEvidence(
+                    id: "c-matching",
+                    name: "Matching Character",
+                    traits: [
+                        ("i-distinct", "Distinct Trait"),
+                        ("i-second", "Second Trait"),
+                        ("i-third", "Third Trait"),
+                        ("i-other", "Other Trait")
+                    ]
+                )
+            ],
             profile: profile,
             excludedIDs: [],
             limit: 1
@@ -532,72 +544,73 @@ struct VNDB本地推荐算法V2Tests {
 
     @Test
     func 游戏与角色同时匹配优先于只有游戏匹配() throws {
+        let preferredTags = ["g1": "Mystery", "g2": "Time Loop", "g3": "Detective"]
+        let unit = 1 / sqrt(3.0)
         let profile = VNDB本地推荐画像V2(
             prototypes: [
                 VNDB兴趣原型(
-                    tagWeights: ["g1": 1],
-                    traitWeights: ["i1": 1],
+                    tagWeights: ["g1": unit, "g2": unit, "g3": unit],
+                    traitWeights: ["i1": sqrt(0.5), "i2": sqrt(0.5)],
                     confidence: 1
                 )
             ],
             gamePrototypes: [
                 VNDB游戏兴趣原型(
-                    tagWeights: ["g1": 1],
+                    tagWeights: ["g1": unit, "g2": unit, "g3": unit],
                     confidence: 1,
                     share: 1
                 )
             ],
             characterPrototypes: [
                 VNDB角色兴趣原型(
-                    traitWeights: ["i1": 1],
+                    traitWeights: ["i1": sqrt(0.5), "i2": sqrt(0.5)],
                     confidence: 1,
                     share: 1
                 )
             ],
-            tagWeights: ["g1": 1],
-            tagNames: ["g1": "Mystery"],
-            traitWeights: ["i1": 1],
-            traitNames: ["i1": "Cool Heroine"],
+            tagWeights: ["g1": 1, "g2": 1, "g3": 1],
+            tagNames: preferredTags,
+            traitWeights: ["i1": 1, "i2": 1],
+            traitNames: ["i1": "Cool Heroine", "i2": "Kuudere"],
             itemFeedback: ["seed": 1],
             seedIDs: ["seed"],
             positiveSeedIDs: ["seed"],
-            tagIDF: ["g1": 1],
-            traitIDF: ["i1": 1]
+            tagIDF: ["g1": 1, "g2": 1, "g3": 1],
+            traitIDF: ["i1": 1, "i2": 1]
         )
-        let joint = try visualNovel(
-            id: "v-joint",
-            tags: [tag(id: "g1", name: "Mystery")]
-        )
-        let gameOnly = try visualNovel(
-            id: "v-game",
-            tags: [tag(id: "g1", name: "Mystery")]
-        )
-        let evidence = VNDB候选角色证据(
-            characterID: "c1",
-            characterName: "Heroine",
-            traitID: "i1",
-            traitName: "Cool Heroine",
-            groupName: "Personality",
-            role: "main"
+        let matchedTags = preferredTags.keys.sorted().map {
+            tag(id: $0, name: preferredTags[$0]!)
+        }
+        let joint = try documentedVisualNovel(id: "v-joint", tags: matchedTags)
+        let gameOnly = try documentedVisualNovel(id: "v-game", tags: matchedTags)
+        let heroine = characterEvidence(
+            id: "c1",
+            name: "Heroine",
+            traits: [
+                ("i1", "Cool Heroine"),
+                ("i2", "Kuudere"),
+                ("i3", "Tall"),
+                ("i4", "Long Hair")
+            ]
         )
 
         let recommendations = VNDB本地推荐算法V2.排序候选(
             [gameOnly, joint],
-            charactersByVisualNovel: ["v-joint": [evidence]],
+            charactersByVisualNovel: ["v-joint": heroine],
             profile: profile,
             excludedIDs: [],
             limit: 2
         )
 
         #expect(recommendations.map(\.id).first == "v-joint")
-        #expect(
-            recommendations.first?.reason
-                == .typeAndCharacter(
-                    tags: ["Mystery"],
-                    character: "Heroine",
-                    traits: ["Cool Heroine"]
-                )
-        )
+        guard case let .typeAndCharacter(tags, character, traits)
+                = recommendations.first?.reason else {
+            Issue.record("首条推荐应同时给出类型与角色理由")
+            return
+        }
+        #expect(Set(tags) == Set(preferredTags.values))
+        #expect(character == "Heroine")
+        #expect(Set(traits) == ["Cool Heroine", "Kuudere"])
         #expect(recommendations.first?.evidence?.characterID == "c1")
         #expect(recommendations.first?.evidence?.gameScore ?? 0 >= 0.25)
         #expect(recommendations.first?.evidence?.characterScore ?? 0 >= 0.20)
@@ -605,78 +618,63 @@ struct VNDB本地推荐算法V2Tests {
 
     @Test
     func 负面标签与角色特征会降低候选分数() throws {
+        let goodTags = ["g-good1": "Good", "g-good2": "Better", "g-good3": "Best"]
+        let unit = 1 / sqrt(3.0)
         let profile = VNDB本地推荐画像V2(
-            prototypes: [
-                VNDB兴趣原型(
-                    tagWeights: ["g-good": 1],
-                    traitWeights: ["i-good": 1],
-                    confidence: 1
-                )
-            ],
             gamePrototypes: [
                 VNDB游戏兴趣原型(
-                    tagWeights: ["g-good": 1],
+                    tagWeights: ["g-good1": unit, "g-good2": unit, "g-good3": unit],
                     confidence: 1,
                     share: 1
                 )
             ],
             characterPrototypes: [
                 VNDB角色兴趣原型(
-                    traitWeights: ["i-good": 1],
+                    traitWeights: ["i-good1": sqrt(0.5), "i-good2": sqrt(0.5)],
                     confidence: 1,
                     share: 1
                 )
             ],
-            tagWeights: ["g-good": 1, "g-bad": -1.5],
-            tagNames: ["g-good": "Good", "g-bad": "Bad"],
-            traitWeights: ["i-good": 1, "i-bad": -1.5],
-            traitNames: ["i-good": "Good Trait", "i-bad": "Bad Trait"],
+            tagWeights: ["g-good1": 1, "g-good2": 1, "g-good3": 1, "g-bad": -1.5],
+            tagNames: goodTags.merging(["g-bad": "Bad"]) { first, _ in first },
+            traitWeights: ["i-good1": 1, "i-good2": 1, "i-bad": -1.5],
+            traitNames: ["i-good1": "Good Trait", "i-good2": "Kind", "i-bad": "Bad Trait"],
             itemFeedback: ["seed": 1],
             seedIDs: ["seed"],
             positiveSeedIDs: ["seed"],
-            tagIDF: ["g-good": 1, "g-bad": 1],
-            traitIDF: ["i-good": 1, "i-bad": 1]
+            tagIDF: ["g-good1": 1, "g-good2": 1, "g-good3": 1, "g-bad": 1],
+            traitIDF: ["i-good1": 1, "i-good2": 1, "i-bad": 1]
         )
-        let clean = try visualNovel(
-            id: "v-clean",
-            tags: [tag(id: "g-good", name: "Good")]
-        )
-        let penalized = try visualNovel(
+        let good = goodTags.keys.sorted().map { tag(id: $0, name: goodTags[$0]!) }
+        let clean = try documentedVisualNovel(id: "v-clean", tags: good)
+        let penalized = try documentedVisualNovel(
             id: "v-penalized",
-            tags: [
-                tag(id: "g-good", name: "Good"),
-                tag(id: "g-bad", name: "Bad")
-            ]
-        )
-        let goodEvidence = VNDB候选角色证据(
-            characterID: "c-good",
-            characterName: "Good Character",
-            traitID: "i-good",
-            traitName: "Good Trait",
-            groupName: "Personality",
-            role: "main"
-        )
-        let badEvidence = VNDB候选角色证据(
-            characterID: "c-good",
-            characterName: "Good Character",
-            traitID: "i-bad",
-            traitName: "Bad Trait",
-            groupName: "Personality",
-            role: "main"
+            tags: good + [tag(id: "g-bad", name: "Bad")]
         )
 
         let recommendations = VNDB本地推荐算法V2.排序候选(
             [penalized, clean],
             charactersByVisualNovel: [
-                "v-clean": [goodEvidence],
-                "v-penalized": [goodEvidence, badEvidence]
+                "v-clean": characterEvidence(
+                    id: "c-clean",
+                    name: "Clean Character",
+                    traits: [("i-good1", "Good Trait"), ("i-good2", "Kind"), ("i-x", "Tall"), ("i-y", "Short Hair")]
+                ),
+                "v-penalized": characterEvidence(
+                    id: "c-penalized",
+                    name: "Penalized Character",
+                    traits: [("i-good1", "Good Trait"), ("i-good2", "Kind"), ("i-bad", "Bad Trait"), ("i-x", "Tall")]
+                )
             ],
             profile: profile,
             excludedIDs: [],
             limit: 2
         )
 
-        #expect(recommendations.map(\.id) == ["v-clean"])
+        let cleanScore = recommendations.first { $0.id == "v-clean" }?.score ?? 0
+        let penalizedScore = recommendations.first { $0.id == "v-penalized" }?.score ?? 0
+        #expect(recommendations.first?.id == "v-clean")
+        #expect(penalizedScore < cleanScore * 0.6)
     }
 
     @Test
@@ -762,89 +760,67 @@ struct VNDB本地推荐算法V2Tests {
 
     @Test
     func 重排会优先选择不同兴趣与较少重复的候选() throws {
+        let unit = 1 / sqrt(3.0)
+        let mysteryTags = ["g1a": "Mystery", "g1b": "Detective", "g1c": "Time Loop"]
+        let fantasyTags = ["g2a": "Fantasy", "g2b": "Magic", "g2c": "Adventure"]
         let profile = VNDB本地推荐画像V2(
-            prototypes: [
-                VNDB兴趣原型(
-                    tagWeights: ["g1": 1],
-                    traitWeights: ["i1": 1],
-                    confidence: 1
-                ),
-                VNDB兴趣原型(
-                    tagWeights: ["g2": 1],
-                    traitWeights: ["i2": 1],
-                    confidence: 1
-                )
-            ],
             gamePrototypes: [
                 VNDB游戏兴趣原型(
-                    tagWeights: ["g1": 1],
+                    tagWeights: ["g1a": unit, "g1b": unit, "g1c": unit],
                     confidence: 1,
                     share: 0.5
                 ),
                 VNDB游戏兴趣原型(
-                    tagWeights: ["g2": 1],
+                    tagWeights: ["g2a": unit, "g2b": unit, "g2c": unit],
                     confidence: 1,
                     share: 0.5
                 )
             ],
             characterPrototypes: [
                 VNDB角色兴趣原型(
-                    traitWeights: ["i1": 1],
+                    traitWeights: ["i1a": sqrt(0.5), "i1b": sqrt(0.5)],
                     confidence: 1,
                     share: 0.5
                 ),
                 VNDB角色兴趣原型(
-                    traitWeights: ["i2": 1],
+                    traitWeights: ["i2a": sqrt(0.5), "i2b": sqrt(0.5)],
                     confidence: 1,
                     share: 0.5
                 )
             ],
-            tagWeights: ["g1": 1, "g2": 1],
-            tagNames: ["g1": "Mystery", "g2": "Fantasy"],
-            traitWeights: ["i1": 1, "i2": 1],
-            traitNames: ["i1": "Calm", "i2": "Energetic"],
+            tagWeights: mysteryTags.merging(fantasyTags) { first, _ in first }.mapValues { _ in 1 },
+            tagNames: mysteryTags.merging(fantasyTags) { first, _ in first },
+            traitWeights: ["i1a": 1, "i1b": 1, "i2a": 1, "i2b": 1],
+            traitNames: ["i1a": "Calm", "i1b": "Reserved", "i2a": "Energetic", "i2b": "Cheerful"],
             itemFeedback: ["seed": 1],
             seedIDs: ["seed"],
             positiveSeedIDs: ["seed"],
-            tagIDF: ["g1": 1, "g2": 1],
-            traitIDF: ["i1": 1, "i2": 1]
+            tagIDF: ["g1a": 1, "g1b": 1, "g1c": 1, "g2a": 1, "g2b": 1, "g2c": 1],
+            traitIDF: ["i1a": 1, "i1b": 1, "i2a": 1, "i2b": 1]
         )
-        let first = try visualNovel(
-            id: "v1",
-            tags: [tag(id: "g1", name: "Mystery")]
-        )
-        let duplicate = try visualNovel(
-            id: "v2",
-            tags: [tag(id: "g1", name: "Mystery")]
-        )
-        let diverse = try visualNovel(
+        let mystery = mysteryTags.keys.sorted().map { tag(id: $0, name: mysteryTags[$0]!) }
+        let sharedFiller = (0..<5).map { tag(id: "g-shared-\($0)", name: "Shared \($0)") }
+        let first = try documentedVisualNovel(id: "v1", tags: mystery + sharedFiller, fillerTagCount: 0)
+        let duplicate = try documentedVisualNovel(id: "v2", tags: mystery + sharedFiller, fillerTagCount: 0)
+        let diverse = try documentedVisualNovel(
             id: "v3",
-            tags: [tag(id: "g2", name: "Fantasy")]
+            tags: fantasyTags.keys.sorted().map { tag(id: $0, name: fantasyTags[$0]!) },
+            fillerTagCount: 5
         )
-        let firstEvidence = VNDB候选角色证据(
-            characterID: "c1",
-            characterName: "Calm Character",
-            traitID: "i1",
-            traitName: "Calm",
-            groupName: "Personality",
-            role: "main"
+        let calm = characterEvidence(
+            id: "c1",
+            name: "Calm Character",
+            traits: [("i1a", "Calm"), ("i1b", "Reserved"), ("i-x", "Tall"), ("i-y", "Glasses")]
         )
-        let diverseEvidence = VNDB候选角色证据(
-            characterID: "c2",
-            characterName: "Energetic Character",
-            traitID: "i2",
-            traitName: "Energetic",
-            groupName: "Personality",
-            role: "main"
+        let energetic = characterEvidence(
+            id: "c2",
+            name: "Energetic Character",
+            traits: [("i2a", "Energetic"), ("i2b", "Cheerful"), ("i-x", "Tall"), ("i-z", "Ponytail")]
         )
 
         let recommendations = VNDB本地推荐算法V2.排序候选(
             [duplicate, diverse, first],
-            charactersByVisualNovel: [
-                "v1": [firstEvidence],
-                "v2": [firstEvidence],
-                "v3": [diverseEvidence]
-            ],
+            charactersByVisualNovel: ["v1": calm, "v2": calm, "v3": energetic],
             profile: profile,
             excludedIDs: [],
             limit: 2
@@ -1028,7 +1004,7 @@ struct VNDB本地推荐算法V2Tests {
     }
 
     @Test
-    func 热门旧作不会单独证明古早画风接受度() throws {
+    func 热门旧作也计入古早画风接受度但权重低于小众旧作() throws {
         let popular = try libraryItem(
             id: "v-popular-old",
             vote: 95,
@@ -1059,7 +1035,7 @@ struct VNDB本地推荐算法V2Tests {
             (popularProfile.historicalPresentationAcceptance[2004] ?? 0)
                 < (distinctiveProfile.historicalPresentationAcceptance[2004] ?? 0)
         )
-        #expect((popularProfile.historicalPresentationEvidence[2004] ?? 0) < 0.15)
+        #expect((popularProfile.historicalPresentationEvidence[2004] ?? 0) >= 0.3)
     }
 
     @Test
@@ -1112,26 +1088,32 @@ struct VNDB本地推荐算法V2Tests {
     }
 
     @Test
-    func 以技术标签为主的稀疏候选即使有角色也排除() throws {
+    func 以技术标签为主的稀疏候选只保留很弱的游戏匹配() throws {
+        let preferred = [
+            "g-content": "Female Protagonist",
+            "g-adults": "Only Adult Heroes",
+            "g-drama": "Drama"
+        ]
+        let unit = 1 / sqrt(3.0)
         let profile = VNDB本地推荐画像V2(
             gamePrototypes: [
                 VNDB游戏兴趣原型(
-                    tagWeights: ["g-content": 1],
+                    tagWeights: ["g-content": unit, "g-adults": unit, "g-drama": unit],
                     confidence: 1,
                     share: 1
                 )
             ],
-            tagWeights: ["g-content": 1],
-            tagNames: ["g-content": "Female Protagonist"],
+            tagWeights: ["g-content": 1, "g-adults": 1, "g-drama": 1],
+            tagNames: preferred,
             itemFeedback: ["seed": 1],
             seedIDs: ["seed"],
             positiveSeedIDs: ["seed"],
-            tagIDF: ["g-content": 1]
+            tagIDF: ["g-content": 1, "g-adults": 1, "g-drama": 1]
         )
-        let candidate = try visualNovel(
+        let technical = try visualNovel(
             id: "v-tech-sparse",
-            rating: 66.8,
-            voteCount: 25,
+            rating: 72,
+            voteCount: 300,
             tags: [
                 tag(id: "g32", name: "ADV", rating: 2, category: "tech"),
                 tag(id: "g-content", name: "Female Protagonist", rating: 2, category: "cont"),
@@ -1141,25 +1123,37 @@ struct VNDB本地推荐算法V2Tests {
                 tag(id: "g-adults", name: "Only Adult Heroes", rating: 2, category: "cont")
             ]
         )
-        let evidence = VNDB候选角色证据(
-            characterID: "c1",
-            characterName: "Character",
-            traitID: "i1",
-            traitName: "Reserved",
-            groupName: "Personality",
-            role: "primary"
+        let documented = try documentedVisualNovel(
+            id: "v-documented",
+            tags: preferred.keys.sorted().map {
+                tag(id: $0, name: preferred[$0]!, category: "cont")
+            },
+            fillerCategory: "cont"
+        )
+        let unrelatedCharacter = characterEvidence(
+            id: "c1",
+            name: "Character",
+            role: "primary",
+            traits: [("i1", "Reserved"), ("i2", "Glasses"), ("i3", "Tall")]
         )
 
         let recommendations = VNDB本地推荐算法V2.排序候选(
-            [candidate],
-            charactersByVisualNovel: [candidate.id: [evidence]],
+            [technical, documented],
+            charactersByVisualNovel: [
+                technical.id: unrelatedCharacter,
+                documented.id: unrelatedCharacter
+            ],
             profile: profile,
             excludedIDs: [],
-            limit: 1,
-            collaborativeScores: [candidate.id: 1]
+            limit: 2
         )
 
-        #expect(recommendations.isEmpty)
+        let technicalGame = recommendations.first { $0.id == technical.id }?
+            .evidence?.gameScore ?? 0
+        let documentedGame = recommendations.first { $0.id == documented.id }?
+            .evidence?.gameScore ?? 0
+        #expect(recommendations.first?.id == documented.id)
+        #expect(technicalGame < documentedGame * 0.5)
     }
 
     @Test
@@ -1216,10 +1210,11 @@ struct VNDB本地推荐算法V2Tests {
 
     @Test
     func 剧透角色特征参与评分但不会出现在理由中() throws {
+        let unit = 1 / sqrt(3.0)
         let profile = VNDB本地推荐画像V2(
             gamePrototypes: [
                 VNDB游戏兴趣原型(
-                    tagWeights: ["g1": 1],
+                    tagWeights: ["g1": unit, "g2": unit, "g3": unit],
                     confidence: 1,
                     share: 1
                 )
@@ -1231,33 +1226,35 @@ struct VNDB本地推荐算法V2Tests {
                     share: 1
                 )
             ],
-            tagWeights: ["g1": 1],
-            tagNames: ["g1": "Mystery"],
+            tagWeights: ["g1": 1, "g2": 0.6, "g3": 0.6],
+            tagNames: ["g1": "Mystery", "g2": "Drama", "g3": "Romance"],
             traitWeights: ["i-hidden": 1],
             itemFeedback: ["seed": 1],
             seedIDs: ["seed"],
             positiveSeedIDs: ["seed"],
-            tagIDF: ["g1": 1],
+            tagIDF: ["g1": 1, "g2": 1, "g3": 1],
             traitIDF: ["i-hidden": 1]
         )
-        let candidate = try visualNovel(
+        let candidate = try documentedVisualNovel(
             id: "v-hidden",
-            tags: [tag(id: "g1", name: "Mystery")]
+            tags: [
+                tag(id: "g1", name: "Mystery"),
+                tag(id: "g2", name: "Drama"),
+                tag(id: "g3", name: "Romance")
+            ]
         )
-        let hiddenEvidence = VNDB候选角色证据(
-            characterID: "c-hidden",
-            characterName: "Hidden Character",
-            traitID: "i-hidden",
-            traitName: "Hidden Trait",
+        let hiddenEvidence = characterEvidence(
+            id: "c-hidden",
+            name: "Hidden Character",
+            traits: [("i-hidden", "Hidden Trait")],
             groupName: "Identity",
-            role: "main",
             reliability: 0.8,
             canExplain: false
         )
 
         let recommendations = VNDB本地推荐算法V2.排序候选(
             [candidate],
-            charactersByVisualNovel: [candidate.id: [hiddenEvidence]],
+            charactersByVisualNovel: [candidate.id: hiddenEvidence],
             profile: profile,
             excludedIDs: [],
             limit: 1
@@ -1325,44 +1322,40 @@ struct VNDB本地推荐算法V2Tests {
         )
         let sparse = try visualNovel(
             id: "v-sparse-tags",
+            voteCount: 300,
             tags: [tag(id: "g1", name: "Mystery")]
         )
-        let complete = try visualNovel(
+        let complete = try documentedVisualNovel(
             id: "v-complete-tags",
             tags: [
                 tag(id: "g1", name: "Mystery"),
                 tag(id: "g2", name: "Drama"),
                 tag(id: "g3", name: "Romance"),
                 tag(id: "g4", name: "Time Loop")
-            ]
+            ],
+            fillerTagCount: 4
+        )
+        let otherCharacter = characterEvidence(
+            id: "c-other",
+            name: "Character",
+            traits: [("i-other", "Other"), ("i-other2", "Tall"), ("i-other3", "Glasses")]
         )
 
         let recommendations = VNDB本地推荐算法V2.排序候选(
             [sparse, complete],
             charactersByVisualNovel: [
-                sparse.id: [VNDB候选角色证据(
-                    characterID: "c-sparse",
-                    characterName: "Sparse Character",
-                    traitID: "i-other",
-                    traitName: "Other",
-                    groupName: "Personality",
-                    role: "main"
-                )],
-                complete.id: [VNDB候选角色证据(
-                    characterID: "c-complete",
-                    characterName: "Complete Character",
-                    traitID: "i-other",
-                    traitName: "Other",
-                    groupName: "Personality",
-                    role: "main"
-                )]
+                sparse.id: otherCharacter,
+                complete.id: otherCharacter
             ],
             profile: profile,
             excludedIDs: [],
             limit: 2
         )
 
-        #expect(recommendations.map(\.id) == [complete.id])
+        let sparseScore = recommendations.first { $0.id == sparse.id }?.score ?? 0
+        let completeScore = recommendations.first { $0.id == complete.id }?.score ?? 0
+        #expect(recommendations.first?.id == complete.id)
+        #expect(sparseScore < completeScore)
     }
 
     @Test
@@ -1561,6 +1554,251 @@ struct VNDB本地推荐算法V2Tests {
         )
 
         #expect(recommendations.isEmpty)
+    }
+
+    @Test
+    func 单特征角色不会因余弦虚高压过资料完整的角色() throws {
+        let unit = 1 / sqrt(3.0)
+        let profile = VNDB本地推荐画像V2(
+            gamePrototypes: [
+                VNDB游戏兴趣原型(
+                    tagWeights: ["g1": unit, "g2": unit, "g3": unit],
+                    confidence: 1,
+                    share: 1
+                )
+            ],
+            characterPrototypes: [
+                VNDB角色兴趣原型(
+                    traitWeights: ["i1": sqrt(0.5), "i2": sqrt(0.5)],
+                    confidence: 1,
+                    share: 1
+                )
+            ],
+            tagWeights: ["g1": 1, "g2": 1, "g3": 1],
+            tagNames: ["g1": "Mystery", "g2": "Drama", "g3": "Romance"],
+            traitWeights: ["i1": 1, "i2": 1],
+            traitNames: ["i1": "Robot", "i2": "Kind"],
+            itemFeedback: ["seed": 1],
+            seedIDs: ["seed"],
+            positiveSeedIDs: ["seed"],
+            tagIDF: ["g1": 1, "g2": 1, "g3": 1],
+            traitIDF: ["i1": 1, "i2": 1]
+        )
+        let tags = [
+            tag(id: "g1", name: "Mystery"),
+            tag(id: "g2", name: "Drama"),
+            tag(id: "g3", name: "Romance")
+        ]
+        let thin = try documentedVisualNovel(id: "v-thin", tags: tags)
+        let documented = try documentedVisualNovel(id: "v-documented", tags: tags)
+
+        let recommendations = VNDB本地推荐算法V2.排序候选(
+            [thin, documented],
+            charactersByVisualNovel: [
+                thin.id: characterEvidence(id: "c-thin", name: "Thin", traits: [("i1", "Robot")]),
+                documented.id: characterEvidence(
+                    id: "c-documented",
+                    name: "Documented",
+                    traits: [
+                        ("i1", "Robot"), ("i2", "Kind"), ("i3", "Tall"), ("i4", "Glasses"),
+                        ("i5", "Ponytail"), ("i6", "Smart"), ("i7", "Shy"), ("i8", "Student")
+                    ]
+                )
+            ],
+            profile: profile,
+            excludedIDs: [],
+            limit: 2
+        )
+
+        let thinCharacter = recommendations.first { $0.id == thin.id }?
+            .evidence?.characterScore ?? 0
+        let documentedCharacter = recommendations.first { $0.id == documented.id }?
+            .evidence?.characterScore ?? 0
+        #expect(recommendations.first?.id == documented.id)
+        #expect(documentedCharacter > thinCharacter)
+    }
+
+    @Test
+    func 写实3D只在没有接触过时大幅降分() throws {
+        let unit = 1 / sqrt(3.0)
+        var profile = VNDB本地推荐画像V2(
+            gamePrototypes: [
+                VNDB游戏兴趣原型(
+                    tagWeights: ["g1": unit, "g2": unit, "g3": unit],
+                    confidence: 1,
+                    share: 1
+                )
+            ],
+            characterPrototypes: [
+                VNDB角色兴趣原型(
+                    traitWeights: ["i1": sqrt(0.5), "i2": sqrt(0.5)],
+                    confidence: 1,
+                    share: 1
+                )
+            ],
+            tagWeights: ["g1": 1, "g2": 1, "g3": 1],
+            tagNames: ["g1": "Mystery", "g2": "Drama", "g3": "Romance"],
+            traitWeights: ["i1": 1, "i2": 1],
+            traitNames: ["i1": "Calm", "i2": "Kind"],
+            itemFeedback: ["seed": 1],
+            seedIDs: ["seed"],
+            positiveSeedIDs: ["seed"],
+            tagIDF: ["g1": 1, "g2": 1, "g3": 1],
+            traitIDF: ["i1": 1, "i2": 1]
+        )
+        let realistic = try documentedVisualNovel(
+            id: "v-3d",
+            tags: [
+                tag(id: "g1", name: "Mystery"),
+                tag(id: "g2", name: "Drama"),
+                tag(id: "g3", name: "Romance"),
+                tag(id: "g3723", name: "Realistic-looking 3D", category: "tech")
+            ]
+        )
+        func score() -> Double {
+            VNDB本地推荐算法V2.排序候选(
+                [realistic],
+                charactersByVisualNovel: [
+                    realistic.id: characterEvidence(
+                        id: "c-3d",
+                        name: "Heroine",
+                        traits: [("i1", "Calm"), ("i2", "Kind"), ("i3", "Tall"), ("i4", "Glasses")]
+                    )
+                ],
+                profile: profile,
+                excludedIDs: [],
+                limit: 1
+            ).first?.score ?? 0
+        }
+
+        let unfamiliar = score()
+        profile.audienceEvidence = ["realistic-3d": 1]
+        profile.audienceAcceptance = ["realistic-3d": 0.6]
+        let familiar = score()
+
+        #expect(familiar > 0)
+        #expect(unfamiliar < familiar * 0.5)
+    }
+
+    @Test
+    func 七十分以上的评分只提供很弱的负面证据() throws {
+        let votes = [95, 95, 95, 90, 90, 90, 80, 50]
+        let library = try votes.enumerated().map { index, vote in
+            try libraryItem(
+                id: "v\(index)",
+                vote: vote,
+                tags: [tag(id: "g\(index)", name: "Tag \(index)")]
+            )
+        }
+
+        let profile = VNDB本地推荐算法V2.建立画像(library: library, characters: [])
+
+        #expect((profile.itemFeedback["v6"] ?? -1) > -0.2)
+        #expect((profile.itemFeedback["v7"] ?? 0) < -0.5)
+    }
+
+    @Test
+    func 只有一侧匹配的探索项最多占列表的百分之十五() throws {
+        let unit = 1 / sqrt(3.0)
+        let profile = VNDB本地推荐画像V2(
+            gamePrototypes: [
+                VNDB游戏兴趣原型(
+                    tagWeights: ["g1": unit, "g2": unit, "g3": unit],
+                    confidence: 1,
+                    share: 1
+                )
+            ],
+            characterPrototypes: [
+                VNDB角色兴趣原型(
+                    traitWeights: ["i1": sqrt(0.5), "i2": sqrt(0.5)],
+                    confidence: 1,
+                    share: 1
+                )
+            ],
+            tagWeights: ["g1": 1, "g2": 1, "g3": 1],
+            tagNames: ["g1": "Mystery", "g2": "Drama", "g3": "Romance"],
+            traitWeights: ["i1": 1, "i2": 1],
+            traitNames: ["i1": "Calm", "i2": "Kind"],
+            itemFeedback: ["seed": 1],
+            seedIDs: ["seed"],
+            positiveSeedIDs: ["seed"],
+            tagIDF: ["g1": 1, "g2": 1, "g3": 1],
+            traitIDF: ["i1": 1, "i2": 1]
+        )
+        let tags = [
+            tag(id: "g1", name: "Mystery"),
+            tag(id: "g2", name: "Drama"),
+            tag(id: "g3", name: "Romance")
+        ]
+        var candidates: [探索视觉小说] = []
+        var characters: [String: [VNDB候选角色证据]] = [:]
+        for index in 0..<14 {
+            let joint = try documentedVisualNovel(id: "v-joint-\(index)", tags: tags)
+            candidates.append(joint)
+            characters[joint.id] = characterEvidence(
+                id: "c-\(index)",
+                name: "Character \(index)",
+                traits: [("i1", "Calm"), ("i2", "Kind"), ("i-\(index)-a", "A"), ("i-\(index)-b", "B")]
+            )
+        }
+        for index in 0..<10 {
+            candidates.append(try documentedVisualNovel(id: "v-type-only-\(index)", tags: tags))
+        }
+
+        let recommendations = VNDB本地推荐算法V2.排序候选(
+            candidates,
+            charactersByVisualNovel: characters,
+            profile: profile,
+            excludedIDs: [],
+            limit: 20
+        )
+
+        #expect(recommendations.count >= 14)
+        #expect(recommendations.count { $0.id.hasPrefix("v-type-only") } <= 3)
+    }
+
+    /// 资料完整的候选：在给定标签之外补几个普通内容标签，并带有正常的评分人数。
+    private func documentedVisualNovel(
+        id: String,
+        tags: [[String: Any]],
+        fillerTagCount: Int = 6,
+        fillerCategory: String? = nil,
+        rating: Double = 72,
+        voteCount: Int = 300
+    ) throws -> 探索视觉小说 {
+        let filler = (0..<fillerTagCount).map {
+            tag(id: "g-\(id)-filler-\($0)", name: "Filler \($0)", category: fillerCategory)
+        }
+        return try visualNovel(
+            id: id,
+            rating: rating,
+            voteCount: voteCount,
+            tags: tags + filler
+        )
+    }
+
+    /// 一个角色的全部特征证据。
+    private func characterEvidence(
+        id: String,
+        name: String,
+        role: String = "main",
+        traits: [(id: String, name: String)],
+        groupName: String = "Personality",
+        reliability: Double = 1,
+        canExplain: Bool = true
+    ) -> [VNDB候选角色证据] {
+        traits.map {
+            VNDB候选角色证据(
+                characterID: id,
+                characterName: name,
+                traitID: $0.id,
+                traitName: $0.name,
+                groupName: groupName,
+                role: role,
+                reliability: reliability,
+                canExplain: canExplain
+            )
+        }
     }
 
     private func libraryItem(

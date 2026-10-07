@@ -157,7 +157,7 @@ struct 统一视觉小说评分: Codable, Hashable, Sendable {
     var shortText: String { String(format: "%.2f", score) }
     var detailedText: String {
         guard let voteCount else { return shortText }
-        return "\(shortText)（\(voteCount.formatted())人评分）"
+        return String(localized: "\(shortText)（\(String(localized: "\(voteCount)人评分"))）")
     }
 }
 

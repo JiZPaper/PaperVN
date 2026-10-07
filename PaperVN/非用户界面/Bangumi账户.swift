@@ -2,7 +2,7 @@ import AuthenticationServices
 import Combine
 import Foundation
 import Security
-import UIKit
+import SwiftUI
 
 enum BangumiOAuth配置 {
     static let callbackScheme = "papervn"
@@ -92,7 +92,7 @@ private enum Bangumi账户错误: LocalizedError {
         case .invalidCallback:
             return String(localized: "Bangumi番组计划返回了无效的登录结果。")
         case .stateMismatch:
-            return String(localized: "登录验证失败，请重试。")
+            return String(localized: "登录验证失败，请再试一次。")
         case .missingAuthorizationCode:
             return String(localized: "登录结果中缺少授权码。")
         case .invalidResponse:
@@ -196,7 +196,7 @@ final class Bangumi账户: NSObject, ObservableObject {
 
     private let credentialStore = BangumiOAuth凭据存储()
     private var credentials: BangumiOAuth凭据?
-    private var webAuthenticationSession: ASWebAuthenticationSession?
+    private var webAuthenticationTask: Task<Void, Never>?
     private var pendingState: String?
     private var librarySynchronizationTask: Task<Void, Never>?
     private var librarySynchronizationID: UUID?
@@ -223,7 +223,7 @@ final class Bangumi账户: NSObject, ObservableObject {
         }
     }
 
-    func login() {
+    func login(using authenticator: WebAuthenticationSession) {
         guard !isAuthenticating else { return }
         do {
             guard BangumiOAuth配置.isConfigured else { throw Bangumi账户错误.notConfigured }
@@ -241,26 +241,26 @@ final class Bangumi账户: NSObject, ObservableObject {
             pendingState = state
             isAuthenticating = true
             errorMessage = nil
-            let session = ASWebAuthenticationSession(
-                url: authorizationURL,
-                平台自定义Scheme: BangumiOAuth配置.callbackScheme
-            ) { [weak self] callbackURL, error in
-                let cancelled = (error as? ASWebAuthenticationSessionError)?.code == .canceledLogin
-                Task { @MainActor [weak self] in
-                    self?.webAuthenticationSession = nil
-                    if cancelled {
+            webAuthenticationTask = Task { [weak self] in
+                do {
+                    let callbackURL = try await authenticator.authenticate(
+                        using: authorizationURL,
+                        callback: .customScheme(BangumiOAuth配置.callbackScheme),
+                        preferredBrowserSession: .shared,
+                        additionalHeaderFields: [:]
+                    )
+                    self?.webAuthenticationTask = nil
+                    await self?.handleCallback(callbackURL)
+                } catch {
+                    guard !Task.isCancelled else { return }
+                    self?.webAuthenticationTask = nil
+                    if (error as? ASWebAuthenticationSessionError)?.code == .canceledLogin {
                         self?.finishAuthentication()
-                    } else if let callbackURL {
-                        await self?.handleCallback(callbackURL)
                     } else {
-                        self?.finishAuthentication(error: error?.localizedDescription ?? Bangumi账户错误.invalidCallback.localizedDescription)
+                        self?.finishAuthentication(error: error.localizedDescription)
                     }
                 }
             }
-            session.presentationContextProvider = self
-            session.prefersEphemeralWebBrowserSession = false
-            webAuthenticationSession = session
-            guard session.start() else { throw Bangumi账户错误.failedToPresentLogin }
         } catch {
             finishAuthentication(error: error.localizedDescription)
         }
@@ -268,8 +268,8 @@ final class Bangumi账户: NSObject, ObservableObject {
 
     func logout() {
         cancelLibrarySynchronization()
-        webAuthenticationSession?.cancel()
-        webAuthenticationSession = nil
+        webAuthenticationTask?.cancel()
+        webAuthenticationTask = nil
         pendingState = nil
         credentialStore.delete()
         credentials = nil
@@ -660,17 +660,5 @@ final class Bangumi账户: NSObject, ObservableObject {
         var allowed = CharacterSet.alphanumerics
         allowed.insert(charactersIn: "-._~")
         return value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value
-    }
-}
-
-extension Bangumi账户: ASWebAuthenticationPresentationContextProviding {
-    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
-        let windows = UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .flatMap(\.windows)
-        guard let window = windows.first(where: \.isKeyWindow) ?? windows.first else {
-            preconditionFailure("Bangumi番组计划登录需要可用的展示窗口。")
-        }
-        return window
     }
 }

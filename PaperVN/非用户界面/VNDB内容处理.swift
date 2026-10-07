@@ -802,9 +802,14 @@ enum 列表封面布局 {
     static let 宽度: CGFloat = 72
     static let 高度: CGFloat = 100
 
+    /// 与所在列表单元格的圆角保持同一比例：iOS 26 起单元格圆角约 26pt，iOS 18 只有 10pt。
     static func 圆角(horizontalSizeClass: UserInterfaceSizeClass?) -> CGFloat {
-        UIDevice.current.userInterfaceIdiom == .pad
-            && horizontalSizeClass == .regular ? 10 : 16
+        let 常规宽度iPad = UIDevice.current.userInterfaceIdiom == .pad
+            && horizontalSizeClass == .regular
+        if #available(iOS 26.0, *) {
+            return 常规宽度iPad ? 10 : 16
+        }
+        return 常规宽度iPad ? 4 : 6
     }
 }
 
@@ -2280,7 +2285,7 @@ struct 模糊解除提示: View {
     }
 
     private var prompt: LocalizedStringKey {
-        "再次轻触以解除模糊"
+        "再次轻点以解除模糊"
     }
 }
 
