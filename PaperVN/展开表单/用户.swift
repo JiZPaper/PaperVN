@@ -1,3 +1,4 @@
+import AuthenticationServices
 import SwiftUI
 import Combine
 import Foundation
@@ -182,7 +183,7 @@ class 用户登录: ObservableObject {
             isRestoringSession = false
             errorMessage = userID.isEmpty
                 ? nil
-                : String(localized: "暂时无法读取登录凭据，请稍后重试。")
+                : String(localized: "暂时无法读取登录凭据，请稍后再试。")
         }
     }
 
@@ -314,7 +315,7 @@ class 用户登录: ObservableObject {
             } else if shouldPersist {
                 isRestoringSession = false
                 self.errorMessage = String(
-                    localized: "无法验证Token，请检查网络连接后重试。"
+                    localized: "无法验证Token，请检查网络连接后再试。"
                 )
             } else {
                 isLoggedIn = !token.isEmpty && !userID.isEmpty
@@ -589,6 +590,8 @@ private struct 账户页面: View {
     @ObservedObject var bangumiAccount: Bangumi账户
     let showsCloseButton: Bool
     let closeAction: () -> Void
+    @Environment(\.webAuthenticationSession)
+    private var webAuthenticationSession
     @AppStorage(Bangumi账户.同步设置键)
     private var synchronizesWithBangumi = false
 
@@ -723,7 +726,7 @@ private struct 账户页面: View {
         switch alert {
         case .vndbLogout:
             return Alert(
-                title: Text("确定要退出VNDB账户吗？"),
+                title: Text("要退出VNDB账户吗？"),
                 message: Text("退出后将无法使用资料库功能。"),
                 primaryButton: .cancel(Text("取消")),
                 secondaryButton: .destructive(Text("退出登录")) {
@@ -732,7 +735,7 @@ private struct 账户页面: View {
             )
         case .kunLogout:
             return Alert(
-                title: Text("确定要退出鲲Galgame账户吗？"),
+                title: Text("要退出鲲Galgame账户吗？"),
                 primaryButton: .cancel(Text("取消")),
                 secondaryButton: .destructive(Text("退出登录")) {
                     kunAccount.logout()
@@ -740,7 +743,7 @@ private struct 账户页面: View {
             )
         case .bangumiLogout:
             return Alert(
-                title: Text("确定要退出Bangumi番组计划账户吗？"),
+                title: Text("要退出Bangumi番组计划账户吗？"),
                 primaryButton: .cancel(Text("取消")),
                 secondaryButton: .destructive(Text("退出登录")) {
                     bangumiAccount.logout()
@@ -748,7 +751,7 @@ private struct 账户页面: View {
             )
         case let .vndbError(message):
             return Alert(
-                title: Text("VNDB登录失败"),
+                title: Text("无法登录VNDB"),
                 message: Text(verbatim: message),
                 dismissButton: .default(Text("好")) {
                     vndbAccount.errorMessage = nil
@@ -756,7 +759,7 @@ private struct 账户页面: View {
             )
         case let .kunError(message):
             return Alert(
-                title: Text("鲲Galgame登录失败"),
+                title: Text("无法登录鲲Galgame"),
                 message: Text(verbatim: message),
                 dismissButton: .default(Text("好")) {
                     kunAccount.errorMessage = nil
@@ -764,7 +767,7 @@ private struct 账户页面: View {
             )
         case let .bangumiError(message):
             return Alert(
-                title: Text("Bangumi番组计划登录失败"),
+                title: Text("无法登录Bangumi番组计划"),
                 message: Text(verbatim: message),
                 dismissButton: .default(Text("好")) {
                     bangumiAccount.errorMessage = nil
@@ -772,7 +775,7 @@ private struct 账户页面: View {
             )
         case let .bangumiSyncError(message):
             return Alert(
-                title: Text("Bangumi番组计划同步失败"),
+                title: Text("无法同步到Bangumi番组计划"),
                 message: Text(verbatim: message),
                 primaryButton: .cancel(Text("取消")) {
                     bangumiAccount.synchronizationErrorMessage = nil
@@ -940,7 +943,7 @@ private struct 账户页面: View {
                 kunDetailRow("用户名", value: profile.displayName)
                 kunDetailRow("ID", value: String(profile.id))
                 kunDetailRow("UUID", value: profile.sub)
-                kunDetailRow("邮箱", value: profile.email)
+                kunDetailRow("电子邮件", value: profile.email)
                 kunDetailRow("个人简介", value: profile.bio)
                 kunDetailRow(
                     "萌萌点",
@@ -994,7 +997,7 @@ private struct 账户页面: View {
                         Spacer(minLength: 0)
 
                         Button {
-                            bangumiAccount.login()
+                            bangumiAccount.login(using: webAuthenticationSession)
                         } label: {
                             HStack(spacing: 6) {
                                 if bangumiAccount.isRestoringSession
@@ -1021,7 +1024,7 @@ private struct 账户页面: View {
                         Spacer(minLength: 0)
 
                         Button {
-                            kunAccount.login()
+                            kunAccount.login(using: webAuthenticationSession)
                         } label: {
                             HStack(spacing: 6) {
                                 if kunAccount.isRestoringSession
@@ -1158,7 +1161,7 @@ struct 关于页面: View {
 
     var body: some View {
         平台滚动页面 {
-            Section("法律") {
+            Section("法律信息") {
                 Link(destination: Self.privacyPolicyURL) {
                     关于外部链接标签("隐私政策") {
                         Image(systemName: "hand.raised")

@@ -4,8 +4,7 @@ import CryptoKit
 import Foundation
 import Network
 import Security
-
-import UIKit
+import SwiftUI
 
 nonisolated enum 鲲OAuth配置 {
     static let apiBaseURL = URL(
@@ -155,7 +154,7 @@ private struct 鲲OAuth服务错误: LocalizedError, Sendable {
     var userFacingMessage: String {
         if code == 15006 || oauthError == "invalid_scope" {
             return String(
-                localized: "鲲Galgame OAuth客户端尚未开放NextMoe内容权限，请稍后重试。"
+                localized: "鲲Galgame OAuth客户端尚未开放NextMoe内容权限，请稍后再试。"
             )
         }
         return message
@@ -534,7 +533,7 @@ final class 鲲Galgame账户: NSObject, ObservableObject {
 
     private let credentialStore = 鲲OAuth凭据存储()
     private var credentials: 鲲OAuth凭据?
-    private var webAuthenticationSession: ASWebAuthenticationSession?
+    private var webAuthenticationTask: Task<Void, Never>?
     private var loopbackServer: 鲲OAuthLoopback服务器?
     private var pendingState: String?
     private var pendingCodeVerifier: String?
@@ -578,17 +577,19 @@ final class 鲲Galgame账户: NSObject, ObservableObject {
         credentials?.hasCatalogAccess ?? false
     }
 
-    func login() {
+    func login(using authenticator: WebAuthenticationSession) {
         guard !isAuthenticating else { return }
 
         isAuthenticating = true
         errorMessage = nil
         Task { @MainActor [weak self] in
-            await self?.beginLogin()
+            await self?.beginLogin(using: authenticator)
         }
     }
 
-    private func beginLogin() async {
+    private func beginLogin(
+        using authenticator: WebAuthenticationSession
+    ) async {
         do {
             guard 鲲OAuth配置.isConfigured else {
                 throw 鲲OAuth本地错误.notConfigured
@@ -620,40 +621,29 @@ final class 鲲Galgame账户: NSObject, ObservableObject {
             callbackTaskStarted = false
             self.loopbackServer = loopbackServer
 
-            let session = ASWebAuthenticationSession(
-                url: authorizationURL,
-                平台自定义Scheme: 鲲OAuth配置.callbackScheme
-            ) { [weak self] callbackURL, error in
-                let wasCancelled = (error as? ASWebAuthenticationSessionError)?
-                    .code == .canceledLogin
-                let errorDescription = error?.localizedDescription
-                Task { @MainActor [weak self] in
-                    self?.webAuthenticationSession = nil
-                    if wasCancelled {
-                        self?.finishAuthentication()
-                        return
-                    }
-                    if let errorDescription {
-                        self?.finishAuthentication(error: errorDescription)
-                        return
-                    }
-                    guard let callbackURL else {
-                        self?.finishAuthentication(
-                            error: 鲲OAuth本地错误.invalidCallback
-                                .localizedDescription
-                        )
-                        return
-                    }
+            webAuthenticationTask = Task { [weak self] in
+                do {
+                    let callbackURL = try await authenticator.authenticate(
+                        using: authorizationURL,
+                        callback: .customScheme(鲲OAuth配置.callbackScheme),
+                        preferredBrowserSession: .shared,
+                        additionalHeaderFields: [:]
+                    )
+                    self?.webAuthenticationTask = nil
                     await self?.handleCallback(callbackURL)
+                } catch {
+                    // 回环服务器先收到回调或主动结束登录时会取消此任务，状态已由取消方处理。
+                    guard !Task.isCancelled else { return }
+                    self?.webAuthenticationTask = nil
+                    if (error as? ASWebAuthenticationSessionError)?.code
+                        == .canceledLogin {
+                        self?.finishAuthentication()
+                    } else {
+                        self?.finishAuthentication(
+                            error: error.localizedDescription
+                        )
+                    }
                 }
-            }
-            session.presentationContextProvider = self
-            session.prefersEphemeralWebBrowserSession = false
-            webAuthenticationSession = session
-
-            guard session.start() else {
-                webAuthenticationSession = nil
-                throw 鲲OAuth本地错误.failedToPresentLogin
             }
 
             Task { [weak self, loopbackServer] in
@@ -674,8 +664,8 @@ final class 鲲Galgame账户: NSObject, ObservableObject {
         isLoggingOut = true
         let refreshToken = credentials?.refreshToken
 
-        webAuthenticationSession?.cancel()
-        webAuthenticationSession = nil
+        webAuthenticationTask?.cancel()
+        webAuthenticationTask = nil
         loopbackServer?.cancel()
         loopbackServer = nil
         pendingState = nil
@@ -885,8 +875,8 @@ final class 鲲Galgame账户: NSObject, ObservableObject {
     }
 
     private func finishAuthentication(error: String? = nil) {
-        webAuthenticationSession?.cancel()
-        webAuthenticationSession = nil
+        webAuthenticationTask?.cancel()
+        webAuthenticationTask = nil
         loopbackServer?.cancel()
         loopbackServer = nil
         pendingState = nil
@@ -1087,20 +1077,5 @@ final class 鲲Galgame账户: NSObject, ObservableObject {
             return value
         }
         throw 鲲OAuth本地错误.invalidResponse
-    }
-}
-
-extension 鲲Galgame账户: ASWebAuthenticationPresentationContextProviding {
-    func presentationAnchor(
-        for session: ASWebAuthenticationSession
-    ) -> ASPresentationAnchor {
-        let windows = UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .flatMap(\.windows)
-        guard let window = windows.first(where: \.isKeyWindow)
-                ?? windows.first else {
-            preconditionFailure("鲲Galgame登录需要可用的展示窗口。")
-        }
-        return window
     }
 }

@@ -1620,6 +1620,9 @@ struct Today页面: View {
                         Task {
                             await loadCachedRecommendations()
                         }
+                    },
+                    onShow: { ids in
+                        recommendationModel.记录展示(ids, userID: auth.userID)
                     }
                 )
             }
@@ -1654,7 +1657,7 @@ struct Today页面: View {
         .scrollIndicators(.automatic)
         .平台柔和滚动边缘(for: .top)
         .modifier(TodayDuoGeometryModifier(geometry: $duoDisplayGeometry))
-        .平台滚动几何变化(for: CGFloat.self) { geometry in
+        .onScrollGeometryChange(for: CGFloat.self) { geometry in
             let offset = max(
                 0,
                 geometry.contentOffset.y + geometry.contentInsets.top
@@ -1686,10 +1689,10 @@ struct Today页面: View {
                 description: storyDescription(for: story)
             )
             .平台近全屏弹窗(dragIndicator: .visible)
-            .平台缩放转场(
+            .navigationTransition(.zoom(
                 sourceID: introductionTransitionID(for: story),
                 in: namespace
-            )
+            ))
         }
         .sheet(isPresented: $显示Today推荐页面) {
             Today推荐页面(vndbAccount: auth.vndb账户)
@@ -1738,10 +1741,10 @@ struct Today页面: View {
                 $0.id == storyID
             }) {
                 storyVisualNovelDestination(story)
-                    .平台缩放转场(
+                    .navigationTransition(.zoom(
                         sourceID: storyDetailTransitionID(for: story),
                         in: namespace
-                    )
+                    ))
             } else {
                 平台内容不可用视图(
                     "Today不可用",
@@ -1974,7 +1977,7 @@ struct Today页面: View {
             )
             .scrollIndicators(.hidden)
             .scrollTargetBehavior(
-                .viewAligned(limitBehavior: .平台逐个)
+                .viewAligned(limitBehavior: .alwaysByOne)
             )
             .Today横向书架适配()
         } else if todayModel.isTodayUnavailable {
@@ -2231,7 +2234,7 @@ struct Today页面: View {
 
             if story.video == nil {
                 coverBackground
-                    .平台匹配转场源(
+                    .matchedTransitionSource(
                         id: transitionID,
                         in: namespace
                     )
@@ -2577,7 +2580,7 @@ private struct Today故事加载骨架列表: View {
             .frame(height: shelfHeight, alignment: .top)
             .scrollIndicators(.hidden)
             .scrollTargetBehavior(
-                .viewAligned(limitBehavior: .平台逐个)
+                .viewAligned(limitBehavior: .alwaysByOne)
             )
             .Today横向书架适配()
         case .duoPortrait:
@@ -2604,7 +2607,7 @@ private struct Today故事加载骨架列表: View {
             }
             .scrollIndicators(.hidden)
             .scrollTargetBehavior(
-                .viewAligned(limitBehavior: .平台逐个)
+                .viewAligned(limitBehavior: .alwaysByOne)
             )
             .Today横向书架适配()
         case .wide:
@@ -2631,7 +2634,7 @@ private struct Today故事加载骨架列表: View {
             }
             .scrollIndicators(.hidden)
             .scrollTargetBehavior(
-                .viewAligned(limitBehavior: .平台逐个)
+                .viewAligned(limitBehavior: .alwaysByOne)
             )
             .Today横向书架适配()
         case .compact:
@@ -2647,7 +2650,7 @@ private struct Today故事加载骨架列表: View {
                 .scrollTargetLayout()
             }
             .scrollIndicators(.hidden)
-            .scrollTargetBehavior(.viewAligned(limitBehavior: .平台逐个))
+            .scrollTargetBehavior(.viewAligned(limitBehavior: .alwaysByOne))
             .Today横向书架适配()
         }
     }
@@ -3509,7 +3512,7 @@ private struct Today故事视频: View {
                     .contentShape(Rectangle())
                     .accessibilityLabel(accessibilityTitle)
                     .accessibilityHint(Text(verbatim: openAccessibilityHint))
-                    .平台匹配转场源(
+                    .matchedTransitionSource(
                         id: transitionSourceID,
                         in: transitionNamespace
                     )
@@ -3540,7 +3543,7 @@ private struct Today故事视频: View {
                 .buttonBorderShape(.circle)
                 .controlSize(.small)
                 .frame(width: 44, height: 44)
-                .accessibilityLabel(isMuted ? "解除静音" : "开启静音")
+                .accessibilityLabel(isMuted ? "解除静音" : "静音")
                 .padding(12)
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
@@ -3804,6 +3807,7 @@ private struct Today推荐列表: View {
     let errorMessage: String?
     let usesWideLayout: Bool
     let onRetry: () -> Void
+    let onShow: ([String]) -> Void
 
     @EnvironmentObject private var auth: 用户登录
     @AppStorage("contentFilterEnabled")
@@ -3877,6 +3881,9 @@ private struct Today推荐列表: View {
             }
         }
         .accessibilityIdentifier("today.recommendations")
+        .task(id: visibleItems.map(\.id)) {
+            onShow(visibleItems.map(\.id))
+        }
         .overlay(alignment: .bottom) {
             模糊解除提示(
                 isPresented: blurRevealConfirmation.isPromptVisible
@@ -3978,7 +3985,7 @@ private struct Today推荐列表: View {
             )
         } else {
             平台内容不可用视图(
-                "暂无推荐",
+                "无推荐",
                 systemImage: "sparkles.rectangle.stack"
             )
             .frame(maxWidth: .infinity, minHeight: 180)
@@ -4001,8 +4008,7 @@ private struct Today推荐行: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     private var coverCornerRadius: CGFloat {
-        UIDevice.current.userInterfaceIdiom == .pad
-            && horizontalSizeClass == .regular ? 10 : 16
+        列表封面布局.圆角(horizontalSizeClass: horizontalSizeClass)
     }
 
     @AppStorage("preferredTitleLang")
@@ -4058,7 +4064,7 @@ private struct Today推荐行: View {
                             )
                         )
                         .onTapGesture(perform: revealCover)
-                        .accessibilityLabel("轻触两次以解除模糊")
+                        .accessibilityLabel("连按两次以解除模糊")
                 }
             }
             .frame(width: 72, height: 100)
@@ -4621,37 +4627,6 @@ private struct TodayDuoGeometryModifier: ViewModifier {
     }
 }
 
-private struct Today显示设置: View {
-    @Environment(\.dismiss) private var dismiss
-    @Binding var config: Today显示配置
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    Toggle("最近活动", isOn: $config.showEvents)
-                    Toggle("随机语录", isOn: $config.showQuotes)
-                } header: {
-                    Text("显示模块")
-                } footer: {
-                    Text("选择要在Today页面中显示的内容模块")
-                }
-            }
-            .navigationTitle("Today显示设置")
-            .平台柔和滚动边缘(for: .top)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("完成") {
-                        config.save()
-                        dismiss()
-                    }
-                }
-            }
-        }
-    }
-}
-
 nonisolated enum Today推荐语言: String, Codable, CaseIterable, Identifiable, Sendable {
     case 简体中文 = "zh-Hans"
     case 繁体中文 = "zh-Hant"
@@ -4783,6 +4758,15 @@ fileprivate struct Today推荐项目: Decodable, Identifiable, Sendable {
 
     var displayID: String { "T\(submissionNumber)" }
 
+    /// 与服务端一致：已通过的推荐不能再编辑。
+    var 可编辑: Bool {
+        switch status {
+        case .approved: return false
+        case .pending: return displayDate?.isEmpty ?? true
+        case .rejected, .canceled: return true
+        }
+    }
+
     var displayName: String {
         vndbUsername ?? "匿名"
     }
@@ -4885,7 +4869,7 @@ private struct PaperVNToday推荐服务 {
             case .duplicateByOthers(let message): return message
             case .unauthorized: return "需要登录 VNDB 账号才能提交推荐。"
             case .invalidData: return "提交的数据格式不正确。"
-            case .unavailable: return "服务器当前不可用，请稍后重试。"
+            case .unavailable: return "服务器当前不可用，请稍后再试。"
             case .server(_, let message): return message
             }
         }
@@ -4899,7 +4883,7 @@ private struct PaperVNToday推荐服务 {
             case .duplicateByOthers: return "无法重复推荐"
             case .unauthorized: return "需要登录"
             case .invalidData: return "数据错误"
-            case .unavailable: return "加载失败"
+            case .unavailable: return "无法载入"
             case .server: return "服务器错误"
             }
         }
@@ -5363,7 +5347,7 @@ struct Today推荐页面: View {
                         }
                         .disabled(!state.可以新建推荐)
                         .accessibilityLabel("新建推荐")
-                        .平台匹配转场源(
+                        .matchedTransitionSource(
                             id: Self.新建推荐转场ID,
                             in: transitionNamespace
                         )
@@ -5375,10 +5359,10 @@ struct Today推荐页面: View {
             if let account = vndbAccount {
                 Today推荐编辑页面(vndbAccount: account, state: state)
                     .presentationDetents([.fraction(0.98)])
-                    .平台缩放转场(
+                    .navigationTransition(.zoom(
                         sourceID: Self.新建推荐转场ID,
                         in: transitionNamespace
-                    )
+                    ))
             }
         }
         .sheet(item: $待编辑推荐) { 推荐 in
@@ -5387,7 +5371,7 @@ struct Today推荐页面: View {
                     .presentationDetents([.fraction(0.98)])
             }
         }
-        .alert("确定要取消推荐吗？", isPresented: $显示取消推荐提示) {
+        .alert("要取消推荐吗？", isPresented: $显示取消推荐提示) {
             Button("保持", role: .cancel) {
                 待取消推荐 = nil
             }
@@ -5398,7 +5382,7 @@ struct Today推荐页面: View {
                 执行取消推荐(从服务器删除: true)
             }
         } message: {
-            Text("取消推荐的视觉小说不增加今日推荐计数。如果你遇到了情有可原的情况，请使用“取消推荐并从服务器中删除”。")
+            Text("取消推荐将返还今日推荐次数。如果你遇到了情有可原的情况，请使用“取消推荐并从服务器中删除”。")
         }
         .alert("无法取消推荐", isPresented: $显示取消错误) {
             Button("好") {
@@ -5406,7 +5390,7 @@ struct Today推荐页面: View {
                 取消错误信息 = nil
             }
         } message: {
-            Text(取消错误信息 ?? "服务器当前不可用，请稍后重试。")
+            Text(取消错误信息 ?? "服务器当前不可用，请稍后再试。")
         }
     }
 
@@ -5459,7 +5443,7 @@ struct Today推荐页面: View {
             } else if let 错误 = state.错误信息 {
                 Section {
                     平台内容不可用视图(
-                        "加载失败",
+                        "无法载入",
                         systemImage: "exclamationmark.triangle",
                         description: Text(错误)
                     )
@@ -5467,7 +5451,7 @@ struct Today推荐页面: View {
             } else if state.推荐列表.isEmpty {
                 Section {
                     平台内容不可用视图(
-                        "暂无已提交推荐",
+                        "无已提交推荐",
                         systemImage: "square.and.pencil"
                     )
                 }
@@ -5475,12 +5459,13 @@ struct Today推荐页面: View {
                 Section {
                     ForEach(state.推荐列表) { 推荐 in
                         Button {
+                            guard 推荐.可编辑 else { return }
                             待编辑推荐 = 推荐
                         } label: {
                             推荐行视图(推荐: 推荐)
                         }
                             .buttonStyle(.plain)
-                            .accessibilityHint("轻点编辑推荐")
+                            .accessibilityHint(推荐.可编辑 ? "轻点编辑推荐" : "已通过的推荐无法编辑")
                             .contextMenu {
                                 if 推荐.status == .pending {
                                     Button(role: .destructive) {
@@ -5562,7 +5547,7 @@ struct Today推荐页面: View {
         ContentUnavailableView {
             Label("需要登录", systemImage: "person.crop.circle.badge.exclamationmark")
         } description: {
-            Text("登录 VNDB 账号后即可推荐视觉小说")
+            Text("登录VNDB账户后即可推荐视觉小说")
         }
     }
 
@@ -5740,7 +5725,7 @@ private final class 视觉小说搜索视图模型 {
             guard let httpResponse = response as? HTTPURLResponse,
                   httpResponse.statusCode == 200 else {
                 if !追加 {
-                    页面状态 = .failed("搜索失败")
+                    页面状态 = .failed("无法搜索")
                 }
                 正在加载更多 = false
                 return
@@ -5849,7 +5834,7 @@ private struct 视觉小说搜索页面: View {
                 case .failed(let message):
                     Section {
                         平台内容不可用视图(
-                            "搜索失败",
+                            "无法搜索",
                             systemImage: "exclamationmark.triangle",
                             description: Text(message)
                         )
@@ -6150,7 +6135,7 @@ private struct Today推荐编辑页面: View {
                     ), axis: .vertical)
                         .lineLimit(1...4)
                 } header: {
-                    Text("标题")
+                    Text("推广文本")
                 }
 
                 Section {
@@ -6235,7 +6220,7 @@ private struct Today推荐编辑页面: View {
                         .buttonBorderShape(.circle)
                         .tint(.blue)
                         .disabled(!可以提交)
-                        .accessibilityLabel(推荐 == nil ? "提交推荐" : "保存推荐")
+                        .accessibilityLabel(推荐 == nil ? "提交推荐" : "存储推荐")
                     }
                 }
             }

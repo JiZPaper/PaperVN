@@ -9096,7 +9096,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "バラ"
+            "value" : "薔薇系"
           }
         },
         "ko" : {
@@ -41491,13 +41491,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "兽人"
+            "value" : "福瑞"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "獸人"
+            "value" : "福瑞"
           }
         }
       }

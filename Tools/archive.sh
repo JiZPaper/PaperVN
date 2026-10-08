@@ -1,5 +1,5 @@
 #!/bin/bash
-# 归档 PaperVN，区分 TestFlight（最低 iOS 17）与 App Store（最低 iOS 26）构建。
+# 归档 PaperVN，区分 TestFlight（最低 iOS 18）与 App Store（最低 iOS 26）构建。
 #
 # 用法：
 #   Tools/archive.sh testflight [--upload]
@@ -23,8 +23,8 @@ fi
 
 case "$mode" in
     testflight)
-        expected_minimum_os="17.0"
-        deployment_override=(IPHONEOS_DEPLOYMENT_TARGET=17.0)
+        expected_minimum_os="18.0"
+        deployment_override=(IPHONEOS_DEPLOYMENT_TARGET=18.0)
         ;;
     appstore)
         # 使用项目 Release 配置中的 26.0，不做覆盖。
@@ -51,7 +51,7 @@ xcodebuild archive \
     -allowProvisioningUpdates \
     ${deployment_override[@]+"${deployment_override[@]}"}
 
-# 确认主程序与所有扩展的最低系统版本都符合预期，防止把 iOS 17 构建送审。
+# 确认主程序与所有扩展的最低系统版本都符合预期，防止把 iOS 18 构建送审。
 app_path="$archive_path/Products/Applications/PaperVN.app"
 bundles=("$app_path")
 while IFS= read -r -d '' appex; do

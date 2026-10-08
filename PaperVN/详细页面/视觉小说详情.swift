@@ -26,7 +26,7 @@ private struct 视觉小说详情警报修饰器: ViewModifier {
     func body(content: Content) -> some View {
         content
             .alert(
-                "翻译失败",
+                "无法翻译",
                 isPresented: Binding(
                     get: { translationError != nil },
                     set: { if !$0 { translationError = nil } }
@@ -44,7 +44,7 @@ private struct 视觉小说详情警报修饰器: ViewModifier {
                 Text("请先在资料库页面登录VNDB账户。")
             }
             .alert(
-                "加入资料库失败",
+                "无法添加到资料库",
                 isPresented: Binding(
                     get: { libraryActionError != nil },
                     set: { if !$0 { libraryActionError = nil } }
@@ -66,7 +66,7 @@ private struct 视觉小说详情警报修饰器: ViewModifier {
                 Button("取消", role: .cancel) { }
             } message: {
                 Text(verbatim: String(
-                    format: String(localized: "确定要从资料库删除“%@”吗？"),
+                    format: String(localized: "要从资料库删除“%@”吗？"),
                     navigationTitleText
                 ))
             }
@@ -108,10 +108,10 @@ private struct 视觉小说详情沉浸背景: View, Equatable {
                             width: proxy.size.width,
                             height: proxy.size.height
                         )
-                        .scaleEffect(1.55)
-                        .blur(radius: 96)
-                        .saturation(1.18)
-                        .opacity(0.56)
+                        .scaleEffect(沉浸封面背景层参数.缩放)
+                        .blur(radius: 沉浸封面背景层参数.模糊半径)
+                        .saturation(沉浸封面背景层参数.饱和度)
+                        .opacity(沉浸封面背景层参数.不透明度)
 
                     ForEach(imageURLs, id: \.absoluteString) { url in
                         CachedAsyncImage(
@@ -127,7 +127,9 @@ private struct 视觉小说详情沉浸背景: View, Equatable {
                     }
                 }
 
-                Color.平台系统背景.opacity(0.2)
+                Color.平台系统背景.opacity(
+                    沉浸封面背景层参数.系统背景覆盖不透明度
+                )
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
             .clipped()
@@ -196,6 +198,7 @@ private extension View {
                 }
             }
         }
+        .沉浸取样校准登记("视觉小说", keys: keys)
     }
 
     @ViewBuilder
@@ -220,66 +223,23 @@ private func 视觉小说沉浸取样框有效(_ frame: CGRect) -> Bool {
         && frame.height > 0
 }
 
-/// iOS 18 及以上使用 UIKit 平移手势；iOS 17 使用方向锁定的 `DragGesture`。
+/// 按初速度判断横向后才开始识别，并让系统返回手势优先，避免与竖向滚动和边缘右滑抢手势。
 private struct 截屏水平拖动修饰器: ViewModifier {
     var onChanged: (CGSize) -> Void
     var onEnded: (CGSize, CGSize) -> Void
     var onCancelled: () -> Void
 
-    @State private var isHorizontalDrag: Bool?
-    @GestureState private var isDragging = false
-
-    @ViewBuilder
     func body(content: Content) -> some View {
-        if #available(iOS 18.0, *) {
-            content.gesture(
-                截屏水平拖动手势(
-                    onChanged: onChanged,
-                    onEnded: onEnded,
-                    onCancelled: onCancelled
-                )
+        content.gesture(
+            截屏水平拖动手势(
+                onChanged: onChanged,
+                onEnded: onEnded,
+                onCancelled: onCancelled
             )
-        } else {
-            content
-                .simultaneousGesture(
-                    DragGesture(minimumDistance: 12)
-                        .updating($isDragging) { _, state, _ in
-                            state = true
-                        }
-                        .onChanged { value in
-                            if isHorizontalDrag == nil {
-                                isHorizontalDrag = abs(value.translation.width)
-                                    > abs(value.translation.height) * 1.25
-                            }
-                            guard isHorizontalDrag == true else { return }
-                            onChanged(value.translation)
-                        }
-                        .onEnded { value in
-                            let wasHorizontal = isHorizontalDrag == true
-                            isHorizontalDrag = nil
-                            guard wasHorizontal else { return }
-                            let projectedTranslation = CGSize(
-                                width: value.translation.width
-                                    + value.velocity.width * 0.18,
-                                height: value.translation.height
-                                    + value.velocity.height * 0.18
-                            )
-                            onEnded(value.translation, projectedTranslation)
-                        }
-                )
-                .onChange(of: isDragging) { _, dragging in
-                    guard !dragging, isHorizontalDrag != nil else { return }
-                    let wasHorizontal = isHorizontalDrag == true
-                    isHorizontalDrag = nil
-                    if wasHorizontal {
-                        onCancelled()
-                    }
-                }
-        }
+        )
     }
 }
 
-@available(iOS 18.0, *)
 private struct 截屏水平拖动手势: UIGestureRecognizerRepresentable {
     var onChanged: (CGSize) -> Void
     var onEnded: (CGSize, CGSize) -> Void
@@ -371,288 +331,91 @@ private struct 截屏水平拖动手势: UIGestureRecognizerRepresentable {
     }
 }
 
-private struct 详情底部继续上划监听器: UIViewRepresentable {
+/// 在滚动视图底部继续上划时报告手指越过底部的距离，松手时结束。
+/// 系统只提供回弹后的越界偏移，这里按 UIScrollView 的回弹曲线反解出手指位移，
+/// 使阈值与拖动视觉保持以手指位移计。
+/// `onEnded` 返回 true 时，等回弹归位后再调用 `onSettled`：
+/// 回弹途中推入新页面会打断回弹，页面会瞬间跳回底部。
+private struct 详情底部继续上划修饰器: ViewModifier {
     let isEnabled: Bool
     let onBegan: () -> Void
     let onChanged: (CGFloat) -> Void
-    let onEnded: (CGFloat, CGFloat) -> Void
-    let onCancelled: () -> Void
+    let onEnded: () -> Bool
+    let onSettled: () -> Void
 
-    func makeCoordinator() -> Coordinator {
-        Coordinator(
-            isEnabled: isEnabled,
-            onBegan: onBegan,
-            onChanged: onChanged,
-            onEnded: onEnded,
-            onCancelled: onCancelled
-        )
-    }
+    @State private var isInteracting = false
+    @State private var isTracking = false
+    @State private var isAwaitingSettle = false
 
-    func makeUIView(context: Context) -> 详情底部继续上划监听视图 {
-        详情底部继续上划监听视图 {
-            context.coordinator.attach(to: $0)
-        }
-    }
-
-    func updateUIView(
-        _ view: 详情底部继续上划监听视图,
-        context: Context
-    ) {
-        context.coordinator.isEnabled = isEnabled
-        context.coordinator.onBegan = onBegan
-        context.coordinator.onChanged = onChanged
-        context.coordinator.onEnded = onEnded
-        context.coordinator.onCancelled = onCancelled
-        context.coordinator.attach(to: view)
-    }
-
-    static func dismantleUIView(
-        _ view: 详情底部继续上划监听视图,
-        coordinator: Coordinator
-    ) {
-        coordinator.detach()
-    }
-
-    final class 详情底部继续上划监听视图: UIView {
-        let onHierarchyChanged: (UIView) -> Void
-
-        init(onHierarchyChanged: @escaping (UIView) -> Void) {
-            self.onHierarchyChanged = onHierarchyChanged
-            super.init(frame: .zero)
-            isUserInteractionEnabled = false
-            backgroundColor = .clear
-            isOpaque = false
-        }
-
-        required init?(coder: NSCoder) {
-            nil
-        }
-
-        override func didMoveToSuperview() {
-            super.didMoveToSuperview()
-            onHierarchyChanged(self)
-        }
-
-        override func didMoveToWindow() {
-            super.didMoveToWindow()
-            onHierarchyChanged(self)
-        }
-
-        override func layoutSubviews() {
-            super.layoutSubviews()
-            onHierarchyChanged(self)
-        }
-    }
-
-    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
-        var isEnabled: Bool
-        var onBegan: () -> Void
-        var onChanged: (CGFloat) -> Void
-        var onEnded: (CGFloat, CGFloat) -> Void
-        var onCancelled: () -> Void
-        var initialDistanceToBottom: CGFloat = 0
-        weak var panGestureRecognizer: UIPanGestureRecognizer?
-        weak var scrollView: UIScrollView?
-
-        init(
-            isEnabled: Bool,
-            onBegan: @escaping () -> Void,
-            onChanged: @escaping (CGFloat) -> Void,
-            onEnded: @escaping (CGFloat, CGFloat) -> Void,
-            onCancelled: @escaping () -> Void
-        ) {
-            self.isEnabled = isEnabled
-            self.onBegan = onBegan
-            self.onChanged = onChanged
-            self.onEnded = onEnded
-            self.onCancelled = onCancelled
-        }
-
-        func attach(to view: UIView) {
-            guard let nextScrollView = enclosingScrollView(from: view) else {
-                return
-            }
-            guard nextScrollView !== scrollView else { return }
-            detach()
-
-            let pan = UIPanGestureRecognizer(
-                target: self,
-                action: #selector(handlePan(_:))
-            )
-            pan.maximumNumberOfTouches = 1
-            pan.cancelsTouchesInView = false
-            pan.delegate = self
-            nextScrollView.addGestureRecognizer(pan)
-            panGestureRecognizer = pan
-            scrollView = nextScrollView
-        }
-
-        func detach() {
-            if let panGestureRecognizer {
-                panGestureRecognizer.view?.removeGestureRecognizer(
-                    panGestureRecognizer
+    func body(content: Content) -> some View {
+        content
+            .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                // ScrollGeometry 的 contentSize 已包含底部安全区，不能再加 contentInsets.bottom。
+                let bottomOffset = max(
+                    -geometry.contentInsets.top,
+                    geometry.contentSize.height
+                        - geometry.containerSize.height
                 )
-            }
-            initialDistanceToBottom = 0
-            panGestureRecognizer = nil
-            scrollView = nil
-        }
-
-        func gestureRecognizerShouldBegin(
-            _ gestureRecognizer: UIGestureRecognizer
-        ) -> Bool {
-            guard isEnabled,
-                  let pan = gestureRecognizer as? UIPanGestureRecognizer,
-                  let scrollView = pan.view as? UIScrollView else {
-                return false
-            }
-
-            let velocity = pan.velocity(in: scrollView.superview)
-            guard velocity.y < -80,
-                  abs(velocity.y) > abs(velocity.x) * 1.15 else {
-                return false
-            }
-
-            let distanceToBottom = distanceToBottom(in: scrollView)
-            guard distanceToBottom
-                    <= 视觉小说评论入口拖动参数.底部接管余量 else {
-                return false
-            }
-            initialDistanceToBottom = distanceToBottom
-            return true
-        }
-
-        func gestureRecognizer(
-            _ gestureRecognizer: UIGestureRecognizer,
-            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
-        ) -> Bool {
-            guard let scrollPan = scrollView?.panGestureRecognizer else {
-                return false
-            }
-            return gestureRecognizer === scrollPan
-                || otherGestureRecognizer === scrollPan
-        }
-
-        @objc
-        func handlePan(_ recognizer: UIPanGestureRecognizer) {
-            guard let scrollView = recognizer.view as? UIScrollView else {
-                return
-            }
-            let translation = recognizer.translation(
-                in: scrollView.superview
-            )
-            let velocity = recognizer.velocity(in: scrollView.superview)
-            let currentDistance = pullDistance(
-                translation: translation.y
-            )
-
-            switch recognizer.state {
-            case .began:
-                onBegan()
-                onChanged(currentDistance)
-            case .changed:
-                onChanged(currentDistance)
-            case .ended:
-                finishPan(
-                    in: scrollView,
-                    currentDistance,
-                    projectedDistance: pullDistance(
-                        translation: translation.y,
-                        velocity: velocity.y
-                    )
+                let overscroll = max(geometry.contentOffset.y - bottomOffset, 0)
+                return Self.fingerDistance(
+                    forOverscroll: overscroll,
+                    dimension: geometry.containerSize.height
                 )
-                initialDistanceToBottom = 0
-            case .cancelled, .failed:
-                onCancelled()
-                initialDistanceToBottom = 0
-            default:
-                break
-            }
-        }
-
-        private func pullDistance(
-            translation: CGFloat,
-            velocity: CGFloat = 0
-        ) -> CGFloat {
-            let upwardDistance = -(
-                translation
-                    + velocity * 视觉小说评论入口拖动参数.投影时长
-            )
-            return max(upwardDistance - initialDistanceToBottom, 0)
-        }
-
-        private func distanceToBottom(in scrollView: UIScrollView) -> CGFloat {
-            let bottomOffset = max(
-                -scrollView.adjustedContentInset.top,
-                scrollView.contentSize.height
-                    - scrollView.bounds.height
-                    + scrollView.adjustedContentInset.bottom
-            )
-            return max(bottomOffset - scrollView.contentOffset.y, 0)
-        }
-
-        private func finishPan(
-            in scrollView: UIScrollView,
-            _ currentDistance: CGFloat,
-            projectedDistance: CGFloat
-        ) {
-            let bottomOffset = max(
-                -scrollView.adjustedContentInset.top,
-                scrollView.contentSize.height
-                    - scrollView.bounds.height
-                    + scrollView.adjustedContentInset.bottom
-            )
-            let overscroll = scrollView.contentOffset.y - bottomOffset
-            guard currentDistance
-                    >= 视觉小说评论入口拖动参数.阈值,
-                  overscroll > 0.5 else {
-                onEnded(currentDistance, projectedDistance)
-                return
-            }
-
-            let duration = min(
-                max(0.18, 0.18 + overscroll * 0.001),
-                0.32
-            )
-            UIView.animate(
-                withDuration: duration,
-                delay: 0,
-                options: [
-                    .beginFromCurrentState,
-                    .allowUserInteraction,
-                    .curveEaseOut
-                ]
-            ) {
-                scrollView.setContentOffset(
-                    CGPoint(
-                        x: scrollView.contentOffset.x,
-                        y: bottomOffset
-                    ),
-                    animated: false
-                )
-            } completion: { [weak self] _ in
-                self?.onEnded(currentDistance, projectedDistance)
-            }
-        }
-
-        private func enclosingScrollView(from view: UIView) -> UIScrollView? {
-            var candidate = view.superview
-            while let current = candidate {
-                if let scrollView = current as? UIScrollView {
-                    return scrollView
+            } action: { _, distance in
+                if isAwaitingSettle {
+                    if distance <= 详情底部继续上划修饰器.归位容差 {
+                        settle()
+                    }
+                    return
                 }
-                candidate = current.superview
+                guard isEnabled, isInteracting else { return }
+                if !isTracking {
+                    guard distance > 0 else { return }
+                    isTracking = true
+                    onBegan()
+                }
+                onChanged(distance)
             }
-            return nil
-        }
+            .onScrollPhaseChange { oldPhase, newPhase in
+                if newPhase == .idle, isAwaitingSettle {
+                    settle()
+                    return
+                }
+                if newPhase == .interacting {
+                    isInteracting = true
+                    return
+                }
+                guard oldPhase == .interacting else { return }
+                isInteracting = false
+                guard isTracking else { return }
+                isTracking = false
+                isAwaitingSettle = onEnded()
+            }
+    }
+
+    /// 越界换算成手指位移后小于此值即视为已回到底部。
+    private static let 归位容差: CGFloat = 2
+
+    private func settle() {
+        isAwaitingSettle = false
+        onSettled()
+    }
+
+    /// `overscroll = (1 - 1 / (x * 0.55 / d + 1)) * d` 的反函数。
+    private static func fingerDistance(
+        forOverscroll overscroll: CGFloat,
+        dimension: CGFloat
+    ) -> CGFloat {
+        let dimension = max(dimension, 1)
+        let overscroll = min(max(overscroll, 0), dimension * 0.99)
+        return dimension / 0.55 * overscroll / (dimension - overscroll)
     }
 }
 
 private enum 视觉小说评论入口拖动参数 {
     static let 阈值: CGFloat = 144
     static let 最大视觉距离: CGFloat = 204
-    static let 底部接管余量: CGFloat = 72
-    static let 投影时长: CGFloat = 0.22
+    static let 进度条宽度: CGFloat = 160
 }
 
 private struct 沉浸标签两行布局: Layout {
@@ -868,8 +631,8 @@ struct 视觉小说详情: View {
     @State private var translationError: String?
     @State private var isTranslatingDescription = false
     @State private var isTranslatingTags = false
-    @State private var descriptionTranslationConfiguration: 平台翻译配置?
-    @State private var tagTranslationConfiguration: 平台翻译配置?
+    @State private var descriptionTranslationConfiguration: TranslationSession.Configuration?
+    @State private var tagTranslationConfiguration: TranslationSession.Configuration?
 
     @State private var revealedTagIDs: Set<String> = []
     @State private var revealAverageRating = false
@@ -886,13 +649,11 @@ struct 视觉小说详情: View {
     @State private var screenshotStackIsCompletingSwipe = false
     @State private var externalBrowserTarget: 外部浏览目标?
     @State private var showDescriptionSheet = false
+    @State private var isDescriptionTruncated = false
     @State private var showEditSheet = false
     @State private var showInfoSheet = false
     @State private var showLoginRequiredAlert = false
     @State private var showAllTags = false
-    @State private var tagsAreAtEnd = false
-    @State private var tagsOverscrollArmed = false
-    @State private var tagsOverscrollFeedback = 0
     @State private var tagsContentOpacity = 1.0
     @State private var isSwitchingTagLanguage = false
     @State private var expandedStaffRoles: Set<String> = []
@@ -907,7 +668,7 @@ struct 视觉小说详情: View {
     @State private var immersiveTextSampleGeometry:
         沉浸封面文字取样几何?
     @State private var immersiveTextSamplingCoordinator =
-        沉浸封面文字取样任务协调器()
+        沉浸封面文字取样任务协调器(校准名称: "视觉小说")
     @State private var immersiveLoadedHeroImage: Image?
     @State private var immersiveLoadedHeroImageURL: URL?
     @State private var immersiveOutgoingHeroImage: Image?
@@ -924,8 +685,6 @@ struct 视觉小说详情: View {
     @State private var moreCommentsPullFeedbackIssued = false
     @State private var moreCommentsPullFeedback = 0
     @State private var unifiedRating: 统一视觉小说评分?
-    @ScaledMetric(relativeTo: .headline)
-    private var moreCommentsControlDiameter: CGFloat = 48
 
     @AppStorage("preferredTitleLang") private var preferredTitleLang: 标题语言 = .original
     @AppStorage("fallbackTitleLang") private var fallbackTitleLang: 标题语言 = .original
@@ -1100,16 +859,20 @@ struct 视觉小说详情: View {
         .task(id: auth.userID) {
             await loadUserListItem()
         }
+        .onAppear {
+            guard isFromRecommendation else { return }
+            推荐反馈中心.shared.记录打开(vnID, userID: auth.userID)
+        }
         .onChange(of: colorScheme) { _, _ in
             immersiveTextSamples = [:]
             immersiveTextSampleURL = nil
             immersiveTextRevealURL = nil
             refreshImmersiveTextSamplesForCurrentAppearance()
         }
-        .平台翻译任务(descriptionTranslationConfiguration) { session in
+        .translationTask(descriptionTranslationConfiguration) { session in
             await translateDescription(using: session)
         }
-        .平台翻译任务(tagTranslationConfiguration) { session in
+        .translationTask(tagTranslationConfiguration) { session in
             await translateMissingTags(using: session)
         }
         .sheet(item: $externalBrowserTarget) { target in
@@ -1119,10 +882,10 @@ struct 视觉小说详情: View {
         .sheet(isPresented: $showDescriptionSheet) {
             if let detail {
                 descriptionSheetContent(detail)
-                    .平台缩放转场(
+                    .navigationTransition(.zoom(
                         sourceID: "DescriptionSheet",
                         in: descriptionNamespace
-                    )
+                    ))
             }
         }
         .sheet(isPresented: $showEditSheet) {
@@ -1138,16 +901,16 @@ struct 视觉小说详情: View {
                     await loadUserListItem(forceRefresh: true)
                 }
                 .平台近全屏弹窗(dragIndicator: .visible)
-                .平台缩放转场(sourceID: "EditSheet", in: editNamespace)
+                .navigationTransition(.zoom(sourceID: "EditSheet", in: editNamespace))
             }
         }
         .sheet(isPresented: $showInfoSheet) {
             if let detail {
                 detailInfoSheetContent(detail)
-                    .平台缩放转场(
+                    .navigationTransition(.zoom(
                         sourceID: "InfoSheet",
                         in: infoNamespace
-                    )
+                    ))
             }
         }
         .onChange(of: showEditSheet) { _, isPresented in
@@ -1211,7 +974,7 @@ struct 视觉小说详情: View {
                 Image(systemName: "info.circle")
             }
             .disabled(self.detail == nil)
-            .平台匹配转场源(id: "InfoSheet", in: infoNamespace)
+            .matchedTransitionSource(id: "InfoSheet", in: infoNamespace)
             .accessibilityLabel("更多信息")
         }
     }
@@ -1237,7 +1000,7 @@ struct 视觉小说详情: View {
             }
         }
         .disabled(isAddingToLibrary)
-        .平台匹配转场源(id: "EditSheet", in: editNamespace)
+        .matchedTransitionSource(id: "EditSheet", in: editNamespace)
         .accessibilityLabel(
             shouldShowAddButton ? "加入计划游玩" : "编辑资料库"
         )
@@ -1401,24 +1164,23 @@ struct 视觉小说详情: View {
                         immersiveMediaContent(detail)
                             .transition(.opacity)
                     }
-
-                    详情底部继续上划监听器(
-                        isEnabled: hasMoreComments,
-                        onBegan: {
-                            moreCommentsPullDistance = 0
-                            moreCommentsPullIsArmed = false
-                            moreCommentsPullFeedbackIssued = false
-                        },
-                        onChanged: updateMoreCommentsPull,
-                        onEnded: { _, _ in
-                            finishMoreCommentsPull()
-                        },
-                        onCancelled: cancelMoreCommentsPull
-                    )
-                    .frame(width: 1, height: 1)
-                    .accessibilityHidden(true)
                 }
             }
+            .modifier(
+                详情底部继续上划修饰器(
+                    isEnabled: hasMoreComments,
+                    onBegan: {
+                        moreCommentsPullDistance = 0
+                        moreCommentsPullIsArmed = false
+                        moreCommentsPullFeedbackIssued = false
+                    },
+                    onChanged: updateMoreCommentsPull,
+                    onEnded: finishMoreCommentsPull,
+                    onSettled: {
+                        showAllComments = true
+                    }
+                )
+            )
             .平台横向内容可溢出()
             .scrollBounceBehavior(.always, axes: .vertical)
         }
@@ -1511,8 +1273,7 @@ struct 视觉小说详情: View {
                     * (1 - transitionProgress)
             let sampleImageFrame = CGRect(
                 x: samplingFrame.minX,
-                y: samplingFrame.minY - pullDown
-                    + (horizontalSizeClass == .regular ? -60 : 0),
+                y: samplingFrame.minY - pullDown,
                 width: width,
                 height: heroHeight + fadeOverflow + descriptionExtension
             )
@@ -1592,7 +1353,7 @@ struct 视觉小说详情: View {
                     }
                     .frame(width: width, height: renderedHeight)
                 } else {
-                    平台内容不可用视图("暂无封面", systemImage: "photo")
+                    平台内容不可用视图("无封面", systemImage: "photo")
                         .frame(width: width, height: renderedHeight)
                 }
             }
@@ -1797,109 +1558,30 @@ struct 视觉小说详情: View {
         return hasVisibleTags ? 316 : 148
     }
 
-    @ViewBuilder
     private func immersiveHeroImage(
         loadedImage: Image?,
         extendsThroughDescription: Bool,
         regularTransitionStart: CGFloat,
         revealProgress: CGFloat
     ) -> some View {
+        immersiveHeroImageComposition(
+            loadedImage: loadedImage,
+            gradient: immersiveHeroGradient(
+                extendsThroughDescription: extendsThroughDescription,
+                regularTransitionStart: regularTransitionStart
+            ),
+            revealProgress: revealProgress
+        )
+    }
+
+    private func immersiveHeroGradient(
+        extendsThroughDescription: Bool,
+        regularTransitionStart: CGFloat
+    ) -> 沉浸封面渐变方案 {
         if extendsThroughDescription, horizontalSizeClass == .regular {
-            immersiveHeroImageComposition(
-                loadedImage: loadedImage,
-                sharpStops: regularSharpStops(
-                    transitionStart: regularTransitionStart
-                ),
-                mediumBlurRadius: 18,
-                mediumStops: regularMediumBlurStops(
-                    transitionStart: regularTransitionStart
-                ),
-                heavyBlurRadius: 42,
-                heavyStops: regularHeavyBlurStops(
-                    transitionStart: regularTransitionStart
-                ),
-                fadeStops: regularFadeStops(
-                    transitionStart: regularTransitionStart
-                ),
-                revealProgress: revealProgress
-            )
-        } else if extendsThroughDescription {
-            immersiveHeroImageComposition(
-                loadedImage: loadedImage,
-                sharpStops: [
-                    .init(color: .white, location: 0),
-                    .init(color: .white, location: 0.32),
-                    .init(color: .white.opacity(0.78), location: 0.37),
-                    .init(color: .white.opacity(0.38), location: 0.44),
-                    .init(color: .clear, location: 0.54)
-                ],
-                mediumBlurRadius: 16,
-                mediumStops: [
-                    .init(color: .clear, location: 0.3),
-                    .init(color: .white.opacity(0.5), location: 0.39),
-                    .init(color: .white, location: 0.54),
-                    .init(color: .white, location: 0.74),
-                    .init(color: .white.opacity(0.46), location: 0.88),
-                    .init(color: .clear, location: 1)
-                ],
-                heavyBlurRadius: 36,
-                heavyStops: [
-                    .init(color: .clear, location: 0.58),
-                    .init(color: .white.opacity(0.4), location: 0.66),
-                    .init(color: .white, location: 0.78),
-                    .init(color: .white, location: 0.88),
-                    .init(color: .white.opacity(0.36), location: 0.97),
-                    .init(color: .clear, location: 1)
-                ],
-                fadeStops: [
-                    .init(color: .white, location: 0),
-                    .init(color: .white, location: 0.5),
-                    .init(color: .white.opacity(0.86), location: 0.62),
-                    .init(color: .white.opacity(0.58), location: 0.76),
-                    .init(color: .white.opacity(0.3), location: 0.86),
-                    .init(color: .white.opacity(0.08), location: 0.95),
-                    .init(color: .clear, location: 1)
-                ],
-                revealProgress: revealProgress
-            )
-        } else {
-            immersiveHeroImageComposition(
-                loadedImage: loadedImage,
-                sharpStops: [
-                    .init(color: .white, location: 0),
-                    .init(color: .white, location: 0.46),
-                    .init(color: .white.opacity(0.5), location: 0.64),
-                    .init(color: .clear, location: 0.84)
-                ],
-                mediumBlurRadius: 18,
-                mediumStops: [
-                    .init(color: .clear, location: 0.35),
-                    .init(color: .white.opacity(0.4), location: 0.49),
-                    .init(color: .white, location: 0.7),
-                    .init(color: .white.opacity(0.55), location: 0.82),
-                    .init(color: .clear, location: 0.96)
-                ],
-                heavyBlurRadius: 42,
-                heavyStops: [
-                    .init(color: .clear, location: 0.64),
-                    .init(color: .white.opacity(0.5), location: 0.76),
-                    .init(color: .white, location: 0.88),
-                    .init(color: .white.opacity(0.45), location: 0.98),
-                    .init(color: .clear, location: 1)
-                ],
-                fadeStops: [
-                    .init(color: .white, location: 0),
-                    .init(color: .white, location: 0.46),
-                    .init(color: .white.opacity(0.86), location: 0.58),
-                    .init(color: .white.opacity(0.62), location: 0.7),
-                    .init(color: .white.opacity(0.34), location: 0.82),
-                    .init(color: .white.opacity(0.1), location: 0.91),
-                    .init(color: .clear, location: 0.97),
-                    .init(color: .clear, location: 1)
-                ],
-                revealProgress: revealProgress
-            )
+            return .常规(transitionStart: regularTransitionStart)
         }
+        return extendsThroughDescription ? .紧凑延伸 : .紧凑标准
     }
 
     @ViewBuilder
@@ -1940,169 +1622,9 @@ struct 视觉小说详情: View {
         .clipped()
     }
 
-    private func regularSharpStops(
-        transitionStart: CGFloat
-    ) -> [Gradient.Stop] {
-        [
-            .init(color: .white, location: 0),
-            .init(
-                color: .white,
-                location: max(transitionStart - 0.08, 0)
-            ),
-            .init(
-                color: .white.opacity(0.76),
-                location: transitionStart
-            ),
-            .init(
-                color: .white.opacity(0.34),
-                location: regularGradientLocation(
-                    after: transitionStart,
-                    progress: 0.17
-                )
-            ),
-            .init(
-                color: .clear,
-                location: regularGradientLocation(
-                    after: transitionStart,
-                    progress: 0.34
-                )
-            )
-        ]
-    }
-
-    private func regularMediumBlurStops(
-        transitionStart: CGFloat
-    ) -> [Gradient.Stop] {
-        [
-            .init(
-                color: .clear,
-                location: max(transitionStart - 0.09, 0)
-            ),
-            .init(
-                color: .white.opacity(0.42),
-                location: max(transitionStart - 0.03, 0)
-            ),
-            .init(
-                color: .white,
-                location: regularGradientLocation(
-                    after: transitionStart,
-                    progress: 0.24
-                )
-            ),
-            .init(
-                color: .white,
-                location: regularGradientLocation(
-                    after: transitionStart,
-                    progress: 0.61
-                )
-            ),
-            .init(
-                color: .white.opacity(0.42),
-                location: regularGradientLocation(
-                    after: transitionStart,
-                    progress: 0.85
-                )
-            ),
-            .init(color: .clear, location: 1)
-        ]
-    }
-
-    private func regularHeavyBlurStops(
-        transitionStart: CGFloat
-    ) -> [Gradient.Stop] {
-        [
-            .init(
-                color: .clear,
-                location: regularGradientLocation(
-                    after: transitionStart,
-                    progress: 0.1
-                )
-            ),
-            .init(
-                color: .white.opacity(0.42),
-                location: regularGradientLocation(
-                    after: transitionStart,
-                    progress: 0.27
-                )
-            ),
-            .init(
-                color: .white,
-                location: regularGradientLocation(
-                    after: transitionStart,
-                    progress: 0.51
-                )
-            ),
-            .init(
-                color: .white,
-                location: regularGradientLocation(
-                    after: transitionStart,
-                    progress: 0.76
-                )
-            ),
-            .init(
-                color: .white.opacity(0.34),
-                location: regularGradientLocation(
-                    after: transitionStart,
-                    progress: 0.92
-                )
-            ),
-            .init(color: .clear, location: 1)
-        ]
-    }
-
-    private func regularFadeStops(
-        transitionStart: CGFloat
-    ) -> [Gradient.Stop] {
-        [
-            .init(color: .white, location: 0),
-            .init(color: .white, location: transitionStart),
-            .init(
-                color: .white.opacity(0.86),
-                location: regularGradientLocation(
-                    after: transitionStart,
-                    progress: 0.24
-                )
-            ),
-            .init(
-                color: .white.opacity(0.6),
-                location: regularGradientLocation(
-                    after: transitionStart,
-                    progress: 0.51
-                )
-            ),
-            .init(
-                color: .white.opacity(0.32),
-                location: regularGradientLocation(
-                    after: transitionStart,
-                    progress: 0.7
-                )
-            ),
-            .init(
-                color: .white.opacity(0.08),
-                location: regularGradientLocation(
-                    after: transitionStart,
-                    progress: 0.9
-                )
-            ),
-            .init(color: .clear, location: 1)
-        ]
-    }
-
-    private func regularGradientLocation(
-        after transitionStart: CGFloat,
-        progress: CGFloat
-    ) -> CGFloat {
-        transitionStart + (1 - transitionStart) * progress
-    }
-
     private func immersiveHeroImageComposition(
         loadedImage: Image?,
-        sharpStops: [Gradient.Stop],
-        mediumBlurRadius: CGFloat,
-        mediumStops: [Gradient.Stop],
-        heavyBlurRadius: CGFloat,
-        heavyStops: [Gradient.Stop],
-        fadeStops: [Gradient.Stop],
+        gradient: 沉浸封面渐变方案,
         revealProgress: CGFloat
     ) -> some View {
         let revealProgress = min(max(revealProgress, 0), 1)
@@ -2115,7 +1637,7 @@ struct 视觉小说详情: View {
                 .mask {
                     ZStack {
                         LinearGradient(
-                            stops: sharpStops,
+                            stops: gradient.sharp.gradientStops,
                             startPoint: .top,
                             endPoint: .bottom
                         )
@@ -2127,10 +1649,10 @@ struct 视觉小说详情: View {
                 loadedImage: loadedImage,
                 revealProgress: revealProgress
             )
-                .blur(radius: mediumBlurRadius)
+                .blur(radius: gradient.mediumBlurRadius)
                 .mask {
                     LinearGradient(
-                        stops: mediumStops,
+                        stops: gradient.medium.gradientStops,
                         startPoint: .top,
                         endPoint: .bottom
                     )
@@ -2141,10 +1663,10 @@ struct 视觉小说详情: View {
                 loadedImage: loadedImage,
                 revealProgress: revealProgress
             )
-                .blur(radius: heavyBlurRadius)
+                .blur(radius: gradient.heavyBlurRadius)
                 .mask {
                     LinearGradient(
-                        stops: heavyStops,
+                        stops: gradient.heavy.gradientStops,
                         startPoint: .top,
                         endPoint: .bottom
                     )
@@ -2155,7 +1677,7 @@ struct 视觉小说详情: View {
         .mask {
             ZStack {
                 LinearGradient(
-                    stops: fadeStops,
+                    stops: gradient.fade.gradientStops,
                     startPoint: .top,
                     endPoint: .bottom
                 )
@@ -2396,15 +1918,24 @@ struct 视觉小说详情: View {
         revealsImmediately: Bool
     ) {
         let imageURLs = immersiveImageURLs(for: displayedDetail)
+        let descriptionExtension = immersiveHeroDescriptionExtension(
+            for: displayedDetail,
+            imageURLs: imageURLs
+        )
+        // 与 immersiveHero 中静止状态（无下拉）的过渡位置一致。
+        let layerHeight = max(geometry.imageSize.height, 1)
+        let heroHeight = layerHeight - 72 - descriptionExtension
         let request = 沉浸封面文字取样请求(
             url: url,
             layout: .visualNovel,
             background: colorScheme == .dark ? .dark : .light,
-            extendsThroughInformation:
-                immersiveHeroDescriptionExtension(
-                    for: displayedDetail,
-                    imageURLs: imageURLs
-                ) > 0,
+            gradient: descriptionExtension > 0
+                && horizontalSizeClass == .regular
+                ? .常规取样(
+                    transitionStart: (heroHeight + 24 - immersiveDescriptionOverlap)
+                        / layerHeight
+                )
+                : descriptionExtension > 0 ? .紧凑延伸 : .紧凑标准,
             itemCounts: [
                 "tags": displayedDetail.sortedTags.filter {
                     !shouldHideTag($0)
@@ -2494,7 +2025,9 @@ struct 视觉小说详情: View {
 
         let geometry = 沉浸封面文字取样几何(
             imageSize: CGSize(width: imageFrame.width, height: imageFrame.height),
-            regions: regions
+            regions: regions,
+            viewportSize: immersiveViewportSize,
+            contentOffsetY: horizontalSizeClass == .regular ? -60 : 0
         )
         guard immersiveTextSamplingCoordinator.latestGeometry != geometry else {
             return
@@ -2694,9 +2227,10 @@ struct 视觉小说详情: View {
                 .lineLimit(2)
             }
         }
+        // 按文字实际占的宽度取样，不含标题右侧的空白。
+        .视觉小说沉浸取样框(["metadata.title"])
         .frame(maxWidth: .infinity, alignment: .leading)
         .沉浸详情文字阴影(textStyle)
-        .视觉小说沉浸取样框(["metadata.title"])
     }
 
     private var immersiveLoadingMetadata: some View {
@@ -2751,7 +2285,7 @@ struct 视觉小说详情: View {
         let ratingText = unifiedRating?.shortText
             ?? detail.rating.map { String(format: "%.2f", $0 / 10) }
         let voteText = (unifiedRating?.voteCount ?? detail.votecount).map {
-            String(localized: "\($0.formatted())人评分")
+            String(localized: "\($0)人评分")
         }
 
         return HStack(alignment: .top, spacing: 10) {
@@ -2842,9 +2376,9 @@ struct 视觉小说详情: View {
                     .allowsTightening(valueLineLimit == 1)
             }
         }
+        .视觉小说沉浸取样框(sampleKey.map { [$0] } ?? [])
         .frame(maxWidth: .infinity, alignment: .leading)
         .沉浸详情文字阴影(textStyle)
-        .视觉小说沉浸取样框(sampleKey.map { [$0] } ?? [])
     }
 
     private func immersiveInlineTags(
@@ -2874,7 +2408,7 @@ struct 视觉小说详情: View {
                             .controlSize(.small)
                             .frame(width: 30, height: 30)
                     } else {
-                        Image(systemName: 平台符号.翻译)
+                        Image(systemName: "translate")
                             .font(.caption.weight(.semibold))
                             .frame(width: 30, height: 30)
                     }
@@ -2896,7 +2430,7 @@ struct 视觉小说详情: View {
                 .accessibilityLabel(
                     showTranslatedTags
                         ? "显示未人工翻译标签的原文"
-                        : "翻译未人工翻译的标签"
+                        : "自动翻译没有人工译文的标签"
                 )
             }
 
@@ -2904,6 +2438,7 @@ struct 视觉小说详情: View {
                 immersiveTagCapsule(
                     tag,
                     allTags: tags,
+                    sampleKey: "tags.item.\(index)",
                     textStyle: immersiveMetadataTextStyle(
                         for: "tags.item.\(index)"
                     )
@@ -2937,6 +2472,7 @@ struct 视觉小说详情: View {
     private func immersiveTagCapsule(
         _ tag: 视觉小说标签,
         allTags: [视觉小说标签],
+        sampleKey: String,
         textStyle: 沉浸详情文字样式
     ) -> some View {
         let blurred = shouldBlurTag(tag)
@@ -2959,6 +2495,7 @@ struct 视觉小说详情: View {
             .padding(.vertical, 7)
             .沉浸详情文字阴影(textStyle)
             .高透明提亮材质背景(in: Capsule())
+            .视觉小说沉浸取样框([sampleKey])
             .blur(radius: blurred ? 5 : 0)
             .contentShape(Capsule())
             .onTapGesture {
@@ -3185,7 +2722,7 @@ struct 视觉小说详情: View {
                         评论加载占位卡片(序号: 序号)
                     }
                 } else {
-                    Text("暂无评论")
+                    Text("无评论")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -3218,61 +2755,57 @@ struct 视觉小说详情: View {
             ),
             1
         )
-        let visualPullDistance = moreCommentsVisualPullDistance(
-            for: min(
-                moreCommentsPullDistance,
-                视觉小说评论入口拖动参数.阈值
-            )
-        )
-        let controlHeight = moreCommentsControlDiameter
-            + visualPullDistance
+        let isArmed = moreCommentsPullIsArmed
 
-        return ZStack {
-            Capsule()
-                .fill(Color.blue.opacity(0.18 * progress))
-
-            Capsule()
-                .stroke(
-                    Color.blue.opacity(0.12 + 0.34 * progress),
-                    lineWidth: 0.75
+        return VStack(spacing: 10) {
+            Label {
+                Text(
+                    isArmed
+                        ? "松手查看所有评论"
+                        : "上拉查看剩余\(remainingCount)条评论"
                 )
-
-            Image(systemName: "arrow.up")
-                .font(.headline.weight(.semibold))
-                .foregroundStyle(
-                    moreCommentsPullIsArmed ? .blue : .primary
+            } icon: {
+                Image(
+                    systemName: isArmed
+                        ? "checkmark.circle.fill"
+                        : "chevron.up"
                 )
-                .scaleEffect(1 + progress * 0.12)
+                .symbolEffect(
+                    .bounce.up,
+                    options: .repeat(.periodic(delay: 1.6)),
+                    isActive: !isArmed && progress == 0 && !reduceMotion
+                )
+            }
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(isArmed ? Color.blue : Color.secondary)
+            .contentTransition(.symbolEffect(.replace))
+            .animation(.snappy(duration: 0.2), value: isArmed)
+
+            Capsule()
+                .fill(Color.primary.opacity(0.12))
+                .frame(
+                    width: 视觉小说评论入口拖动参数.进度条宽度,
+                    height: 6
+                )
+                .overlay(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.blue)
+                        .frame(
+                            width: 视觉小说评论入口拖动参数.进度条宽度
+                                * progress
+                        )
+                }
         }
-        .frame(
-            width: moreCommentsControlDiameter,
-            height: controlHeight,
-            alignment: .top
-        )
-        .background(.regularMaterial, in: Capsule())
-        .shadow(
-            color: .black.opacity(0.06 + 0.08 * progress),
-            radius: 8 + 4 * progress,
-            y: 3
-        )
-        .frame(maxWidth: .infinity, alignment: .top)
-        .zIndex(2)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity)
         .sensoryFeedback(.impact, trigger: moreCommentsPullFeedback)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("查看剩余\(remainingCount)条评论")
-        .accessibilityHint("继续上划以查看全部评论")
+        .accessibilityHint("继续向上轻扫以查看所有评论")
         .accessibilityAddTraits(.isButton)
         .accessibilityAction {
             showAllComments = true
         }
-    }
-
-    private func moreCommentsVisualPullDistance(
-        for distance: CGFloat
-    ) -> CGFloat {
-        let dimension = max(immersiveViewportSize.height, 1)
-        return (1 - 1 / (distance * 0.55 / dimension + 1))
-            * dimension
     }
 
     private func updateMoreCommentsPull(distance: CGFloat) {
@@ -3291,7 +2824,8 @@ struct 视觉小说详情: View {
         }
     }
 
-    private func finishMoreCommentsPull() {
+    /// 返回 true 表示要打开全部评论，由调用方在回弹归位后打开。
+    private func finishMoreCommentsPull() -> Bool {
         if moreCommentsPullIsArmed {
             if !moreCommentsPullFeedbackIssued {
                 moreCommentsPullFeedbackIssued = true
@@ -3299,7 +2833,7 @@ struct 视觉小说详情: View {
             }
             moreCommentsPullIsArmed = true
             moreCommentsPullDistance = 视觉小说评论入口拖动参数.阈值
-            showAllComments = true
+            return true
         } else {
             withAnimation(
                 reduceMotion ? nil : .easeOut(duration: 0.18)
@@ -3308,17 +2842,8 @@ struct 视觉小说详情: View {
                 moreCommentsPullIsArmed = false
             }
             moreCommentsPullFeedbackIssued = false
+            return false
         }
-    }
-
-    private func cancelMoreCommentsPull() {
-        withAnimation(
-            reduceMotion ? nil : .easeOut(duration: 0.18)
-        ) {
-            moreCommentsPullDistance = 0
-            moreCommentsPullIsArmed = false
-        }
-        moreCommentsPullFeedbackIssued = false
     }
 
     private func commentComposer(displayName: String) -> some View {
@@ -4059,7 +3584,7 @@ struct 视觉小说详情: View {
                                     ProgressView()
                                         .controlSize(.small)
                                 } else {
-                                    Image(systemName: 平台符号.翻译)
+                                    Image(systemName: "translate")
                                 }
                             }
                             .buttonStyle(.plain)
@@ -4108,7 +3633,7 @@ struct 视觉小说详情: View {
         .contentShape(
             RoundedRectangle(cornerRadius: 28, style: .continuous)
         )
-        .平台匹配转场源(
+        .matchedTransitionSource(
             id: "DescriptionSheet",
             in: descriptionNamespace
         )
@@ -4120,7 +3645,7 @@ struct 视觉小说详情: View {
                         revealDescription = true
                     }
                 }
-            } else {
+            } else if isDescriptionTruncated {
                 showDescriptionSheet = true
             }
         }
@@ -4188,7 +3713,7 @@ struct 视觉小说详情: View {
             平台滚动页面 {
                 if releases.isEmpty {
                     平台内容不可用视图(
-                        "暂无发行版本",
+                        "无发行版本",
                         systemImage: "shippingbox"
                     )
                     .frame(
@@ -4303,7 +3828,7 @@ struct 视觉小说详情: View {
         if !parentalControls.policy.blocksUntrustedExternalLinks,
            let url = URL(string: "https://vndb.org/\(release.id)") {
             ShareLink(item: url) {
-                Label("分享", systemImage: "square.and.arrow.up")
+                Label("共享", systemImage: "square.and.arrow.up")
             }
         }
 
@@ -4356,131 +3881,8 @@ struct 视觉小说详情: View {
         }
     }
 
-    @ViewBuilder
-    private func primarySection(_ detail: 视觉小说详细信息) -> some View {
-        if horizontalSizeClass == .regular {
-            HStack(alignment: .center, spacing: 32) {
-                heroImageSection(detail)
-                titleSection(detail)
-            }
-            .frame(maxWidth: 900)
-            .padding(.vertical, 12)
-        } else {
-            heroImageSection(detail)
-            titleSection(detail)
-        }
-    }
-
     private var isShowingInitialSkeleton: Bool {
         detail == nil && isLoadingDetail && errorMessage == nil
-    }
-
-    @ViewBuilder
-    private var detailFailureSection: some View {
-        if let errorMessage {
-            Section {
-                Label(
-                    detail == nil ? "无法载入" : "无法载入",
-                    systemImage: "exclamationmark.triangle"
-                )
-                    .foregroundStyle(.secondary)
-
-                Text(verbatim: errorMessage)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                Button {
-                    Task {
-                        await loadDetail(forceRefresh: true)
-                    }
-                } label: {
-                    Label("重试", systemImage: "arrow.clockwise")
-                }
-                .disabled(isLoadingDetail)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var detailLoadingSections: some View {
-        Section("视觉小说简介") {
-            VStack(alignment: .leading, spacing: 9) {
-                ForEach(0..<4, id: \.self) { index in
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .fill(Color.secondary.opacity(0.14))
-                        .frame(
-                            maxWidth: index == 3 ? 190 : .infinity,
-                            minHeight: 12,
-                            maxHeight: 12,
-                            alignment: .leading
-                        )
-                }
-            }
-            .padding(.vertical, 4)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("正在载入…")
-        }
-
-        Section("截屏") {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
-                    ForEach(0..<2, id: \.self) { _ in
-                        RoundedRectangle(cornerRadius: 26, style: .continuous)
-                            .fill(Color.secondary.opacity(0.12))
-                            .frame(width: 280, height: 158)
-                    }
-                }
-            }
-            .平台横向书架()
-            .listRowInsets(EdgeInsets())
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("正在载入…")
-        }
-
-        Section("角色") {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 14) {
-                    ForEach(0..<3, id: \.self) { _ in
-                        VStack(alignment: .leading, spacing: 7) {
-                            RoundedRectangle(cornerRadius: 26, style: .continuous)
-                                .fill(Color.secondary.opacity(0.12))
-                                .frame(width: 112, height: 146)
-                            RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                .fill(Color.secondary.opacity(0.14))
-                                .frame(width: 86, height: 11)
-                            RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                .fill(Color.secondary.opacity(0.1))
-                                .frame(width: 64, height: 9)
-                        }
-                    }
-                }
-                .padding(.bottom, 6)
-            }
-            .平台横向书架()
-            .listRowInsets(
-                EdgeInsets(top: 0, leading: 0, bottom: 12, trailing: 0)
-            )
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("正在载入…")
-        }
-
-        Section("更多信息") {
-            ForEach(0..<3, id: \.self) { _ in
-                HStack(spacing: 12) {
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .fill(Color.secondary.opacity(0.12))
-                        .frame(width: 22, height: 22)
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .fill(Color.secondary.opacity(0.14))
-                        .frame(width: 150, height: 13)
-                }
-            }
-            .accessibilityHidden(true)
-        }
     }
 
     private func loadDetail(forceRefresh: Bool = false) async {
@@ -4655,7 +4057,6 @@ struct 视觉小说详情: View {
     }
 
     private var shouldOfferOnDeviceDescriptionTranslation: Bool {
-        guard #available(iOS 18.0, *) else { return false }
         guard manualDescription == nil,
               cachedManualDescription == nil else {
             return false
@@ -4718,14 +4119,13 @@ struct 视觉小说详情: View {
         }
 
         showTranslatedDescription = true
-        guard #available(iOS 18.0, *) else { return }
         if var configuration = descriptionTranslationConfiguration {
             configuration.source = nil
             configuration.target = targetLanguage.localeLanguage
             configuration.invalidate()
             descriptionTranslationConfiguration = configuration
         } else {
-            descriptionTranslationConfiguration = 平台翻译配置(
+            descriptionTranslationConfiguration = TranslationSession.Configuration(
                 source: nil,
                 target: targetLanguage.localeLanguage
             )
@@ -4761,26 +4161,20 @@ struct 视觉小说详情: View {
 
         guard !missing.isEmpty else { return }
 
-        guard #available(iOS 18.0, *) else { return }
-
         if var configuration = tagTranslationConfiguration {
             configuration.source = Locale.Language(identifier: "en")
             configuration.target = targetLanguage.localeLanguage
             configuration.invalidate()
             tagTranslationConfiguration = configuration
         } else {
-            tagTranslationConfiguration = 平台翻译配置(
+            tagTranslationConfiguration = TranslationSession.Configuration(
                 source: Locale.Language(identifier: "en"),
                 target: targetLanguage.localeLanguage
             )
         }
     }
 
-    private func translateDescription(using platformSession: 平台翻译会话) async {
-
-        guard #available(iOS 18.0, *) else { return }
-
-        let session = platformSession.session
+    private func translateDescription(using session: TranslationSession) async {
         guard manualDescription == nil,
               let description = detail?.cleanDescription,
               !description.isEmpty,
@@ -4814,11 +4208,7 @@ struct 视觉小说详情: View {
         }
     }
 
-    private func translateMissingTags(using platformSession: 平台翻译会话) async {
-
-        guard #available(iOS 18.0, *) else { return }
-
-        let session = platformSession.session
+    private func translateMissingTags(using session: TranslationSession) async {
         guard let tags = detail?.sortedTags else { return }
 
         let missing = tags.filter {
@@ -4952,7 +4342,7 @@ struct 视觉小说详情: View {
                             }
                         }
                     }
-                    .accessibilityLabel("轻触两次以解除模糊")
+                    .accessibilityLabel("连按两次以解除模糊")
             }
         }
         .frame(width: width, height: height)
@@ -4991,172 +4381,6 @@ struct 视觉小说详情: View {
             enabled: contentFilterEnabled,
             mode: filterMode
         )
-    }
-
-    private func heroImageSection(_ detail: 视觉小说详细信息) -> some View {
-        let needsRestriction = shouldBlurImage(
-            sexual: detail.image?.sexual,
-            violence: detail.image?.violence
-        )
-        let isRestricted = needsRestriction && (
-            contentRestrictionMethod == .hidden || !revealHeroImage
-        )
-        let imageSize = heroImageSize
-
-        return HStack {
-            Spacer(minLength: 0)
-
-            ZStack {
-                Group {
-                    if let urlString = detail.image?.url,
-                       let url = URL(string: urlString) {
-                        CachedAsyncImage(url: url, contentMode: .fill)
-                            .frame(width: imageSize.width, height: imageSize.height)
-                            .clipped()
-                            .应用不安全内容限制(
-                                isRestricted,
-                                method: contentRestrictionMethod,
-                                blurRadius: 24
-                            )
-                            .background(
-                                Color.secondary.opacity(
-                                    isRestricted ? 0.18 : 0.1
-                                )
-                            )
-                            .clipShape(
-                                RoundedRectangle(
-                                    cornerRadius: 30,
-                                    style: .continuous
-                                )
-                            )
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 30, style: .continuous)
-                                    .stroke(
-                                        Color.secondary.opacity(
-                                            isRestricted ? 0.34 : 0.14
-                                        ),
-                                        lineWidth: isRestricted ? 1 : 0.5
-                                    )
-                            }
-                    } else if isShowingInitialSkeleton {
-                        ZStack {
-                            Color.secondary.opacity(0.12)
-                            ProgressView()
-                                .controlSize(.small)
-                        }
-                        .frame(width: imageSize.width, height: imageSize.height)
-                        .clipShape(
-                            RoundedRectangle(
-                                cornerRadius: 30,
-                                style: .continuous
-                            )
-                        )
-                        .accessibilityElement(children: .ignore)
-                        .accessibilityLabel("正在载入…")
-                    } else {
-                        平台内容不可用视图("暂无封面", systemImage: "photo")
-                            .frame(width: imageSize.width, height: imageSize.height)
-                            .background(Color.secondary.opacity(0.1))
-                            .clipShape(
-                                RoundedRectangle(
-                                    cornerRadius: 30,
-                                    style: .continuous
-                                )
-                            )
-                    }
-                }
-                .animation(.easeInOut(duration: 0.28), value: revealHeroImage)
-
-                Color.clear
-                    .contentShape(
-                        RoundedRectangle(
-                            cornerRadius: 30,
-                            style: .continuous
-                        )
-                    )
-                    .onTapGesture {
-                        guard isRestricted,
-                              contentRestrictionMethod == .blurred,
-                              canRevealImage(
-                                sexual: detail.image?.sexual
-                              ) else {
-                            return
-                        }
-                        blurRevealConfirmation.request(id: "hero-image") {
-                            withAnimation(.easeInOut(duration: 0.28)) {
-                                revealHeroImage = true
-                            }
-                        }
-                    }
-            }
-            .frame(width: imageSize.width, height: imageSize.height)
-            .clipShape(
-                RoundedRectangle(cornerRadius: 30, style: .continuous)
-            )
-
-            Spacer(minLength: 0)
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    private var heroImageSize: CGSize {
-        horizontalSizeClass == .regular
-            ? CGSize(width: 232, height: 330)
-            : CGSize(width: 184, height: 262)
-    }
-
-    private func titleSection(_ detail: 视觉小说详细信息) -> some View {
-        let main = 标题工具.获取主标题(
-            titles: detail.titles,
-            defaultTitle: detail.title,
-            偏好: preferredTitleLang,
-            回退: fallbackTitleLang,
-            允许非官方: allowUnofficialTitles
-        )
-        let subtitle = 标题工具.获取副标题(
-            titles: detail.titles,
-            defaultTitle: detail.title,
-            偏好: preferredTitleLang,
-            回退: fallbackTitleLang,
-            副标题设置: subTitleLang,
-            允许非官方: allowUnofficialTitles
-        )
-
-        return VStack(alignment: .center, spacing: 4) {
-            Text(
-                标题工具.生成富文本(
-                    文本: main.text,
-                    isJapanese: main.isJapanese,
-                    基础大小: 24,
-                    是粗体: true,
-                    语言代码: main.languageCode
-                )
-            )
-            .multilineTextAlignment(.center)
-            .lineLimit(nil)
-            .fixedSize(horizontal: false, vertical: true)
-            .contextMenu {
-                titleCopyContextMenu(for: detail)
-            }
-
-            if let subtitle {
-                Text(
-                    标题工具.生成富文本(
-                        文本: subtitle.text,
-                        isJapanese: subtitle.isJapanese,
-                        基础大小: 16,
-                        语言代码: subtitle.languageCode
-                    )
-                )
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .lineLimit(nil)
-                .fixedSize(horizontal: false, vertical: true)
-            }
-
-        }
-        .padding(.top, 7)
-        .frame(maxWidth: .infinity, alignment: .center)
     }
 
     @ViewBuilder
@@ -5350,66 +4574,6 @@ struct 视觉小说详情: View {
         }
     }
 
-    private var loadingStatsSection: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                statPill(icon: "chart.bar.xaxis", text: "8.00（100人评分）")
-                statPill(icon: "clock", text: "20小时")
-                statPill(icon: "calendar", text: "2026-01-01")
-                statPill(icon: "checkmark.circle", text: "已完结")
-            }
-            .redacted(reason: .placeholder)
-            .padding(.vertical, 2)
-        }
-        .平台横向书架()
-        .contentMargins(.horizontal, 20, for: .scrollContent)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("正在载入…")
-        .opacity(isLoadingDetail ? 1 : 0)
-        .animation(
-            reduceMotion ? nil : .easeInOut(duration: 0.3),
-            value: isLoadingDetail
-        )
-    }
-
-    private var loadingTagsRow: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(["标签内容", "故事风格", "角色特征"], id: \.self) { text in
-                    Text(verbatim: text)
-                        .font(.caption.weight(.medium))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 7)
-                        .background(Color.secondary.opacity(0.12), in: Capsule())
-                }
-            }
-            .redacted(reason: .placeholder)
-            .padding(.vertical, 4)
-        }
-        .平台横向书架()
-        .contentMargins(.horizontal, 20, for: .scrollContent)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("正在载入…")
-        .opacity(isLoadingDetail ? 1 : 0)
-        .animation(
-            reduceMotion ? nil : .easeInOut(duration: 0.3),
-            value: isLoadingDetail
-        )
-    }
-
-    private func statPill(icon: String, text: String) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: icon)
-                .font(.caption2)
-            Text(verbatim: text)
-                .font(.caption.weight(.medium))
-        }
-        .foregroundStyle(.secondary)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .background(Color.secondary.opacity(0.12), in: Capsule())
-    }
-
     private func displayedTagName(_ tag: 视觉小说标签) -> String {
         if let manual = VNDB标签人工翻译.界面译文(for: tag) {
             return manual
@@ -5419,98 +4583,14 @@ struct 视觉小说详情: View {
         return translatedTagNames[tag.id] ?? tag.name
     }
 
-    private func translatedTagCapsule(
-        _ tag: 视觉小说标签
-    ) -> some View {
-        视觉小说标签胶囊(
-            tag: tag,
-            text: displayedTagName(tag),
-            isBlurred: shouldBlurTag(tag)
-        )
-    }
-
-    @ViewBuilder
-    private func descriptionSection(_ detail: 视觉小说详细信息) -> some View {
-        if let original = detail.cleanDescription, !original.isEmpty {
-            Section {
-                if shouldDisplayDescription {
-                    let isHidden =
-                        blurDescription &&
-                        !hasFinishedOrDropped &&
-                        !revealDescription
-
-                    ZStack {
-                        if isHidden {
-                            descriptionText(original)
-                                .textSelection(.disabled)
-                                .blur(radius: 7)
-                        } else {
-                            descriptionText(original)
-                                .textSelection(.enabled)
-                        }
-
-                    }
-                    .animation(
-                        .easeInOut(duration: 0.2),
-                        value: showTranslatedDescription
-                    )
-                    .contentShape(Rectangle())
-                    .平台匹配转场源(
-                        id: "DescriptionSheet",
-                        in: descriptionNamespace
-                    )
-                    .onTapGesture {
-                        if isHidden {
-                            blurRevealConfirmation.request(id: "description") {
-                                withAnimation(.easeInOut(duration: 0.22)) {
-                                    revealDescription = true
-                                }
-                            }
-                        } else {
-                            showDescriptionSheet = true
-                        }
-                    }
-                } else {
-                    descriptionLoadingPlaceholder
-                }
-            } header: {
-                HStack {
-                    Text("视觉小说简介")
-                    Spacer()
-
-                    if shouldOfferOnDeviceDescriptionTranslation {
-                        Button {
-                            requestDescriptionTranslation()
-                        } label: {
-                            if isTranslatingDescription {
-                                ProgressView()
-                                    .controlSize(.small)
-                            } else {
-                                Image(systemName: 平台符号.翻译)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(
-                            showTranslatedDescription ? .blue : .secondary
-                        )
-                        .accessibilityLabel(
-                            showTranslatedDescription
-                                ? "显示视觉小说简介原文"
-                                : "翻译视觉小说简介"
-                        )
-                    }
-                }
-            }
-        }
-    }
-
     private func descriptionText(
         _ original: String,
         foregroundColor: Color = .primary
     ) -> some View {
         简介预览文本视图(
             text: displayedDescription(original),
-            lineLimit: 7
+            lineLimit: 7,
+            onTruncationChange: { isDescriptionTruncated = $0 }
         )
             .font(.body)
             .foregroundStyle(foregroundColor)
@@ -5525,48 +4605,35 @@ struct 视觉小说详情: View {
             .沉浸详情文字前景色(style.primary, style: style)
     }
 
-    private var descriptionLoadingPlaceholder: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            ForEach(0..<4, id: \.self) { index in
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .fill(Color.secondary.opacity(0.14))
-                    .frame(
-                        maxWidth: index == 3 ? 190 : .infinity,
-                        minHeight: 12,
-                        maxHeight: 12,
-                        alignment: .leading
-                    )
-            }
-        }
-        .padding(.vertical, 4)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("正在载入…")
-    }
-
     private func descriptionSheetContent(_ detail: 视觉小说详细信息) -> some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    Text(verbatim: displayedDescription(detail.cleanDescription ?? ""))
-                        .font(.body)
-                        .foregroundStyle(.primary)
-                        .textSelection(.enabled)
-
-                    descriptionParticipationButton(style: .labeled)
-                }
-                .padding()
+                Text(
+                    verbatim: 简介预览文本处理.外部显示文本(
+                        displayedDescription(detail.cleanDescription ?? "")
+                    )
+                )
+                    .font(.body)
+                    .foregroundStyle(.primary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .textSelection(.enabled)
+                    .padding()
             }
             .navigationTitle("视觉小说简介")
             .平台柔和滚动边缘(for: .top)
             .平台内联导航标题()
             .toolbar {
-                ToolbarItem(placement: .平台主操作) {
+                ToolbarItem(placement: .平台前导操作) {
                     Button {
                         showDescriptionSheet = false
                     } label: {
                         Image(systemName: "xmark")
                     }
                     .accessibilityLabel("关闭")
+                }
+
+                ToolbarItem(placement: .平台主操作) {
+                    descriptionParticipationButton(style: .toolbar)
                 }
             }
         }
@@ -5672,7 +4739,7 @@ struct 视觉小说详情: View {
                     VStack(alignment: .leading, spacing: 9) {
                         supportHeading(
                             "平台",
-                            systemImage: 平台符号.平台设备
+                            systemImage: "desktopcomputer.and.macbook"
                         )
 
                         FlowLayout(spacing: 7) {
@@ -5868,7 +4935,7 @@ struct 视觉小说详情: View {
         case "chardesign": return "paintbrush"
         case "art": return "pencil.and.outline"
         case "music": return "music.quarternote.3"
-        case "songs": return 平台符号.歌曲
+        case "songs": return "music.microphone"
         case "director": return "megaphone"
         case "staff": return "wrench.and.screwdriver"
         default: return "person.2"

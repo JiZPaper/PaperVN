@@ -1,5 +1,6 @@
 @preconcurrency import DeclaredAgeRange
 import Observation
+import AuthenticationServices
 import SwiftUI
 
 @MainActor
@@ -170,7 +171,7 @@ private struct 简介翻译更新提示修饰器: ViewModifier {
                     Task { await downloadState.installUpdate() }
                 }
             } message: { update in
-                Text("检测到翻译文件有较新版本（文件大小 \(update.archiveSizeText)）")
+                Text("检测到翻译文件有较新版本（\(update.archiveSizeText)）")
             }
             .alert("无法下载简介翻译", isPresented: showsUpdateError) {
                 Button("好") { downloadState.updateError = nil }
@@ -183,6 +184,120 @@ private struct 简介翻译更新提示修饰器: ViewModifier {
 extension View {
     func 简介翻译更新提示() -> some View {
         modifier(简介翻译更新提示修饰器())
+    }
+}
+
+private struct 偏好分析模型更新提示修饰器: ViewModifier {
+    @State private var downloadState = 推荐模型下载状态.shared
+    @State private var translationState = 简介翻译下载状态.shared
+
+    /// 翻译文件的更新提示优先，关闭后再显示模型的提示，避免两个提示同时出现。
+    private var showsUpdatePrompt: Binding<Bool> {
+        Binding(
+            get: {
+                downloadState.availableUpdate != nil
+                    && translationState.availableUpdate == nil
+            },
+            set: { if !$0 { downloadState.availableUpdate = nil } }
+        )
+    }
+
+    private var showsUpdateError: Binding<Bool> {
+        Binding(
+            get: { downloadState.updateError != nil },
+            set: { if !$0 { downloadState.updateError = nil } }
+        )
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .alert(
+                "更新偏好分析模型",
+                isPresented: showsUpdatePrompt,
+                presenting: downloadState.availableUpdate
+            ) { update in
+                Button("忽略", role: .cancel) {
+                    downloadState.ignore(update)
+                }
+                Button("更新") {
+                    Task { await downloadState.installUpdate() }
+                }
+            } message: { update in
+                if let size = update.sizeText {
+                    Text("检测到偏好分析模型有较新版本（\(size)）")
+                } else {
+                    Text("检测到偏好分析模型有较新版本")
+                }
+            }
+            .alert("无法下载偏好分析模型", isPresented: showsUpdateError) {
+                Button("好") { downloadState.updateError = nil }
+            } message: {
+                Text(verbatim: downloadState.updateError ?? "")
+            }
+    }
+}
+
+extension View {
+    func 偏好分析模型更新提示() -> some View {
+        modifier(偏好分析模型更新提示修饰器())
+    }
+}
+
+private struct 智能搜索模型更新提示修饰器: ViewModifier {
+    @State private var downloadState = 智能搜索模型下载状态.shared
+    @State private var recommendationState = 推荐模型下载状态.shared
+    @State private var translationState = 简介翻译下载状态.shared
+
+    /// 翻译文件和偏好分析模型的提示优先，关闭后再显示，避免多个提示同时出现。
+    private var showsUpdatePrompt: Binding<Bool> {
+        Binding(
+            get: {
+                downloadState.availableUpdate != nil
+                    && translationState.availableUpdate == nil
+                    && recommendationState.availableUpdate == nil
+            },
+            set: { if !$0 { downloadState.availableUpdate = nil } }
+        )
+    }
+
+    private var showsUpdateError: Binding<Bool> {
+        Binding(
+            get: { downloadState.updateError != nil },
+            set: { if !$0 { downloadState.updateError = nil } }
+        )
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .alert(
+                "更新Hiro智能模型",
+                isPresented: showsUpdatePrompt,
+                presenting: downloadState.availableUpdate
+            ) { update in
+                Button("忽略", role: .cancel) {
+                    downloadState.ignore(update)
+                }
+                Button("更新") {
+                    Task { await downloadState.installUpdate() }
+                }
+            } message: { update in
+                if let size = update.sizeText {
+                    Text("检测到Hiro智能模型有较新版本（\(size)）")
+                } else {
+                    Text("检测到Hiro智能模型有较新版本")
+                }
+            }
+            .alert("无法下载Hiro智能模型", isPresented: showsUpdateError) {
+                Button("好") { downloadState.updateError = nil }
+            } message: {
+                Text(verbatim: downloadState.updateError ?? "")
+            }
+    }
+}
+
+extension View {
+    func 智能搜索模型更新提示() -> some View {
+        modifier(智能搜索模型更新提示修饰器())
     }
 }
 
@@ -205,15 +320,11 @@ private struct 简介翻译下载设置区: View {
             Picker(
                 "偏好翻译模式",
                 selection: Binding(
-                    get: {
-                        VNDB简介翻译模式.可用模式.contains(mode)
-                            ? mode
-                            : VNDB简介翻译模式.current
-                    },
+                    get: { mode },
                     set: { select($0) }
                 )
             ) {
-                ForEach(VNDB简介翻译模式.可用模式) { option in
+                ForEach(VNDB简介翻译模式.allCases) { option in
                     Text(verbatim: option.title).tag(option)
                 }
             }
@@ -620,7 +731,7 @@ private struct Today模块显示设置区: View {
                 VStack(alignment: .leading, spacing: 6) {
                     ProgressView(value: downloadState.progress)
                     HStack {
-                        Text("下载低秩模型")
+                        Text("下载偏好分析模型")
                         Spacer()
                         Text(verbatim: "\(downloadState.progressPercent)%")
                             .monospacedDigit()
@@ -648,7 +759,7 @@ private struct Today模块显示设置区: View {
             if 为你推荐偏好分析设置.此设备支持 {
                 Text("")
             } else {
-                Text("“为你推荐”功能需要至少4GB内存的设备。")
+                Text("“为你推荐”功能需要至少4 GB内存的设备。")
             }
         }
         .task { downloadState.refresh() }
@@ -656,15 +767,21 @@ private struct Today模块显示设置区: View {
             "下载偏好分析所需模型",
             isPresented: $showsModelDownloadPrompt
         ) {
-            Button("禁用\"为你推荐\"") {
+            Button("关闭“为你推荐”") {
                 isRecommendationEnabled = false
                 推荐后台分析中心.shared.停止分析()
             }
-            Button("下载（40.5 MB）") {
-                Task { await downloadState.download() }
+            if let size = downloadState.serverFileSizeText {
+                Button("下载（\(size)）") {
+                    Task { await downloadState.download() }
+                }
+            } else {
+                Button("下载") {
+                    Task { await downloadState.download() }
+                }
             }
         } message: {
-            Text("从此版本开始，偏好分析所需的模型不再包含在PaperVN App中，偏好分析将用于Today页面的\"为你推荐\"部分。")
+            Text("从此版本开始，偏好分析所需的模型不再包含在PaperVN App中，偏好分析将用于Today页面的“为你推荐”部分。")
         }
         .onChange(of: config) { _, newValue in
             newValue.save()
@@ -687,7 +804,10 @@ private struct Today模块显示设置区: View {
         guard enabled else { return }
         downloadState.refresh()
         guard !downloadState.hasDownloadedModel else { return }
-        showsModelDownloadPrompt = true
+        Task {
+            await downloadState.refreshServerFileSize()
+            showsModelDownloadPrompt = true
+        }
     }
 }
 
@@ -720,7 +840,7 @@ struct 语言与地区: View {
                     }
                 }
 
-                Picker("回退语言", selection: $fallbackTitleLang) {
+                Picker("备用语言", selection: $fallbackTitleLang) {
                     ForEach(标题语言.allCases) { language in
                         Text(verbatim: language.localizedTitle)
                             .tag(language)
@@ -747,7 +867,7 @@ struct 语言与地区: View {
             } header: {
                 Text("标题")
             } footer: {
-                Text("PaperVN按照“偏好语言 > 回退语言 > VNDB默认标题”的顺序获取标题。")
+                Text("PaperVN按照“偏好语言＞备用语言＞VNDB默认标题”的顺序获取标题。")
             }
 
             Section {
@@ -794,7 +914,7 @@ struct 语言与地区: View {
                     }
                 }
             } header: {
-                Text("Steam评论")
+                Text("Steam评测")
             } footer: {
             }
 
@@ -943,11 +1063,11 @@ struct 语言与地区: View {
             alignment: .leading
         )
         .padding()
-        .平台弹窗贴合内容尺寸()
+        .presentationSizing(.fitted)
     }
 
     private var translationModeDescription: some View {
-        Text("“设备端模型”模式：在简介旁边显示翻译按钮，使用Apple离线翻译模型进行翻译；\n“开源项目（获取）”模式：从GitHub或PaperVN服务器获取翻译，并替换原简介文本；\n“开源项目（离线）”模式：先下载完整翻译文件，再替换原简介文本。\n尚未完成翻译的简介依然使用设备端模型自动翻译，你也可以点按简介旁的按钮提交自己的翻译。你可以前往关于页面了解此开源项目的更多信息。")
+        Text("“设备端模型”模式：在简介旁边显示翻译按钮，使用Apple离线翻译模型进行翻译；\n“开源项目（获取）”模式：从GitHub或PaperVN服务器获取翻译，并替换原简介文本；\n“开源项目（离线）”模式：先下载完整翻译文件，再替换原简介文本。\n尚未完成翻译的简介依然使用设备端模型自动翻译，你也可以轻点简介旁的按钮提交自己的翻译。你可以前往“关于”页面了解此开源项目的更多信息。")
             .font(.callout)
             .foregroundStyle(translationModeTextColor)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -1053,7 +1173,7 @@ private struct 设置项目图标: View {
     }
 }
 
-private struct 设置类别介绍: View {
+struct 设置类别介绍: View {
     let title: LocalizedStringKey
     let description: LocalizedStringKey
     let systemImage: String
@@ -1486,6 +1606,8 @@ struct 网络设置: View {
     @Binding var isPresented: Bool
     var showsDismissButton: Bool = true
     @EnvironmentObject private var kunAccount: 鲲Galgame账户
+    @Environment(\.webAuthenticationSession)
+    private var webAuthenticationSession
 
     @AppStorage(PaperVNConnect自动策略.自动转发状态键)
     private var requestForwardingEnabled = false
@@ -1559,7 +1681,7 @@ struct 网络设置: View {
                     .disabled(isCheckingNextMoeRegion)
             } footer: {
                 Text(
-                    "通过鲲Galgame间接获取原数据来源的内容。这将有助于改善部分用户的加载体验，但会受到NextMoe API的速率限制。"
+                    "通过鲲Galgame间接获取原数据来源的内容。这将有助于改善部分用户的载入体验，但会受到NextMoe API的速率限制。"
                 )
             }
         }
@@ -1568,7 +1690,7 @@ struct 网络设置: View {
         .平台柔和滚动边缘(for: .top)
         .平台内联导航标题()
         .alert(
-            "鲲Galgame登录失败",
+            "无法登录鲲Galgame",
             isPresented: kunAccountErrorPresented
         ) {
             Button("好") {
@@ -1578,7 +1700,7 @@ struct 网络设置: View {
             Text(verbatim: kunAccount.errorMessage ?? "")
         }
         .alert(
-            "可能导致更慢的加载速度",
+            "可能导致更慢的载入速度",
             isPresented: $showsNextMoeRegionAlert
         ) {
             Button("禁用", role: .cancel) {
@@ -1590,7 +1712,7 @@ struct 网络设置: View {
             }
         } message: {
             Text(
-                "此功能仅推荐居住在数据来源站点被封禁的国家或地区（如中国大陆）的用户启用。可能不适应你当前的网络环境。"
+                "此功能仅建议居住在数据来源站点被封禁的国家或地区（如中国大陆）的用户启用。可能不适用你当前的网络环境。"
             )
         }
         .onChange(of: kunAccount.isRestoringSession) { _, isRestoring in
@@ -1634,12 +1756,12 @@ struct 网络设置: View {
         }
         .frame(idealWidth: 360, maxWidth: 420, alignment: .leading)
         .padding(16)
-        .平台弹窗贴合内容尺寸()
+        .presentationSizing(.fitted)
     }
 
     private var nextMoeInfoDescription: some View {
         Text(
-            "鲲Galgame提供的NextMoe API聚合了多个平台的相关数据。PaperVN将利用NextMoe API获取需要的所有可用内容，并减少向原数据来源站点发送请求。PaperVN Connect与此功能同时启用时，向NextMoe API发送的请求不会通过代理。仅推荐居住在数据来源站点被封禁的国家或地区的用户启用。"
+            "鲲Galgame提供的NextMoe API聚合了多个平台的相关数据。PaperVN将利用NextMoe API获取需要的所有可用内容，并减少向原数据来源站点发送请求。PaperVN Connect与此功能同时启用时，向NextMoe API发送的请求不会通过代理。仅建议居住在数据来源站点被封禁的国家或地区的用户启用。"
         )
             .font(.callout)
             .fixedSize(horizontal: false, vertical: true)
@@ -1672,7 +1794,7 @@ struct 网络设置: View {
         if kunAccount.isLoggedIn {
             guard !kunAccount.hasCatalogAccess else { return }
         }
-        kunAccount.login()
+        kunAccount.login(using: webAuthenticationSession)
     }
 }
 
@@ -1856,6 +1978,9 @@ struct 搜索设置: View {
 
     @AppStorage(搜索设置偏好.独立搜索Tab设置键)
     private var independentSearchTab = 搜索设置偏好.独立搜索Tab默认值
+    @AppStorage(智能搜索设置.启用键)
+    private var smartSearchEnabled = true
+    @State private var smartSearchModelState = 智能搜索模型下载状态.shared
 
     var body: some View {
         平台滚动页面 {
@@ -1877,6 +2002,11 @@ struct 搜索设置: View {
                     )
                 }
             }
+
+            智能搜索设置区(
+                isEnabled: $smartSearchEnabled,
+                downloadState: smartSearchModelState
+            )
         }
         .平台分组列表样式()
         .navigationTitle("搜索")
@@ -1892,6 +2022,62 @@ struct 搜索设置: View {
                     }
                     .accessibilityLabel("关闭")
                 }
+            }
+        }
+    }
+}
+
+private struct 智能搜索设置区: View {
+    @Binding var isEnabled: Bool
+    let downloadState: 智能搜索模型下载状态
+
+    var body: some View {
+        Section {
+            Toggle("Hiro智能", isOn: $isEnabled)
+
+            if isEnabled {
+                if downloadState.isDownloading {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ProgressView(
+                            value: downloadState.isInstalling ? nil : downloadState.progress
+                        )
+                        HStack {
+                            if downloadState.isInstalling {
+                                Text("正在安装Hiro智能模型…")
+                            } else {
+                                Text("下载Hiro智能模型")
+                                Spacer()
+                                Text(verbatim: "\(downloadState.progressPercent)%")
+                                    .monospacedDigit()
+                            }
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    }
+                } else if !downloadState.isModelAvailable {
+                    Button {
+                        Task { await downloadState.download() }
+                    } label: {
+                        if let size = downloadState.serverFileSizeText {
+                            Text("下载Hiro智能模型（\(size)）")
+                        } else {
+                            Text("下载Hiro智能模型")
+                        }
+                    }
+                    if let error = downloadState.downloadError {
+                        Text(verbatim: error)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        } footer: {
+            Text("在搜索框输入文字时，Hiro智能会在设备上模糊匹配作品、角色、会社和制作人员的名字、别名和简称，拼错或只记得几个字也能找到，并按可能性排序。输入的内容不会离开设备。")
+        }
+        .task {
+            downloadState.refresh()
+            if !downloadState.isModelAvailable {
+                await downloadState.refreshServerFileSize()
             }
         }
     }
@@ -1928,28 +2114,33 @@ private enum 储存空间删除项目: String, Identifiable {
     case cache
     case translations
     case recommendationModel
+    case smartSearchModel
 
     var id: String { rawValue }
 
     var title: LocalizedStringKey {
         switch self {
         case .cache:
-            "确定要删除缓存吗？"
+            "要删除缓存吗？"
         case .translations:
             "将偏好翻译模式切换为“开源项目（获取）”"
         case .recommendationModel:
-            "禁用“为你推荐”"
+            "关闭“为你推荐”"
+        case .smartSearchModel:
+            "要删除Hiro智能模型更新吗？"
         }
     }
 
     var message: LocalizedStringKey {
         switch self {
         case .cache:
-            "删除缓存后，所有内容都将重新加载。通常情况下，缓存会在不必要时自动删除。如果你遇到了异常的缓存占用，请向开发者提交错误报告。"
+            "删除缓存后，所有内容都将重新载入。通常情况下，缓存会在不必要时自动删除。如果你遇到了异常的缓存占用，请向开发者提交错误报告。"
         case .translations:
             "“开源项目（离线）”翻译模式依赖此翻译文件。删除后偏好翻译模式将切换为“开源项目（获取）”。"
         case .recommendationModel:
-            "“为你推荐”的偏好分析依赖此低秩模型。删除后将禁用“为你推荐”功能。"
+            "“为你推荐”的偏好分析依赖此模型。删除后将关闭“为你推荐”。"
+        case .smartSearchModel:
+            "删除后将恢复使用App内置的Hiro智能模型。"
         }
     }
 }
@@ -1962,6 +2153,10 @@ private struct 储存空间管理区: View {
     @AppStorage(为你推荐偏好分析设置.启用键)
     private var recommendationPreferenceAnalysisEnabled = true
     @State private var recommendationModelDownloadState = 推荐模型下载状态.shared
+    @State private var smartSearchModelDownloadState = 智能搜索模型下载状态.shared
+    @State private var smartSearchModelSize: Int64 = 0
+    @State private var hasDownloadedSmartSearchModel = false
+    @State private var isDeletingSmartSearchModel = false
     @State private var cacheSize: Int64 = 0
     @State private var translationSize: Int64 = 0
     @State private var recommendationModelSize: Int64 = 0
@@ -1993,7 +2188,7 @@ private struct 储存空间管理区: View {
                     Text("更少")
                         .font(.caption)
                 } maximumValueLabel: {
-                    Text("更多")
+                    Text(缓存策略.more.title)
                         .font(.caption)
                 }
             }
@@ -2007,7 +2202,7 @@ private struct 储存空间管理区: View {
         } header: {
             Text("缓存")
         } footer: {
-            Text("“更少”缓存策略可能让你频繁地看到加载页面；“更多”缓存策略将大幅增加缓存时间与范围，并提前加载你可能查看的内容。")
+            Text("“更少”缓存策略可能让你频繁地看到载入页面；“更多”缓存策略将大幅增加缓存时间与范围，并提前载入你可能查看的内容。")
         }
         .task { refreshSizes() }
         .alert(item: $pendingDeletion) { item in
@@ -2035,7 +2230,9 @@ private struct 储存空间管理区: View {
             缓存策略.应用URLCache配置()
         }
 
-        if hasDownloadedTranslations || hasDownloadedRecommendationModel {
+        if hasDownloadedTranslations
+            || hasDownloadedRecommendationModel
+            || hasDownloadedSmartSearchModel {
             Section {
                 if hasDownloadedTranslations {
                     storageDeletionButton(
@@ -2048,10 +2245,19 @@ private struct 储存空间管理区: View {
 
                 if hasDownloadedRecommendationModel {
                     storageDeletionButton(
-                        title: "删除低秩模型",
+                        title: "删除偏好分析模型",
                         size: recommendationModelSize,
                         isWorking: isDeletingRecommendationModel,
                         action: { pendingDeletion = .recommendationModel }
+                    )
+                }
+
+                if hasDownloadedSmartSearchModel {
+                    storageDeletionButton(
+                        title: "删除Hiro智能模型更新",
+                        size: smartSearchModelSize,
+                        isWorking: isDeletingSmartSearchModel,
+                        action: { pendingDeletion = .smartSearchModel }
                     )
                 }
             }
@@ -2103,6 +2309,9 @@ private struct 储存空间管理区: View {
         hasDownloadedRecommendationModel =
             recommendationModelDownloadState.hasDownloadedModel
         recommendationModelSize = recommendationModelDownloadState.downloadedSize
+        smartSearchModelDownloadState.refresh()
+        hasDownloadedSmartSearchModel = smartSearchModelDownloadState.hasDownloadedUpdate
+        smartSearchModelSize = smartSearchModelDownloadState.downloadedSize
     }
 
     private func performDeletion(_ item: 储存空间删除项目) {
@@ -2113,6 +2322,8 @@ private struct 储存空间管理区: View {
             deleteTranslations()
         case .recommendationModel:
             deleteRecommendationModel()
+        case .smartSearchModel:
+            deleteSmartSearchModel()
         }
     }
 
@@ -2141,6 +2352,20 @@ private struct 储存空间管理区: View {
             deletionError = error.localizedDescription
         }
         isDeletingTranslations = false
+    }
+
+    private func deleteSmartSearchModel() {
+        guard !isDeletingSmartSearchModel else { return }
+        isDeletingSmartSearchModel = true
+        Task { @MainActor in
+            do {
+                try await smartSearchModelDownloadState.deleteModel()
+            } catch {
+                deletionError = error.localizedDescription
+            }
+            refreshSizes()
+            isDeletingSmartSearchModel = false
+        }
     }
 
     private func deleteRecommendationModel() {

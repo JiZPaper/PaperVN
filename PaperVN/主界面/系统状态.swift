@@ -422,18 +422,11 @@ nonisolated enum 系统状态日期工具 {
         precision: 系统状态时间精度,
         now: Date
     ) -> String {
+        let style = Date.FormatStyle(calendar: calendar, timeZone: calendar.timeZone)
         if precision == .date {
-            let components = calendar.dateComponents([.year, .month, .day], from: date)
-            return String(
-                format: String(localized: "%lld年%lld月%lld日"),
-                Int64(components.year ?? 0),
-                Int64(components.month ?? 0),
-                Int64(components.day ?? 0)
-            )
+            return date.formatted(style.year().month().day())
         }
 
-        let dateComponents = calendar.dateComponents([.year, .month, .day], from: date)
-        let nowComponents = calendar.dateComponents([.year, .month, .day], from: now)
         let dayDifference = calendar.dateComponents(
             [.day],
             from: calendar.startOfDay(for: date),
@@ -441,42 +434,17 @@ nonisolated enum 系统状态日期工具 {
         ).day
 
         let dayText: String
-        if dateComponents == nowComponents {
+        if calendar.isDate(date, inSameDayAs: now) {
             dayText = String(localized: "今天")
         } else if dayDifference == 1 {
             dayText = String(localized: "昨天")
-        } else if let year = dateComponents.year,
-                  let month = dateComponents.month,
-                  let day = dateComponents.day,
-                  year == nowComponents.year {
-            dayText = String(
-                format: String(localized: "%lld月%lld日"),
-                Int64(month),
-                Int64(day)
-            )
+        } else if calendar.isDate(date, equalTo: now, toGranularity: .year) {
+            dayText = date.formatted(style.month().day())
         } else {
-            dayText = String(
-                format: String(localized: "%lld年%lld月%lld日"),
-                Int64(dateComponents.year ?? 0),
-                Int64(dateComponents.month ?? 0),
-                Int64(dateComponents.day ?? 0)
-            )
+            dayText = date.formatted(style.year().month().day())
         }
 
-        let components = calendar.dateComponents([.hour, .minute], from: date)
-        let hour = components.hour ?? 0
-        let minute = components.minute ?? 0
-        let period = hour < 12
-            ? String(localized: "上午")
-            : String(localized: "下午")
-        let displayHour = hour % 12 == 0 ? 12 : hour % 12
-        return String(
-            format: String(localized: "%@ %@%lld:%02lld"),
-            dayText,
-            period,
-            Int64(displayHour),
-            Int64(minute)
-        )
+        return "\(dayText) \(date.formatted(style.hour().minute()))"
     }
 }
 

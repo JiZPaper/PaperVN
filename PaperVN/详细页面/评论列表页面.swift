@@ -228,7 +228,7 @@ struct 评论列表页面: View {
     private var 无评论内容: some View {
         VStack(spacing: 14) {
             错误提示
-            平台内容不可用视图("暂无评论", systemImage: "text.bubble")
+            平台内容不可用视图("无评论", systemImage: "text.bubble")
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.horizontal, 16)

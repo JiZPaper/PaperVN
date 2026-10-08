@@ -1516,7 +1516,7 @@ struct PaperVN活动栏目: View {
                 )
             } else if events.isEmpty {
                 unavailableContent(
-                    title: "暂无活动",
+                    title: "无活动",
                     systemImage: "calendar.badge.exclamationmark",
                     description: nil,
                     showsRetry: false

@@ -1,8 +1,56 @@
 import Foundation
 import SwiftUI
 
+/// 当前语言的月份名称，例如“10月”“October”
+private func 月份名称(_ month: Int) -> String {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.locale = .current
+    let symbols = calendar.standaloneMonthSymbols
+    return symbols.indices.contains(month - 1) ? symbols[month - 1] : "\(month)"
+}
+
 private struct 筛选句子选项布局值: nonisolated LayoutValueKey {
     nonisolated static let defaultValue = false
+}
+
+/// 筛选规则句子的组成部分。句子以整句本地化模板给出，其中%1$@是显示方式菜单、%2$@是匹配方式菜单，
+/// 拆分后各语言可以保留自己的语序。
+private enum 筛选句子片段: Hashable {
+    case 文本(String)
+    case 显示方式
+    case 匹配方式
+    case 筛选对象
+
+    static func 拆分(_ template: String) -> [筛选句子片段] {
+        var result: [筛选句子片段] = []
+        var remaining = Substring(template)
+        while let range = remaining.range(of: #"%[123]\$@"#, options: .regularExpression) {
+            appendText(remaining[..<range.lowerBound], to: &result)
+            switch remaining[range] {
+            case "%1$@": result.append(.显示方式)
+            case "%2$@": result.append(.匹配方式)
+            default: result.append(.筛选对象)
+            }
+            remaining = remaining[range.upperBound...]
+        }
+        appendText(remaining, to: &result)
+        return result
+    }
+
+    /// 按词切分文本，让以空格分词的语言可以在词间换行
+    private static func appendText(_ text: Substring, to result: inout [筛选句子片段]) {
+        var token = ""
+        for character in text {
+            if !character.isWhitespace, token.last?.isWhitespace == true {
+                result.append(.文本(token))
+                token = ""
+            }
+            token.append(character)
+        }
+        if !token.isEmpty {
+            result.append(.文本(token))
+        }
+    }
 }
 
 private struct 筛选句子布局: Layout {
@@ -184,6 +232,7 @@ private struct 筛选条件编辑上下文: Identifiable {
 }
 
 private struct 搜索扩展筛选条件编辑上下文: Identifiable {
+    var scope: 搜索范围 = .character
     let ruleID: UUID
     let condition: 搜索扩展筛选条件
     let isNew: Bool
@@ -220,15 +269,52 @@ private func 搜索筛选标签显示名称(_ option: VNDB筛选选项) -> Strin
     return VNDB标签人工翻译.界面译文(for: tag) ?? option.name
 }
 
-struct 视觉小说搜索筛选页面: View {
+/// 综合搜索的筛选：每个筛选条件组都可以选择筛选的对象（视觉小说、角色、发行版本、制作人员、
+/// 开发与发行商）。发行版本的条件通过作品生效（作品至少有一个发行版本满足）。
+struct 综合搜索筛选页面: View {
     @Environment(\.dismiss) private var dismiss
     @Binding var filters: 视觉小说搜索筛选
+    @Binding var characterFilters: 搜索扩展筛选
+    @Binding var staffFilters: 搜索扩展筛选
+    @Binding var producerFilters: 搜索扩展筛选
     let onApply: () -> Void
 
     @State private var catalog = VNDB搜索筛选目录.builtIn
     @State private var editingCondition: 筛选条件编辑上下文?
+    @State private var editingExtendedCondition: 搜索扩展筛选条件编辑上下文?
     @State private var conflictAlert: 筛选冲突提示?
     @State private var isLoadingTags = true
+    @State private var isLoadingTraits = true
+
+    init(
+        visualNovelFilters: Binding<视觉小说搜索筛选>,
+        characterFilters: Binding<搜索扩展筛选>,
+        staffFilters: Binding<搜索扩展筛选>,
+        producerFilters: Binding<搜索扩展筛选>,
+        onApply: @escaping () -> Void
+    ) {
+        _filters = visualNovelFilters
+        _characterFilters = characterFilters
+        _staffFilters = staffFilters
+        _producerFilters = producerFilters
+        self.onApply = onApply
+    }
+
+    private static let 扩展筛选对象: [搜索范围] = [.release, .character, .staff, .producer]
+
+    private func 扩展筛选(_ scope: 搜索范围) -> Binding<搜索扩展筛选> {
+        switch scope {
+        case .release: return $filters.发行版本规则
+        case .character: return $characterFilters
+        case .staff: return $staffFilters
+        case .producer: return $producerFilters
+        case .visualNovel: return .constant(.init())
+        }
+    }
+
+    private var 没有任何规则: Bool {
+        filters.rules.isEmpty && Self.扩展筛选对象.allSatisfy { 扩展筛选($0).wrappedValue.rules.isEmpty }
+    }
 
     var body: some View {
         let conflict = VNDB筛选冲突检测器.conflict(in: filters)
@@ -236,6 +322,29 @@ struct 视觉小说搜索筛选页面: View {
         平台滚动页面 {
             ForEach($filters.rules) { $rule in
                 ruleSection(rule: $rule, conflict: conflict)
+            }
+
+            ForEach(Self.扩展筛选对象, id: \.self) { scope in
+                let 起始序号 = 扩展规则起始序号(scope)
+                ForEach(Array(扩展筛选(scope).rules.enumerated()), id: \.element.id) { 序号, $rule in
+                    扩展筛选规则分区(
+                        scope: scope,
+                        rule: $rule,
+                        序号: 起始序号 + 序号,
+                        catalog: catalog,
+                        筛选对象菜单: AnyView(筛选对象菜单(ruleID: rule.id, current: scope)),
+                        编辑条件: { condition, isNew in
+                            editingExtendedCondition = 搜索扩展筛选条件编辑上下文(
+                                scope: scope, ruleID: rule.id, condition: condition, isNew: isNew
+                            )
+                        },
+                        删除规则: {
+                            withAnimation {
+                                扩展筛选(scope).wrappedValue.rules.removeAll { $0.id == rule.id }
+                            }
+                        }
+                    )
+                }
             }
 
             Section {
@@ -261,6 +370,9 @@ struct 视觉小说搜索筛选页面: View {
                     Button(role: .destructive) {
                         withAnimation {
                             filters.rules.removeAll()
+                            for scope in Self.扩展筛选对象 {
+                                扩展筛选(scope).wrappedValue.rules.removeAll()
+                            }
                         }
                     } label: {
                         Label("清除所有条件", systemImage: "trash")
@@ -269,7 +381,7 @@ struct 视觉小说搜索筛选页面: View {
                     Image(systemName: "ellipsis")
                 }
                 .accessibilityLabel("更多")
-                .disabled(filters.rules.isEmpty)
+                .disabled(没有任何规则)
             }
 
             ToolbarItem(placement: .confirmationAction) {
@@ -306,6 +418,20 @@ struct 视觉小说搜索筛选页面: View {
             }
             .平台近全屏弹窗(dragIndicator: .visible)
         }
+        .sheet(item: $editingExtendedCondition) { context in
+            NavigationStack {
+                搜索扩展筛选条件编辑页面(
+                    scope: context.scope,
+                    initialCondition: context.condition,
+                    catalog: $catalog,
+                    isLoadingTraits: $isLoadingTraits,
+                    onSave: { condition in
+                        保存扩展条件(condition, context: context)
+                    }
+                )
+            }
+            .平台近全屏弹窗(dragIndicator: .visible)
+        }
         .alert(item: $conflictAlert) { prompt in
             Alert(
                 title: Text("筛选条件冲突"),
@@ -319,8 +445,15 @@ struct 视觉小说搜索筛选页面: View {
                 mergeTags(cachedTags)
             }
 
+            if let cachedTraits = taxonomyService.已缓存特征目录() {
+                mergeTraits(cachedTraits)
+            }
+
             async let loadedCatalog = try? await VNDB服务.shared.获取搜索筛选目录()
             async let loadedTags = try? await taxonomyService.所有标签(
+                强制刷新: true
+            )
+            async let loadedTraits = try? await taxonomyService.所有特征(
                 强制刷新: true
             )
             let tags = await loadedTags
@@ -328,9 +461,104 @@ struct 视觉小说搜索筛选页面: View {
                 mergeTags(tags)
             }
             isLoadingTags = false
+            if let traits = await loadedTraits {
+                mergeTraits(traits)
+            }
+            isLoadingTraits = false
             if let baseCatalog = await loadedCatalog {
                 catalog = catalog.merging(baseCatalog)
             }
+        }
+    }
+
+    private func mergeTraits(_ traits: [探索特征]) {
+        let options = traits.map {
+            VNDB筛选选项(code: $0.id, name: $0.name)
+        }
+        guard options != catalog.traits else { return }
+        catalog = catalog.merging(
+            VNDB搜索筛选目录(
+                languages: [],
+                platforms: [],
+                traits: options
+            )
+        )
+    }
+
+    /// 视觉小说条件组之后，按发行版本、角色、制作人员、会社的顺序接着编号。
+    private func 扩展规则起始序号(_ scope: 搜索范围) -> Int {
+        var 序号 = filters.rules.count + 1
+        for item in Self.扩展筛选对象 {
+            if item == scope { break }
+            序号 += 扩展筛选(item).wrappedValue.rules.count
+        }
+        return 序号
+    }
+
+    /// 句子里的筛选对象（“……条件的视觉小说”）：改成别的对象时，这组条件移到新对象下，
+    /// 保留显示方式和匹配方式；原有的筛选项各对象不通用，清空后重新添加。
+    private func 筛选对象菜单(ruleID: UUID, current: 搜索范围) -> some View {
+        Menu {
+            Picker("筛选对象", selection: Binding(
+                get: { current },
+                set: { 改变筛选对象(ruleID: ruleID, from: current, to: $0) }
+            )) {
+                ForEach(搜索范围.allCases) { scope in
+                    Label(scope.localizedTitle, systemImage: scope.systemImage).tag(scope)
+                }
+            }
+        } label: {
+            sentenceChoiceLabel(current.localizedTitle)
+        }
+        .fixedSize()
+        .layoutValue(key: 筛选句子选项布局值.self, value: true)
+        .accessibilityLabel("筛选对象")
+        .accessibilityValue(Text(verbatim: current.localizedTitle))
+    }
+
+    private func 改变筛选对象(ruleID: UUID, from: 搜索范围, to: 搜索范围) {
+        guard from != to else { return }
+        var matchMode = 视觉小说筛选匹配方式.all
+        var isExcluded = false
+        var 位置: Int?
+        if from == .visualNovel {
+            位置 = filters.rules.firstIndex { $0.id == ruleID }
+            if let 位置 {
+                matchMode = filters.rules[位置].matchMode
+                isExcluded = filters.rules[位置].isExcluded
+            }
+        } else {
+            位置 = 扩展筛选(from).wrappedValue.rules.firstIndex { $0.id == ruleID }
+            if let 位置 {
+                let rule = 扩展筛选(from).wrappedValue.rules[位置]
+                matchMode = rule.matchMode
+                isExcluded = rule.isExcluded
+            }
+        }
+        guard let 位置 else { return }
+        withAnimation {
+            if from == .visualNovel {
+                filters.rules.remove(at: 位置)
+            } else {
+                扩展筛选(from).wrappedValue.rules.remove(at: 位置)
+            }
+            if to == .visualNovel {
+                filters.rules.append(视觉小说筛选规则组(matchMode: matchMode, isExcluded: isExcluded))
+            } else {
+                扩展筛选(to).wrappedValue.rules.append(
+                    搜索扩展筛选规则组(matchMode: matchMode, isExcluded: isExcluded)
+                )
+            }
+        }
+    }
+
+    private func 保存扩展条件(_ condition: 搜索扩展筛选条件, context: 搜索扩展筛选条件编辑上下文) {
+        let 筛选 = 扩展筛选(context.scope)
+        guard let index = 筛选.wrappedValue.rules.firstIndex(where: { $0.id == context.ruleID }) else { return }
+        if context.isNew {
+            筛选.wrappedValue.rules[index].conditions.append(condition)
+        } else if let conditionIndex = 筛选.wrappedValue.rules[index].conditions.firstIndex(where: { $0.id == condition.id }) {
+            筛选.wrappedValue.rules[index].conditions[conditionIndex] = condition
         }
     }
 
@@ -499,13 +727,19 @@ struct 视觉小说搜索筛选页面: View {
         for rule: Binding<视觉小说筛选规则组>
     ) -> some View {
         筛选句子布局(horizontalSpacing: 0, verticalSpacing: 6) {
-            exclusionMenu(for: rule)
-
-            Text("满足以下")
-
-            matchModeMenu(for: rule)
-
-            Text("条件的视觉小说。")
+            let parts = 筛选句子片段.拆分(String(localized: "%1$@满足以下%2$@条件的%3$@。"))
+            ForEach(parts.indices, id: \.self) { index in
+                switch parts[index] {
+                case .文本(let text):
+                    Text(verbatim: text)
+                case .显示方式:
+                    exclusionMenu(for: rule)
+                case .匹配方式:
+                    matchModeMenu(for: rule)
+                case .筛选对象:
+                    筛选对象菜单(ruleID: rule.wrappedValue.id, current: .visualNovel)
+                }
+            }
         }
         .font(.body)
         .accessibilityIdentifier(
@@ -649,12 +883,16 @@ struct 视觉小说搜索筛选页面: View {
     private func applyFilters() {
         var candidate = filters
         candidate.rules.removeAll { !$0.isConfigured }
+        candidate.发行版本规则.rules.removeAll { !$0.isConfigured }
         if let conflict = VNDB筛选冲突检测器.conflict(in: candidate) {
             showConflict(conflict)
             return
         }
 
         filters = candidate
+        characterFilters.rules.removeAll { !$0.isConfigured }
+        staffFilters.rules.removeAll { !$0.isConfigured }
+        producerFilters.rules.removeAll { !$0.isConfigured }
         onApply()
         dismiss()
     }
@@ -753,189 +991,59 @@ struct 视觉小说搜索筛选页面: View {
     }
 }
 
-struct 搜索筛选页面: View {
+/// 综合筛选页里一个发行版本、角色、制作人员或会社条件组的分区。
+private struct 扩展筛选规则分区: View {
     let scope: 搜索范围
-    @Binding var visualNovelFilters: 视觉小说搜索筛选
-    @Binding var extendedFilters: 搜索扩展筛选
-    let onApply: () -> Void
-
-    var body: some View {
-        if scope == .visualNovel {
-            视觉小说搜索筛选页面(filters: $visualNovelFilters, onApply: onApply)
-        } else {
-            搜索扩展筛选页面(
-                scope: scope,
-                filters: $extendedFilters,
-                onApply: onApply
-            )
-        }
-    }
-}
-
-private struct 搜索扩展筛选页面: View {
-    @Environment(\.dismiss) private var dismiss
-    let scope: 搜索范围
-    @Binding var filters: 搜索扩展筛选
-    let onApply: () -> Void
-    @State private var editingCondition: 搜索扩展筛选条件编辑上下文?
-    @State private var catalog = VNDB搜索筛选目录.builtIn
-    @State private var isLoadingTraits = true
+    @Binding var rule: 搜索扩展筛选规则组
+    let 序号: Int
+    let catalog: VNDB搜索筛选目录
+    let 筛选对象菜单: AnyView
+    let 编辑条件: (搜索扩展筛选条件, Bool) -> Void
+    let 删除规则: () -> Void
 
     private var availableFields: [搜索扩展筛选字段] {
         搜索扩展筛选字段.available(for: scope)
     }
 
     var body: some View {
-        平台滚动页面 {
-            ForEach($filters.rules) { $rule in
-                ruleSection(rule: $rule)
-            }
-
-            Section {
-                Button {
-                    withAnimation {
-                        filters.rules.append(搜索扩展筛选规则组())
-                    }
-                } label: {
-                    Label("添加筛选条件", systemImage: "plus")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .accessibilityIdentifier("search.filter.addRule")
-            }
-        }
-        .平台分组列表样式()
-        .navigationTitle("筛选")
-        .平台柔和滚动边缘(for: .top)
-        .平台内联导航标题()
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button { dismiss() } label: {
-                    Image(systemName: "xmark")
-                }
-                .accessibilityLabel("取消")
-            }
-            ToolbarItem(placement: .平台主操作) {
-                Menu {
-                    Button(role: .destructive) {
-                        withAnimation {
-                            filters.rules.removeAll()
-                        }
-                    } label: {
-                        Label("清除所有条件", systemImage: "trash")
-                    }
-                } label: {
-                    Image(systemName: "ellipsis")
-                }
-                .accessibilityLabel("更多")
-                .disabled(filters.rules.isEmpty)
-            }
-            ToolbarItem(placement: .confirmationAction) {
-                Button {
-                    var candidate = filters
-                    candidate.rules.removeAll { !$0.isConfigured }
-                    filters = candidate
-                    onApply()
-                    dismiss()
-                } label: {
-                    Image(systemName: "checkmark")
-                }
-                .液态玻璃醒目按钮(in: Circle())
-                .accessibilityLabel("完成")
-            }
-        }
-        .sheet(item: $editingCondition) { context in
-            NavigationStack {
-                搜索扩展筛选条件编辑页面(
-                    scope: scope,
-                    initialCondition: context.condition,
-                    catalog: $catalog,
-                    isLoadingTraits: $isLoadingTraits,
-                    onSave: { condition in
-                        saveCondition(condition, ruleID: context.ruleID, isNew: context.isNew)
-                    }
-                )
-            }
-            .平台近全屏弹窗(dragIndicator: .visible)
-        }
-        .task {
-            isLoadingTraits = scope == .character
-            defer { isLoadingTraits = false }
-            let taxonomyService = VNDB探索服务.shared
-            if scope == .character,
-               let cachedTraits = taxonomyService.已缓存特征目录() {
-                mergeTraits(cachedTraits)
-            }
-
-            async let loadedCatalog = try? await VNDB服务.shared.获取搜索筛选目录()
-            if scope == .character {
-                async let loadedTraits = try? await taxonomyService.所有特征(
-                    强制刷新: true
-                )
-                let traits = await loadedTraits
-                if let traits {
-                    mergeTraits(traits)
-                }
-                isLoadingTraits = false
-                if let baseCatalog = await loadedCatalog {
-                    catalog = catalog.merging(baseCatalog)
-                }
-            } else {
-                if let baseCatalog = await loadedCatalog {
-                    catalog = catalog.merging(baseCatalog)
-                }
-            }
-        }
-    }
-
-    private func mergeTraits(_ traits: [探索特征]) {
-        let options = traits.map {
-            VNDB筛选选项(code: $0.id, name: $0.name)
-        }
-        guard options != catalog.traits else { return }
-        catalog = catalog.merging(
-            VNDB搜索筛选目录(
-                languages: [],
-                platforms: [],
-                traits: options
-            )
-        )
-    }
-
-    @ViewBuilder
-    private func ruleSection(rule: Binding<搜索扩展筛选规则组>) -> some View {
-        let ruleID = rule.wrappedValue.id
-        let index = filters.rules.firstIndex { $0.id == ruleID } ?? 0
         Section {
             筛选句子布局(horizontalSpacing: 0, verticalSpacing: 6) {
-                Menu {
-                    Picker("显示方式", selection: Binding(
-                        get: { rule.wrappedValue.isExcluded },
-                        set: { rule.wrappedValue.isExcluded = $0 }
-                    )) {
-                        Text("显示").tag(false)
-                        Text("排除").tag(true)
+                let parts = 筛选句子片段.拆分(String(localized: "%1$@满足以下%2$@条件的%3$@。"))
+                ForEach(parts.indices, id: \.self) { partIndex in
+                    switch parts[partIndex] {
+                    case .文本(let text):
+                        Text(verbatim: text)
+                    case .显示方式:
+                        Menu {
+                            Picker("显示方式", selection: $rule.isExcluded) {
+                                Text("显示").tag(false)
+                                Text("排除").tag(true)
+                            }
+                        } label: {
+                            sentenceChoiceLabel(
+                                rule.isExcluded ? String(localized: "排除") : String(localized: "显示")
+                            )
+                        }
+                    case .匹配方式:
+                        Menu {
+                            Picker("匹配条件", selection: $rule.matchMode) {
+                                Text("所有").tag(视觉小说筛选匹配方式.all)
+                                Text("任一").tag(视觉小说筛选匹配方式.any)
+                            }
+                        } label: {
+                            sentenceChoiceLabel(rule.matchMode.localizedShortTitle)
+                        }
+                    case .筛选对象:
+                        筛选对象菜单
                     }
-                } label: { sentenceChoiceLabel(rule.wrappedValue.isExcluded ? "排除" : "显示") }
-                Text("满足以下")
-                Menu {
-                    Picker("匹配条件", selection: Binding(
-                        get: { rule.wrappedValue.matchMode },
-                        set: { rule.wrappedValue.matchMode = $0 }
-                    )) {
-                        Text("所有").tag(视觉小说筛选匹配方式.all)
-                        Text("任一").tag(视觉小说筛选匹配方式.any)
-                    }
-                } label: { sentenceChoiceLabel(rule.wrappedValue.matchMode == .all ? "所有" : "任一") }
-                Text(verbatim: sentenceSuffix)
+                }
             }
             .font(.body)
-            .accessibilityIdentifier("search.filter.rule.\(ruleID).mode")
+            .accessibilityIdentifier("search.filter.rule.\(rule.id).mode")
 
-            ForEach(rule.wrappedValue.conditions) { condition in
+            ForEach(rule.conditions) { condition in
                 Button {
-                    editingCondition = 搜索扩展筛选条件编辑上下文(
-                        ruleID: ruleID, condition: condition, isNew: false
-                    )
+                    编辑条件(condition, false)
                 } label: {
                     HStack(spacing: 12) {
                         Image(systemName: condition.field.systemImage)
@@ -955,15 +1063,11 @@ private struct 搜索扩展筛选页面: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityIdentifier(
-                    "search.filter.condition.\(condition.field.rawValue)"
-                )
+                .accessibilityIdentifier("search.filter.condition.\(condition.field.rawValue)")
                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                     Button(role: .destructive) {
                         withAnimation {
-                            filters.rules[index].conditions.removeAll {
-                                $0.id == condition.id
-                            }
+                            rule.conditions.removeAll { $0.id == condition.id }
                         }
                     } label: { Label("删除筛选项", systemImage: "trash") }
                 }
@@ -971,33 +1075,27 @@ private struct 搜索扩展筛选页面: View {
 
             Menu {
                 ForEach(availableFields.filter { field in
-                    !rule.wrappedValue.conditions.contains { $0.field == field }
+                    !rule.conditions.contains { $0.field == field }
                 }) { field in
                     Button {
-                        editingCondition = 搜索扩展筛选条件编辑上下文(
-                            ruleID: ruleID,
-                            condition: 搜索扩展筛选条件(field: field),
-                            isNew: true
-                        )
+                        编辑条件(搜索扩展筛选条件(field: field), true)
                     } label: { Label(field.localizedTitle(for: scope), systemImage: field.systemImage) }
                 }
             } label: {
                 Label("添加筛选项", systemImage: "plus")
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .accessibilityIdentifier("search.filter.rule.\(ruleID).addCondition")
+            .accessibilityIdentifier("search.filter.rule.\(rule.id).addCondition")
         } header: {
             HStack {
                 Label {
-                    Text(verbatim: "\(String(localized: "筛选条件"))\(index + 1)")
+                    Text(verbatim: "\(String(localized: "筛选条件"))\(序号)")
                 } icon: {
                     Image(systemName: "line.3.horizontal.decrease.circle")
                 }
                 Spacer()
                 Button(role: .destructive) {
-                    withAnimation {
-                        filters.rules.removeAll { $0.id == ruleID }
-                    }
+                    删除规则()
                 } label: { Image(systemName: "trash") }
                 .buttonStyle(.plain)
                 .accessibilityLabel("删除筛选条件")
@@ -1016,20 +1114,10 @@ private struct 搜索扩展筛选页面: View {
         .layoutValue(key: 筛选句子选项布局值.self, value: true)
     }
 
-    private var sentenceSuffix: String {
-        switch scope {
-        case .character: return String(localized: "条件的角色。")
-        case .release: return String(localized: "条件的发行版本。")
-        case .staff: return String(localized: "条件的制作人员。")
-        case .producer: return String(localized: "条件的开发与发行商。")
-        case .visualNovel: return String(localized: "条件的视觉小说。")
-        }
-    }
-
     private func summary(_ condition: 搜索扩展筛选条件) -> String {
         condition.normalizedStringValues.map { value in
             switch condition.field {
-            case .birthday: return String(localized: "\(value)月")
+            case .birthday: return Int(value).map(月份名称) ?? value
             case .language: return VNDB显示工具.语言名称(value)
             case .platform: return VNDB显示工具.平台名称(value)
             case .role:
@@ -1073,18 +1161,6 @@ private struct 搜索扩展筛选页面: View {
         }
     }
 
-    private func saveCondition(
-        _ condition: 搜索扩展筛选条件,
-        ruleID: UUID,
-        isNew: Bool
-    ) {
-        guard let index = filters.rules.firstIndex(where: { $0.id == ruleID }) else { return }
-        if isNew {
-            filters.rules[index].conditions.append(condition)
-        } else if let conditionIndex = filters.rules[index].conditions.firstIndex(where: { $0.id == condition.id }) {
-            filters.rules[index].conditions[conditionIndex] = condition
-        }
-    }
 }
 
 private struct 搜索扩展筛选条件编辑页面: View {
@@ -1177,7 +1253,7 @@ private struct 搜索扩展筛选条件编辑页面: View {
     private var options: [VNDB筛选选项] {
         switch condition.field {
         case .birthday:
-            return (1...12).map { .init(code: "\($0)", name: String(localized: "\($0)月")) }
+            return (1...12).map { .init(code: "\($0)", name: 月份名称($0)) }
         case .role:
             if scope == .character {
                 return [
@@ -1762,6 +1838,9 @@ struct 视觉小说筛选规则组: Codable, Hashable, Identifiable {
 
 struct 视觉小说搜索筛选: Codable, Hashable {
     var rules: [视觉小说筛选规则组]
+    /// 对作品的发行版本的筛选：作品至少有一个发行版本满足这些条件。
+    /// 综合搜索里发行版本收在作品下面，发行版本的筛选通过作品生效。
+    var 发行版本规则 = 搜索扩展筛选()
 
     init(
         rules: [视觉小说筛选规则组] = [],
@@ -1846,7 +1925,7 @@ struct 视觉小说搜索筛选: Codable, Hashable {
     }
 
     nonisolated var isEmpty: Bool {
-        configuredRules.isEmpty
+        configuredRules.isEmpty && 发行版本规则.isEmpty
     }
 
     nonisolated var activeFilterCount: Int {

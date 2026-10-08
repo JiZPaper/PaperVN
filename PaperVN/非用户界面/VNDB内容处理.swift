@@ -802,9 +802,14 @@ enum 列表封面布局 {
     static let 宽度: CGFloat = 72
     static let 高度: CGFloat = 100
 
+    /// 与所在列表单元格的圆角保持同一比例：iOS 26 起单元格圆角约 26pt，iOS 18 只有 10pt。
     static func 圆角(horizontalSizeClass: UserInterfaceSizeClass?) -> CGFloat {
-        UIDevice.current.userInterfaceIdiom == .pad
-            && horizontalSizeClass == .regular ? 10 : 16
+        let 常规宽度iPad = UIDevice.current.userInterfaceIdiom == .pad
+            && horizontalSizeClass == .regular
+        if #available(iOS 26.0, *) {
+            return 常规宽度iPad ? 10 : 16
+        }
+        return 常规宽度iPad ? 4 : 6
     }
 }
 
@@ -1144,27 +1149,6 @@ private struct 液态玻璃按钮Modifier<S: Shape>: ViewModifier {
     }
 }
 
-nonisolated enum 沉浸详情玻璃色调: Equatable, Sendable {
-    case black
-    case white
-
-    @MainActor
-    var color: Color {
-        switch self {
-        case .black: .black
-        case .white: .white
-        }
-    }
-}
-
-nonisolated enum 沉浸玻璃色调阈值 {
-    static let 最低封面不透明度 = 0.75
-    static let 最低取样数 = 16
-    static let 最低单色覆盖率 = 0.995
-    static let 接近白色亮度 = 0.995
-    static let 接近黑色亮度 = 0.005
-}
-
 struct 沉浸详情文字样式 {
     let appearance: 沉浸详情外观
     let sample: 沉浸玻璃文字取样结果?
@@ -1175,10 +1159,6 @@ struct 沉浸详情文字样式 {
     }
 
     private var usesDarkText: Bool? {
-        sample?.dominantUsesDarkText ?? sample?.usesDarkText
-    }
-
-    private var elementUsesDarkText: Bool? {
         sample?.usesDarkText
     }
 
@@ -1221,14 +1201,14 @@ struct 沉浸详情文字样式 {
               sample?.needsContrastShadow == true else {
             return .clear
         }
-        guard let elementUsesDarkText else { return .clear }
-        return elementUsesDarkText
-            ? .black.opacity(0.24)
-            : .white.opacity(0.24)
+        // 阴影取文字的反色，把文字从背景里托出来。
+        return usesDarkText == true
+            ? .white.opacity(0.5)
+            : .black.opacity(0.45)
     }
 
     var contrastShadowRadius: CGFloat {
-        usesAdaptiveColors && sample?.needsContrastShadow == true ? 7 : 0
+        usesAdaptiveColors && sample?.needsContrastShadow == true ? 6 : 0
     }
 
     var contrastShadowYOffset: CGFloat {
@@ -1236,12 +1216,134 @@ struct 沉浸详情文字样式 {
     }
 }
 
-nonisolated struct 沉浸玻璃文字取样结果: Equatable, Sendable {
-    let usesDarkText: Bool
-    let dominantUsesDarkText: Bool
-    let needsContrastShadow: Bool
-    let isNearlyUniformWhiteBackground: Bool
-    let glassTint: 沉浸详情玻璃色调?
+/// 玻璃色调的编码 sRGB 分量。淡出时保留原色相，避免途经灰色。
+private struct 沉浸玻璃色调分量: Equatable {
+    var red: Double
+    var green: Double
+    var blue: Double
+    var opacity: Double
+
+    init(red: Double, green: Double, blue: Double, opacity: Double) {
+        self.red = red
+        self.green = green
+        self.blue = blue
+        self.opacity = opacity
+    }
+
+    init(_ tint: 沉浸详情玻璃色调) {
+        let value: Double = tint.明暗 == .white ? 1 : 0
+        self.init(red: value, green: value, blue: value, opacity: tint.不透明度)
+    }
+
+    /// 仅用于无封面时的系统回退色调（黑或白），与外观环境无关，用默认环境解析即可。
+    init(_ color: Color) {
+        let resolved = color.resolve(in: EnvironmentValues())
+        self.init(
+            red: Double(resolved.red),
+            green: Double(resolved.green),
+            blue: Double(resolved.blue),
+            opacity: Double(resolved.opacity)
+        )
+    }
+
+    /// 透明目标沿用上一个色相，淡出时不经过灰色。
+    static func 目标(_ target: Self?, keeping previous: Self?) -> Self {
+        target ?? Self(
+            red: previous?.red ?? 1,
+            green: previous?.green ?? 1,
+            blue: previous?.blue ?? 1,
+            opacity: 0
+        )
+    }
+
+    static func 目标(
+        appearance: 沉浸详情外观,
+        sample: 沉浸玻璃文字取样结果?,
+        fallbackTint: Color?
+    ) -> Self? {
+        guard appearance == .clear else { return nil }
+        if let tint = sample?.glassTint { return Self(tint) }
+        return fallbackTint.map { Self($0) }
+    }
+
+    var color: Color? {
+        guard opacity > 0.002 else { return nil }
+        return Color(
+            Color.Resolved(
+                colorSpace: .sRGB,
+                red: Float(red),
+                green: Float(green),
+                blue: Float(blue),
+                opacity: Float(opacity)
+            )
+        )
+    }
+}
+
+private struct 沉浸玻璃色调插值视图<Output: View>: View, Animatable {
+    var components: 沉浸玻璃色调分量
+    let build: (Color?) -> Output
+
+    var animatableData: AnimatablePair<
+        AnimatablePair<Double, Double>,
+        AnimatablePair<Double, Double>
+    > {
+        get {
+            AnimatablePair(
+                AnimatablePair(components.red, components.green),
+                AnimatablePair(components.blue, components.opacity)
+            )
+        }
+        set {
+            components = 沉浸玻璃色调分量(
+                red: newValue.first.first,
+                green: newValue.first.second,
+                blue: newValue.second.first,
+                opacity: newValue.second.second
+            )
+        }
+    }
+
+    var body: some View {
+        build(components.color)
+    }
+}
+
+/// 让玻璃补偿色调平滑过渡。取样结果是在禁用动画的事务里写入的，
+/// 所以这里自己记住当前色调，并在新的事务里做动画。
+private struct 沉浸玻璃色调过渡<Output: View>: View {
+    let target: 沉浸玻璃色调分量?
+    let build: (Color?) -> Output
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var displayed: 沉浸玻璃色调分量?
+
+    init(
+        target: 沉浸玻璃色调分量?,
+        @ViewBuilder build: @escaping (Color?) -> Output
+    ) {
+        self.target = target
+        self.build = build
+    }
+
+    var body: some View {
+        let targetComponents = 沉浸玻璃色调分量.目标(target, keeping: displayed)
+        沉浸玻璃色调插值视图(
+            components: displayed ?? targetComponents,
+            build: build
+        )
+        .onAppear {
+            displayed = targetComponents
+        }
+        .onChange(of: targetComponents) { _, newValue in
+            let transaction = Transaction(
+                animation: reduceMotion ? nil : .easeInOut(duration: 0.28)
+            )
+            withTransaction(transaction) {
+                displayed = newValue
+            }
+        }
+    }
 }
 
 private struct 沉浸详情玻璃Modifier<S: Shape>: ViewModifier {
@@ -1253,19 +1355,23 @@ private struct 沉浸详情玻璃Modifier<S: Shape>: ViewModifier {
 
     @ViewBuilder
     func body(content: Content) -> some View {
-        let tint = appearance == .clear
-            ? sample?.glassTint?.color ?? fallbackTint
-            : nil
-        let glassContent = content.modifier(
-            液态玻璃Modifier(
-                glass: appearance.glass(tint: tint, interactive: interactive),
-                shape: shape
-            )
+        let target = 沉浸玻璃色调分量.目标(
+            appearance: appearance,
+            sample: sample,
+            fallbackTint: fallbackTint
         )
+        let glassContent = 沉浸玻璃色调过渡(target: target) { tint in
+            content.modifier(
+                液态玻璃Modifier(
+                    glass: appearance.glass(tint: tint, interactive: interactive),
+                    shape: shape
+                )
+            )
+        }
         if appearance == .reduced, let sample {
             glassContent.environment(
                 \.colorScheme,
-                sample.dominantUsesDarkText ? .light : .dark
+                sample.usesDarkText ? .light : .dark
             )
         } else {
             glassContent
@@ -1307,24 +1413,28 @@ private struct 沉浸详情玻璃背景Modifier<S: Shape>: ViewModifier {
         if appearance == .reduced && usesBrightReducedMaterial {
             content.高透明提亮材质背景(in: shape)
         } else {
-            let tint = appearance == .clear
-                ? sample?.glassTint?.color ?? fallbackTint
-                : nil
+            let target = 沉浸玻璃色调分量.目标(
+                appearance: appearance,
+                sample: sample,
+                fallbackTint: fallbackTint
+            )
             content
                 .background {
-                    let glassShape = shape
-                        .fill(.clear)
-                        .modifier(
-                            液态玻璃Modifier(
-                                glass: appearance.glass(tint: tint),
-                                shape: shape
+                    let glassShape = 沉浸玻璃色调过渡(target: target) { tint in
+                        shape
+                            .fill(.clear)
+                            .modifier(
+                                液态玻璃Modifier(
+                                    glass: appearance.glass(tint: tint),
+                                    shape: shape
+                                )
                             )
-                        )
-                        .allowsHitTesting(false)
+                    }
+                    .allowsHitTesting(false)
                     if appearance == .reduced, let sample {
                         glassShape.environment(
                             \.colorScheme,
-                            sample.dominantUsesDarkText ? .light : .dark
+                            sample.usesDarkText ? .light : .dark
                         )
                     } else {
                         glassShape
@@ -1394,6 +1504,7 @@ private struct 沉浸详情文字颜色过渡Modifier: ViewModifier {
                 reduceMotion ? nil : .easeInOut(duration: 0.28),
                 value: animationKey
             )
+            .modifier(沉浸取样校准隐藏Modifier())
     }
 }
 
@@ -1452,6 +1563,7 @@ extension View {
             radius: style.contrastShadowRadius,
             y: style.contrastShadowYOffset
         )
+        .modifier(沉浸取样校准隐藏Modifier())
     }
 
     func 沉浸详情玻璃背景<S: Shape>(
@@ -1486,728 +1598,6 @@ struct 详情更多入口按钮样式: ButtonStyle {
                 reduceMotion ? nil : .easeOut(duration: 0.12),
                 value: configuration.isPressed
             )
-    }
-}
-
-nonisolated enum 沉浸封面文字分析布局: Equatable, Sendable {
-    case visualNovel
-    case character
-}
-
-nonisolated enum 沉浸详情背景色调: Sendable {
-    case light
-    case dark
-
-    var luminance: Double {
-        switch self {
-        case .light: return 1
-        case .dark: return 0
-        }
-    }
-}
-
-nonisolated struct 沉浸封面文字取样几何: Sendable, Equatable {
-    let imageSize: CGSize
-    let regions: [String: CGRect]
-}
-
-nonisolated struct 沉浸封面文字取样请求: Sendable, Equatable {
-    let url: URL
-    let layout: 沉浸封面文字分析布局
-    let background: 沉浸详情背景色调
-    let extendsThroughInformation: Bool
-    let itemCounts: [String: Int]
-    let geometry: 沉浸封面文字取样几何
-}
-
-@MainActor
-final class 沉浸封面文字取样任务协调器 {
-    private var task: Task<Void, Never>?
-    private var generation = 0
-    private var currentRequest: 沉浸封面文字取样请求?
-    private(set) var latestGeometry: 沉浸封面文字取样几何?
-
-    func remember(_ geometry: 沉浸封面文字取样几何) {
-        latestGeometry = geometry
-    }
-
-    func submit(
-        _ request: 沉浸封面文字取样请求,
-        apply: @escaping @MainActor (
-            沉浸封面文字取样请求,
-            [String: 沉浸玻璃文字取样结果]
-        ) -> Void
-    ) {
-        latestGeometry = request.geometry
-        guard currentRequest != request else { return }
-
-        generation += 1
-        let submittedGeneration = generation
-        currentRequest = request
-        task?.cancel()
-        task = Task {
-            let samples = await 沉浸封面文字分析缓存.shared
-                .textSamplesAsync(for: request)
-            guard !Task.isCancelled,
-                  generation == submittedGeneration,
-                  currentRequest == request else {
-                return
-            }
-            guard !samples.isEmpty else {
-                currentRequest = nil
-                return
-            }
-            apply(request, samples)
-        }
-    }
-
-    func cancel() {
-        generation += 1
-        currentRequest = nil
-        task?.cancel()
-        task = nil
-    }
-}
-
-nonisolated struct 沉浸封面亮度图: Sendable {
-    let width: Int
-    let height: Int
-    let luminances: [UInt8]
-
-    private struct RegionDefinition {
-        let key: String
-        let group: String
-        let regions: [CGRect]
-    }
-
-    private struct TextSampleMetrics {
-        var lightBackgroundCount = 0
-        var darkBackgroundCount = 0
-        var nearlyWhiteBackgroundCount = 0
-        var nearlyBlackBackgroundCount = 0
-        var tintCandidateSampleCount = 0
-        var luminanceTotal: Double = 0
-
-        var usesDarkText: Bool {
-            let sampleCount = lightBackgroundCount + darkBackgroundCount
-            guard sampleCount > 0 else { return false }
-            let averageLuminance = luminanceTotal / Double(sampleCount)
-            let lightBackgroundRatio = Double(lightBackgroundCount)
-                / Double(sampleCount)
-            return lightBackgroundRatio >= 0.5 && averageLuminance >= 0.18
-        }
-
-        var glassTint: 沉浸详情玻璃色调? {
-            guard tintCandidateSampleCount >= 沉浸玻璃色调阈值.最低取样数
-            else { return nil }
-            let sampleCount = Double(tintCandidateSampleCount)
-            let nearlyWhiteRatio = Double(nearlyWhiteBackgroundCount)
-                / sampleCount
-            if nearlyWhiteRatio >= 沉浸玻璃色调阈值.最低单色覆盖率 {
-                return .white
-            }
-            let nearlyBlackRatio = Double(nearlyBlackBackgroundCount)
-                / sampleCount
-            return nearlyBlackRatio >= 沉浸玻璃色调阈值.最低单色覆盖率
-                ? .black
-                : nil
-        }
-
-    }
-
-    func textSamples(
-        for layout: 沉浸封面文字分析布局,
-        background: 沉浸详情背景色调,
-        extendsThroughInformation: Bool,
-        itemCounts: [String: Int] = [:],
-        geometry: 沉浸封面文字取样几何? = nil
-    ) -> [String: 沉浸玻璃文字取样结果] {
-        guard !Task.isCancelled else { return [:] }
-        let regions: [RegionDefinition]
-        switch layout {
-        case .visualNovel:
-            regions = [
-                RegionDefinition(
-                    key: "metadata",
-                    group: "metadata",
-                    regions: [CGRect(x: 0.04, y: 0.31, width: 0.92, height: 0.25)]
-                ),
-                RegionDefinition(
-                    key: "metadata.title",
-                    group: "metadata",
-                    regions: [CGRect(x: 0.04, y: 0.31, width: 0.92, height: 0.11)]
-                ),
-                RegionDefinition(
-                    key: "metadata.rating",
-                    group: "metadata",
-                    regions: [CGRect(x: 0.04, y: 0.42, width: 0.44, height: 0.08)]
-                ),
-                RegionDefinition(
-                    key: "metadata.length",
-                    group: "metadata",
-                    regions: [CGRect(x: 0.04, y: 0.50, width: 0.44, height: 0.09)]
-                ),
-                RegionDefinition(
-                    key: "metadata.release",
-                    group: "metadata",
-                    regions: [CGRect(x: 0.52, y: 0.42, width: 0.44, height: 0.08)]
-                ),
-                RegionDefinition(
-                    key: "metadata.status",
-                    group: "metadata",
-                    regions: [CGRect(x: 0.52, y: 0.50, width: 0.44, height: 0.09)]
-                ),
-                RegionDefinition(
-                    key: "description",
-                    group: "description",
-                    regions: [CGRect(x: 0.02, y: 0.51, width: 0.96, height: 0.26)]
-                ),
-                RegionDefinition(
-                    key: "description.text",
-                    group: "description",
-                    regions: [CGRect(x: 0.02, y: 0.51, width: 0.82, height: 0.26)]
-                ),
-                RegionDefinition(
-                    key: "tags",
-                    group: "tags",
-                    regions: [CGRect(x: 0, y: 0.57, width: 1, height: 0.41)]
-                )
-            ] + tagDefinitions(
-                group: "tags",
-                startY: 0.57,
-                count: itemCounts["tags"] ?? 28
-            )
-        case .character:
-            regions = [
-                RegionDefinition(
-                    key: "metadata",
-                    group: "metadata",
-                    regions: [CGRect(x: 0.04, y: 0.31, width: 0.92, height: 0.25)]
-                ),
-                RegionDefinition(
-                    key: "metadata.title",
-                    group: "metadata",
-                    regions: [CGRect(x: 0.04, y: 0.31, width: 0.92, height: 0.10)]
-                ),
-                RegionDefinition(
-                    key: "metadata.age",
-                    group: "metadata",
-                    regions: [CGRect(x: 0, y: 0.41, width: 0.25, height: 0.10)]
-                ),
-                RegionDefinition(
-                    key: "metadata.birthday",
-                    group: "metadata",
-                    regions: [CGRect(x: 0.25, y: 0.41, width: 0.25, height: 0.10)]
-                ),
-                RegionDefinition(
-                    key: "metadata.gender",
-                    group: "metadata",
-                    regions: [CGRect(x: 0.50, y: 0.41, width: 0.25, height: 0.10)]
-                ),
-                RegionDefinition(
-                    key: "metadata.bloodType",
-                    group: "metadata",
-                    regions: [CGRect(x: 0.75, y: 0.41, width: 0.25, height: 0.10)]
-                ),
-                RegionDefinition(
-                    key: "metadata.height",
-                    group: "metadata",
-                    regions: [CGRect(x: 0, y: 0.51, width: 0.25, height: 0.10)]
-                ),
-                RegionDefinition(
-                    key: "metadata.weight",
-                    group: "metadata",
-                    regions: [CGRect(x: 0.25, y: 0.51, width: 0.25, height: 0.10)]
-                ),
-                RegionDefinition(
-                    key: "metadata.bust",
-                    group: "metadata",
-                    regions: [CGRect(x: 0.50, y: 0.51, width: 0.25, height: 0.10)]
-                ),
-                RegionDefinition(
-                    key: "metadata.waist",
-                    group: "metadata",
-                    regions: [CGRect(x: 0.75, y: 0.51, width: 0.25, height: 0.10)]
-                ),
-                RegionDefinition(
-                    key: "metadata.hips",
-                    group: "metadata",
-                    regions: [CGRect(x: 0, y: 0.61, width: 0.25, height: 0.10)]
-                ),
-                RegionDefinition(
-                    key: "metadata.cup",
-                    group: "metadata",
-                    regions: [CGRect(x: 0.25, y: 0.61, width: 0.25, height: 0.10)]
-                ),
-                RegionDefinition(
-                    key: "description",
-                    group: "description",
-                    regions: [CGRect(x: 0.02, y: 0.52, width: 0.96, height: 0.24)]
-                ),
-                RegionDefinition(
-                    key: "description.text",
-                    group: "description",
-                    regions: [CGRect(x: 0.02, y: 0.52, width: 0.82, height: 0.24)]
-                ),
-                RegionDefinition(
-                    key: "traits",
-                    group: "traits",
-                    regions: [CGRect(x: 0, y: 0.5, width: 1, height: 0.48)]
-                )
-            ] + tagDefinitions(
-                group: "traits",
-                startY: 0.50,
-                count: itemCounts["traits"] ?? 28
-            )
-        }
-
-        var metricsByKey: [String: TextSampleMetrics] = [:]
-        for definition in regions {
-            guard !Task.isCancelled else { return [:] }
-            let metrics: TextSampleMetrics?
-            if let frame = geometry?.regions[definition.key],
-               let geometry {
-                metrics = textSampleMetrics(
-                    inRenderedRegions: [frame],
-                    imageSize: geometry.imageSize,
-                    background: background,
-                    extendsThroughInformation: extendsThroughInformation
-                )
-            } else {
-                metrics = textSampleMetrics(
-                    in: definition.regions,
-                    background: background,
-                    extendsThroughInformation: extendsThroughInformation
-                )
-            }
-            if let metrics {
-                metricsByKey[definition.key] = metrics
-            }
-        }
-
-        var groupVotes: [String: (darkText: Int, whiteText: Int)] = [:]
-        for definition in regions where definition.key != definition.group {
-            guard let metrics = metricsByKey[definition.key] else { continue }
-            if metrics.usesDarkText {
-                groupVotes[definition.group, default: (0, 0)].darkText += 1
-            } else {
-                groupVotes[definition.group, default: (0, 0)].whiteText += 1
-            }
-        }
-
-        return regions.reduce(into: [:]) { samples, definition in
-            guard let metrics = metricsByKey[definition.key] else { return }
-            let localUsesDarkText = metrics.usesDarkText
-            let votes = groupVotes[definition.group]
-            let dominantUsesDarkText: Bool
-            if let votes,
-               votes.darkText + votes.whiteText > 0 {
-                dominantUsesDarkText = votes.darkText >= votes.whiteText
-            } else {
-                dominantUsesDarkText = localUsesDarkText
-            }
-            samples[definition.key] = 沉浸玻璃文字取样结果(
-                usesDarkText: localUsesDarkText,
-                dominantUsesDarkText: dominantUsesDarkText,
-                needsContrastShadow: definition.key != definition.group
-                    && localUsesDarkText != dominantUsesDarkText,
-                isNearlyUniformWhiteBackground:
-                    metrics.glassTint == .white,
-                glassTint: metrics.glassTint
-            )
-        }
-    }
-
-    private func tagDefinitions(
-        group: String,
-        startY: CGFloat,
-        count: Int
-    ) -> [RegionDefinition] {
-        (0..<max(count, 0)).map { index in
-            let column = index % 4
-            let row = index / 4
-            let rowHeight: CGFloat = 0.058
-            return RegionDefinition(
-                key: "\(group).item.\(index)",
-                group: group,
-                regions: [
-                    CGRect(
-                        x: CGFloat(column) * 0.25,
-                        y: min(0.98, startY + CGFloat(row) * rowHeight),
-                        width: 0.25,
-                        height: rowHeight + 0.035
-                    )
-                ]
-            )
-        }
-    }
-
-    private func textSampleMetrics(
-        in regions: [CGRect],
-        background: 沉浸详情背景色调,
-        extendsThroughInformation: Bool
-    ) -> TextSampleMetrics? {
-        var metrics = TextSampleMetrics()
-
-        for region in regions {
-            let minX = max(0, Int((region.minX * CGFloat(width)).rounded(.down)))
-            let maxX = min(width, Int((region.maxX * CGFloat(width)).rounded(.up)))
-            let minY = max(0, Int((region.minY * CGFloat(height)).rounded(.down)))
-            let maxY = min(height, Int((region.maxY * CGFloat(height)).rounded(.up)))
-            guard minX < maxX, minY < maxY else { continue }
-
-            for y in minY..<maxY {
-                guard !Task.isCancelled else { return nil }
-                for x in minX..<maxX {
-                    let rawLuminance = Double(luminances[y * width + x]) / 255
-                    let normalizedY = CGFloat(y) / CGFloat(max(height - 1, 1))
-                    let heroOpacity = imageOpacity(
-                        at: normalizedY,
-                        extendsThroughInformation: extendsThroughInformation
-                    )
-                    let backdropImageWeight = 0.56 * (1 - 0.2)
-                    let heroImageWeight = heroOpacity
-                        + (1 - heroOpacity) * backdropImageWeight
-                    let backgroundWeight = 1 - heroImageWeight
-                    let luminance = rawLuminance * heroImageWeight
-                        + background.luminance * backgroundWeight
-                    record(
-                        luminance,
-                        rawLuminance: rawLuminance,
-                        heroOpacity: heroOpacity,
-                        in: &metrics
-                    )
-                }
-            }
-        }
-
-        let sampleCount = metrics.lightBackgroundCount
-            + metrics.darkBackgroundCount
-        guard sampleCount > 0 else { return nil }
-        return metrics
-    }
-
-    private func textSampleMetrics(
-        inRenderedRegions regions: [CGRect],
-        imageSize: CGSize,
-        background: 沉浸详情背景色调,
-        extendsThroughInformation: Bool
-    ) -> TextSampleMetrics? {
-        guard imageSize.width > 0, imageSize.height > 0 else { return nil }
-        var metrics = TextSampleMetrics()
-
-        for region in regions where !region.isEmpty {
-            let columnCount = max(
-                4,
-                min(48, Int((region.width / 4).rounded(.up)))
-            )
-            let rowCount = max(
-                4,
-                min(48, Int((region.height / 4).rounded(.up)))
-            )
-
-            for row in 0..<rowCount {
-                guard !Task.isCancelled else { return nil }
-                let renderedY = (
-                    region.minY
-                        + (CGFloat(row) + 0.5) / CGFloat(rowCount)
-                            * region.height
-                ) / imageSize.height
-                for column in 0..<columnCount {
-                    let renderedX = (
-                        region.minX
-                            + (CGFloat(column) + 0.5) / CGFloat(columnCount)
-                                * region.width
-                    ) / imageSize.width
-                    guard let rawLuminance = luminance(
-                        atRenderedX: renderedX,
-                        y: renderedY,
-                        imageSize: imageSize
-                    ) else {
-                        record(background.luminance, in: &metrics)
-                        continue
-                    }
-
-                    let heroOpacity = imageOpacity(
-                        at: renderedY,
-                        extendsThroughInformation: extendsThroughInformation
-                    )
-                    let backdropImageWeight = 0.56 * (1 - 0.2)
-                    let heroImageWeight = heroOpacity
-                        + (1 - heroOpacity) * backdropImageWeight
-                    let backgroundWeight = 1 - heroImageWeight
-                    let luminance = rawLuminance * heroImageWeight
-                        + background.luminance * backgroundWeight
-                    record(
-                        luminance,
-                        rawLuminance: rawLuminance,
-                        heroOpacity: heroOpacity,
-                        in: &metrics
-                    )
-                }
-            }
-        }
-
-        let sampleCount = metrics.lightBackgroundCount
-            + metrics.darkBackgroundCount
-        guard sampleCount > 0 else { return nil }
-        return metrics
-    }
-
-    private func luminance(
-        atRenderedX renderedX: CGFloat,
-        y renderedY: CGFloat,
-        imageSize: CGSize
-    ) -> Double? {
-        guard (0...1).contains(renderedX),
-              (0...1).contains(renderedY) else {
-            return nil
-        }
-
-        let sourceAspectRatio = CGFloat(width) / CGFloat(max(height, 1))
-        let renderedAspectRatio = imageSize.width / imageSize.height
-        var sourceX = renderedX
-        var sourceY = renderedY
-
-        if sourceAspectRatio > renderedAspectRatio {
-            let visibleWidth = renderedAspectRatio / sourceAspectRatio
-            sourceX = (1 - visibleWidth) / 2 + renderedX * visibleWidth
-        } else if sourceAspectRatio < renderedAspectRatio {
-            let visibleHeight = sourceAspectRatio / renderedAspectRatio
-            sourceY = renderedY * visibleHeight
-        }
-
-        guard (0...1).contains(sourceX),
-              (0...1).contains(sourceY) else {
-            return nil
-        }
-        let x = min(width - 1, max(0, Int(sourceX * CGFloat(width))))
-        let y = min(height - 1, max(0, Int(sourceY * CGFloat(height))))
-        return Double(luminances[y * width + x]) / 255
-    }
-
-    private func record(
-        _ luminance: Double,
-        rawLuminance: Double? = nil,
-        heroOpacity: Double = 0,
-        in metrics: inout TextSampleMetrics
-    ) {
-        metrics.luminanceTotal += luminance
-        if let rawLuminance,
-           heroOpacity >= 沉浸玻璃色调阈值.最低封面不透明度 {
-            metrics.tintCandidateSampleCount += 1
-            if rawLuminance >= 沉浸玻璃色调阈值.接近白色亮度 {
-                metrics.nearlyWhiteBackgroundCount += 1
-            }
-            if rawLuminance <= 沉浸玻璃色调阈值.接近黑色亮度 {
-                metrics.nearlyBlackBackgroundCount += 1
-            }
-        }
-        if luminance >= 0.18 {
-            metrics.lightBackgroundCount += 1
-        } else {
-            metrics.darkBackgroundCount += 1
-        }
-    }
-
-    private func imageOpacity(
-        at location: CGFloat,
-        extendsThroughInformation: Bool
-    ) -> Double {
-        let stops: [(location: CGFloat, opacity: Double)] =
-            extendsThroughInformation
-            ? [
-                (0, 1),
-                (0.5, 1),
-                (0.62, 0.86),
-                (0.76, 0.58),
-                (0.86, 0.3),
-                (0.95, 0.08),
-                (1, 0)
-            ]
-            : [
-                (0, 1),
-                (0.46, 1),
-                (0.58, 0.86),
-                (0.7, 0.62),
-                (0.82, 0.34),
-                (0.91, 0.1),
-                (0.97, 0),
-                (1, 0)
-            ]
-
-        guard let upperIndex = stops.firstIndex(where: {
-            $0.location >= location
-        }) else {
-            return stops.last?.opacity ?? 0
-        }
-        guard upperIndex > 0 else { return stops[upperIndex].opacity }
-
-        let lower = stops[upperIndex - 1]
-        let upper = stops[upperIndex]
-        let span = max(upper.location - lower.location, 0.0001)
-        let progress = (location - lower.location) / span
-        return lower.opacity + (upper.opacity - lower.opacity) * Double(progress)
-    }
-}
-
-nonisolated final class 沉浸封面文字分析缓存: @unchecked Sendable {
-    static let shared = 沉浸封面文字分析缓存()
-
-    private let lock = NSLock()
-    private var maps: [String: 沉浸封面亮度图] = [:]
-    private var preparationTasks: [
-        String: Task<沉浸封面亮度图?, Never>
-    ] = [:]
-
-    nonisolated func containsMap(for url: URL) -> Bool {
-        lock.withLock {
-            maps[url.absoluteString] != nil
-        }
-    }
-
-    nonisolated func textSamples(
-        for url: URL,
-        layout: 沉浸封面文字分析布局,
-        background: 沉浸详情背景色调,
-        extendsThroughInformation: Bool,
-        itemCounts: [String: Int] = [:],
-        geometry: 沉浸封面文字取样几何? = nil
-    ) -> [String: 沉浸玻璃文字取样结果] {
-        let map = lock.withLock {
-            maps[url.absoluteString]
-        }
-        return map?.textSamples(
-            for: layout,
-            background: background,
-            extendsThroughInformation: extendsThroughInformation,
-            itemCounts: itemCounts,
-            geometry: geometry
-        ) ?? [:]
-    }
-
-    nonisolated func textSamplesAsync(
-        for request: 沉浸封面文字取样请求
-    ) async -> [String: 沉浸玻璃文字取样结果] {
-        let map = lock.withLock {
-            maps[request.url.absoluteString]
-        }
-        guard let map else { return [:] }
-
-        let samplingTask = Task.detached(priority: .userInitiated) {
-            map.textSamples(
-                for: request.layout,
-                background: request.background,
-                extendsThroughInformation: request.extendsThroughInformation,
-                itemCounts: request.itemCounts,
-                geometry: request.geometry
-            )
-        }
-        return await withTaskCancellationHandler {
-            await samplingTask.value
-        } onCancel: {
-            samplingTask.cancel()
-        }
-    }
-
-    nonisolated func prepare(data: Data, for url: URL) async {
-        let key = url.absoluteString
-        let task: Task<沉浸封面亮度图?, Never>? = lock.withLock {
-            if maps[key] != nil {
-                return nil
-            }
-            if let existing = preparationTasks[key] {
-                return existing
-            }
-            let task = Task.detached(priority: .utility) {
-                Self.makeLuminanceMap(from: data)
-            }
-            preparationTasks[key] = task
-            return task
-        }
-        guard let task else { return }
-        let map = await task.value
-
-        lock.withLock {
-            preparationTasks.removeValue(forKey: key)
-            if maps[key] == nil, let map {
-                maps[key] = map
-            }
-        }
-    }
-
-    nonisolated private static func makeLuminanceMap(
-        from data: Data
-    ) -> 沉浸封面亮度图? {
-        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else {
-            return nil
-        }
-        let options = [
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceShouldCacheImmediately: true,
-            kCGImageSourceThumbnailMaxPixelSize: 96
-        ] as CFDictionary
-        guard let image = CGImageSourceCreateThumbnailAtIndex(
-            source,
-            0,
-            options
-        ) else {
-            return nil
-        }
-
-        let width = image.width
-        let height = image.height
-        let bytesPerRow = width * 4
-        var pixels = [UInt8](repeating: 0, count: bytesPerRow * height)
-        let rendered = pixels.withUnsafeMutableBytes { bytes in
-            guard let address = bytes.baseAddress,
-                  let context = CGContext(
-                    data: address,
-                    width: width,
-                    height: height,
-                    bitsPerComponent: 8,
-                    bytesPerRow: bytesPerRow,
-                    space: CGColorSpaceCreateDeviceRGB(),
-                    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-                  ) else {
-                return false
-            }
-            context.draw(
-                image,
-                in: CGRect(x: 0, y: 0, width: width, height: height)
-            )
-            return true
-        }
-        guard rendered else { return nil }
-
-        var luminances = [UInt8](repeating: 0, count: width * height)
-        for y in 0..<height {
-            for x in 0..<width {
-                let pixelIndex = y * bytesPerRow + x * 4
-                let red = linearized(Double(pixels[pixelIndex]) / 255)
-                let green = linearized(Double(pixels[pixelIndex + 1]) / 255)
-                let blue = linearized(Double(pixels[pixelIndex + 2]) / 255)
-                let luminance = red * 0.2126
-                    + green * 0.7152
-                    + blue * 0.0722
-                luminances[y * width + x] = UInt8(
-                    max(0, min(255, Int((luminance * 255).rounded())))
-                )
-            }
-        }
-        return 沉浸封面亮度图(
-            width: width,
-            height: height,
-            luminances: luminances
-        )
-    }
-
-    nonisolated private static func linearized(_ component: Double) -> Double {
-        if component <= 0.04045 {
-            return component / 12.92
-        }
-        return pow((component + 0.055) / 1.055, 2.4)
     }
 }
 
@@ -2280,7 +1670,7 @@ struct 模糊解除提示: View {
     }
 
     private var prompt: LocalizedStringKey {
-        "再次轻触以解除模糊"
+        "再次轻点以解除模糊"
     }
 }
 

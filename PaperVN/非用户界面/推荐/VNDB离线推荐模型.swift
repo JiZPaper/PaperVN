@@ -1,5 +1,4 @@
 import Foundation
-import Observation
 import zlib
 
 nonisolated enum VNDB离线推荐模型存储 {
@@ -41,259 +40,6 @@ nonisolated enum VNDB离线推荐模型存储 {
         if FileManager.default.fileExists(atPath: 文件URL.path) {
             try FileManager.default.removeItem(at: 文件URL)
         }
-    }
-}
-
-@MainActor
-@Observable
-final class 推荐模型下载状态 {
-    static let shared = 推荐模型下载状态()
-
-    private(set) var isDownloading = false
-    private(set) var progress = 0.0
-    private(set) var downloadError: String?
-    private(set) var hasDownloadedModel = false
-    /// 已下载的模型来自旧版构建器，低秩向量未经训练，不能用于协同过滤。
-    private(set) var needsUpdate = false
-    private(set) var downloadedSize: Int64 = 0
-
-    private static let 服务器文件校验值键 = "recommendationModelServerValidator"
-    private var lastUpdateCheck: Date?
-
-    var progressPercent: Int {
-        min(max(Int(progress * 100), 0), 100)
-    }
-
-    private init() {
-        refresh()
-    }
-
-    func refresh() {
-        let manifest = VNDB离线推荐模型加载器.清单()
-        hasDownloadedModel = manifest != nil
-        needsUpdate = manifest.map { $0.collaborative == nil } ?? false
-        downloadedSize = hasDownloadedModel
-            ? VNDB离线推荐模型存储.已下载文件大小
-            : 0
-    }
-
-    /// 旧版模型在非昂贵网络下静默更新；服务器文件与上次下载相同时不重复下载。
-    func updateIfOutdated() async {
-        refresh()
-        guard needsUpdate,
-              !isDownloading,
-              为你推荐偏好分析设置.已启用 else {
-            return
-        }
-        if let lastUpdateCheck,
-           Date().timeIntervalSince(lastUpdateCheck) < 30 * 60 {
-            return
-        }
-        lastUpdateCheck = Date()
-
-        guard let validator = await 推荐模型下载器.服务器文件校验值(
-            of: VNDB离线推荐模型存储.下载地址
-        ),
-              validator != UserDefaults.standard.string(
-                forKey: Self.服务器文件校验值键
-              ) else {
-            return
-        }
-        await download(automatic: true)
-    }
-
-    func download(automatic: Bool = false) async {
-        guard !isDownloading else { return }
-
-        isDownloading = true
-        progress = 0
-        if !automatic {
-            downloadError = nil
-        }
-        defer { isDownloading = false }
-
-        do {
-            try VNDB离线推荐模型存储.创建目录()
-            let stagingURL = VNDB离线推荐模型存储.文件URL
-                .deletingLastPathComponent()
-                .appendingPathComponent(
-                    ".\(VNDB离线推荐模型存储.文件名).\(UUID().uuidString).download"
-                )
-            defer { try? FileManager.default.removeItem(at: stagingURL) }
-
-            let (temporaryURL, validator) = try await 推荐模型下载器.download(
-                from: VNDB离线推荐模型存储.下载地址,
-                allowsExpensiveNetworkAccess: !automatic,
-                progress: { [weak self] fraction in
-                    Task { @MainActor [weak self] in
-                        guard let self else { return }
-                        self.progress = max(self.progress, fraction)
-                    }
-                }
-            )
-            defer { try? FileManager.default.removeItem(at: temporaryURL) }
-            try FileManager.default.moveItem(at: temporaryURL, to: stagingURL)
-            guard VNDB离线推荐模型加载器.模型标识(url: stagingURL) != nil else {
-                throw VNDB离线推荐模型错误.invalidGzip
-            }
-
-            let fileManager = FileManager.default
-            if fileManager.fileExists(atPath: VNDB离线推荐模型存储.文件URL.path) {
-                try fileManager.removeItem(at: VNDB离线推荐模型存储.文件URL)
-            }
-            try fileManager.moveItem(
-                at: stagingURL,
-                to: VNDB离线推荐模型存储.文件URL
-            )
-            if let validator {
-                UserDefaults.standard.set(validator, forKey: Self.服务器文件校验值键)
-            }
-            progress = 1
-            refresh()
-            await VNDB离线推荐计算中心.shared.模型文件已变更()
-            VNDB探索服务.shared.刷新推荐模型标识()
-            推荐后台分析中心.shared.启动需要的分析()
-        } catch is CancellationError {
-            return
-        } catch let error as URLError where error.code == .cancelled {
-            return
-        } catch {
-            if !automatic {
-                downloadError = error.localizedDescription
-            }
-            refresh()
-        }
-    }
-
-    func deleteModel() throws {
-        try VNDB离线推荐模型存储.删除()
-        refresh()
-        Task {
-            await VNDB离线推荐计算中心.shared.模型文件已变更()
-        }
-        VNDB探索服务.shared.刷新推荐模型标识()
-    }
-}
-
-private final class 推荐模型下载代理: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
-    let progress: @Sendable (Double) -> Void
-    private var continuation: CheckedContinuation<(URL, String?), Error>?
-    private var didFinish = false
-
-    init(
-        progress: @escaping @Sendable (Double) -> Void,
-        continuation: CheckedContinuation<(URL, String?), Error>
-    ) {
-        self.progress = progress
-        self.continuation = continuation
-    }
-
-    func urlSession(
-        _ session: URLSession,
-        downloadTask: URLSessionDownloadTask,
-        didWriteData bytesWritten: Int64,
-        totalBytesWritten: Int64,
-        totalBytesExpectedToWrite: Int64
-    ) {
-        guard totalBytesExpectedToWrite > 0 else { return }
-        progress(
-            min(1, Double(totalBytesWritten) / Double(totalBytesExpectedToWrite))
-        )
-    }
-
-    func urlSession(
-        _ session: URLSession,
-        downloadTask: URLSessionDownloadTask,
-        didFinishDownloadingTo location: URL
-    ) {
-        guard !didFinish else { return }
-        didFinish = true
-        guard let response = downloadTask.response as? HTTPURLResponse,
-              (200..<300).contains(response.statusCode) else {
-            continuation?.resume(throwing: VNDB离线推荐模型错误.invalidServerResponse)
-            continuation = nil
-            session.finishTasksAndInvalidate()
-            return
-        }
-
-        let destination = FileManager.default.temporaryDirectory
-            .appendingPathComponent("PaperVNRecommendation-\(UUID().uuidString).gz")
-        do {
-            try FileManager.default.copyItem(at: location, to: destination)
-            continuation?.resume(
-                returning: (destination, 推荐模型下载器.校验值(response))
-            )
-        } catch {
-            continuation?.resume(throwing: error)
-        }
-        continuation = nil
-        session.finishTasksAndInvalidate()
-    }
-
-    func urlSession(
-        _ session: URLSession,
-        task: URLSessionTask,
-        didCompleteWithError error: Error?
-    ) {
-        guard let error, !didFinish else { return }
-        didFinish = true
-        continuation?.resume(throwing: error)
-        continuation = nil
-        session.finishTasksAndInvalidate()
-    }
-}
-
-private enum 推荐模型下载器 {
-    static func download(
-        from url: URL,
-        allowsExpensiveNetworkAccess: Bool,
-        progress: @escaping @Sendable (Double) -> Void
-    ) async throws -> (URL, String?) {
-        try await withCheckedThrowingContinuation { continuation in
-            let delegate = 推荐模型下载代理(
-                progress: progress,
-                continuation: continuation
-            )
-            let session = URLSession(
-                configuration: 会话配置(
-                    allowsExpensiveNetworkAccess: allowsExpensiveNetworkAccess
-                ),
-                delegate: delegate,
-                delegateQueue: nil
-            )
-            let task = session.downloadTask(with: url)
-            task.resume()
-        }
-    }
-
-    /// 只在非昂贵网络下检查，避免用蜂窝流量做后台更新。
-    static func 服务器文件校验值(of url: URL) async -> String? {
-        var request = URLRequest(url: url)
-        request.httpMethod = "HEAD"
-        let session = URLSession(
-            configuration: 会话配置(allowsExpensiveNetworkAccess: false)
-        )
-        defer { session.finishTasksAndInvalidate() }
-        guard let (_, response) = try? await session.data(for: request),
-              let response = response as? HTTPURLResponse,
-              (200..<300).contains(response.statusCode) else {
-            return nil
-        }
-        return 校验值(response)
-    }
-
-    nonisolated static func 校验值(_ response: HTTPURLResponse) -> String? {
-        response.value(forHTTPHeaderField: "ETag")
-            ?? response.value(forHTTPHeaderField: "Last-Modified")
-    }
-
-    private static func 会话配置(
-        allowsExpensiveNetworkAccess: Bool
-    ) -> URLSessionConfiguration {
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.allowsExpensiveNetworkAccess = allowsExpensiveNetworkAccess
-        configuration.allowsConstrainedNetworkAccess = allowsExpensiveNetworkAccess
-        return configuration
     }
 }
 
@@ -395,11 +141,11 @@ nonisolated enum VNDB离线推荐模型错误: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidGzip:
-            String(localized: "下载的低秩模型文件无效。")
+            String(localized: "下载的偏好分析模型文件无效。")
         case .unsupportedVersion:
-            String(localized: "下载的低秩模型版本不受支持。")
+            String(localized: "下载的偏好分析模型版本不受支持。")
         case .invalidServerResponse:
-            String(localized: "服务器没有返回有效的低秩模型文件。")
+            String(localized: "服务器没有返回有效的偏好分析模型文件。")
         }
     }
 }
@@ -566,7 +312,7 @@ nonisolated enum VNDB离线低秩推荐算法 {
     }
 
     /// 与构建器的 rating_signal_parameters 相同，训练目标和折入目标才在同一尺度上。
-    private static func 评分信号参数(
+    static func 评分信号参数(
         _ votes: [Int]
     ) -> (center: Double, scale: Double, confidence: Double) {
         let ordered = votes.sorted().map(Double.init)
@@ -637,6 +383,109 @@ nonisolated struct VNDB离线推荐计算上下文: Sendable {
     let characterEvidence: [String: [VNDB候选角色证据]]
 }
 
+/// 一次推荐计算的完整流程，不依赖 App 状态；Tools/推荐离线评估 使用同一套代码。
+nonisolated enum VNDB离线推荐计算 {
+    static func 准备(
+        model: VNDB离线推荐模型,
+        library: [探索用户列表项目],
+        downloadedCharacters: [探索角色] = [],
+        excludedIDs: Set<String>,
+        characterEvidence: [String: [VNDB候选角色证据]]
+    ) -> VNDB离线推荐计算上下文 {
+        let libraryIDs = Set(library.map(\.id))
+        var libraryCharacters = model.characters.compactMap { character in
+            character.visualNovels.contains { libraryIDs.contains($0.id) }
+                ? character.asExploreCharacter
+                : nil
+        }
+        libraryCharacters.append(contentsOf: downloadedCharacters.filter { character in
+            (character.visualNovels ?? []).contains { libraryIDs.contains($0.id) }
+        })
+
+        let profile = VNDB本地推荐算法V2.建立画像(
+            library: library,
+            characters: libraryCharacters,
+            globalTagFrequencies: model.tagFrequencies,
+            globalTraitFrequencies: model.traitFrequencies,
+            globalVisualNovelCount: model.visualNovelCount,
+            globalCharacterCount: model.characterCount
+        )
+        let collaborativeScores = VNDB离线低秩推荐算法.推荐分数(
+            model: model,
+            library: library,
+            excludedIDs: excludedIDs
+        )
+        return VNDB离线推荐计算上下文(
+            profile: profile,
+            collaborativeScores: collaborativeScores,
+            characterEvidence: characterEvidence
+        )
+    }
+
+    static func 排序(
+        model: VNDB离线推荐模型,
+        context: VNDB离线推荐计算上下文,
+        excludedIDs: Set<String>,
+        limit: Int
+    ) -> VNDB离线推荐计算结果 {
+        let recommendations = VNDB本地推荐算法V2.排序候选(
+            model.visualNovels,
+            charactersByVisualNovel: context.characterEvidence,
+            profile: context.profile,
+            excludedIDs: excludedIDs,
+            limit: max(limit, 48),
+            minimumExplorationCount: 0,
+            collaborativeScores: context.collaborativeScores
+        )
+        let tagShelves = VNDB本地推荐算法V2.偏好标签书架(
+            candidates: model.visualNovels,
+            profile: context.profile,
+            excludedIDs: excludedIDs
+        )
+        return VNDB离线推荐计算结果(
+            recommendations: recommendations,
+            tagShelves: tagShelves
+        )
+    }
+
+    static func 角色证据按作品分组(
+        _ characters: [VNDB离线角色]
+    ) -> [String: [VNDB候选角色证据]] {
+        var result: [String: [VNDB候选角色证据]] = [:]
+        for character in characters {
+            let traits = character.traits.filter { $0.lie != true }
+            guard !traits.isEmpty else { continue }
+            for relation in character.visualNovels {
+                for trait in traits {
+                    result[relation.id, default: []].append(
+                        VNDB候选角色证据(
+                            characterID: character.id,
+                            characterName: character.name,
+                            traitID: trait.id,
+                            traitName: trait.name,
+                            groupName: trait.groupName,
+                            role: relation.role ?? "appears",
+                            reliability: spoilerReliability(relation.spoiler)
+                                * spoilerReliability(trait.spoiler),
+                            canExplain: relation.spoiler == 0
+                                && trait.spoiler == 0
+                        )
+                    )
+                }
+            }
+        }
+        return result
+    }
+
+    private static func spoilerReliability(_ spoiler: Int?) -> Double {
+        switch spoiler ?? 0 {
+        case 1: 0.90
+        case 2...: 0.80
+        default: 1
+        }
+    }
+}
+
 actor VNDB离线推荐计算中心 {
     static let shared = VNDB离线推荐计算中心()
 
@@ -667,39 +516,15 @@ actor VNDB离线推荐计算中心 {
     ) async throws -> VNDB离线推荐计算上下文? {
         guard let model = await 加载模型() else { return nil }
         try Task.checkCancellation()
-
-        let libraryIDs = Set(library.map(\.id))
-        var libraryCharacters = model.characters.compactMap { character in
-            character.visualNovels.contains { libraryIDs.contains($0.id) }
-                ? character.asExploreCharacter
-                : nil
-        }
-        libraryCharacters.append(contentsOf: downloadedCharacters.filter { character in
-            (character.visualNovels ?? []).contains { libraryIDs.contains($0.id) }
-        })
-
-        let profile = VNDB本地推荐算法V2.建立画像(
-            library: library,
-            characters: libraryCharacters,
-            globalTagFrequencies: model.tagFrequencies,
-            globalTraitFrequencies: model.traitFrequencies,
-            globalVisualNovelCount: model.visualNovelCount,
-            globalCharacterCount: model.characterCount,
-            calibrationSamples: []
-        )
-        try Task.checkCancellation()
-
-        let collaborativeScores = VNDB离线低秩推荐算法.推荐分数(
+        let context = VNDB离线推荐计算.准备(
             model: model,
             library: library,
-            excludedIDs: excludedIDs
+            downloadedCharacters: downloadedCharacters,
+            excludedIDs: excludedIDs,
+            characterEvidence: VNDB离线推荐计算.角色证据按作品分组(model.characters)
         )
-        let characterEvidence = 角色证据按作品分组(model.characters)
-        return VNDB离线推荐计算上下文(
-            profile: profile,
-            collaborativeScores: collaborativeScores,
-            characterEvidence: characterEvidence
-        )
+        try Task.checkCancellation()
+        return context
     }
 
     func 排序(
@@ -709,24 +534,11 @@ actor VNDB离线推荐计算中心 {
     ) async throws -> VNDB离线推荐计算结果? {
         guard let model = await 加载模型() else { return nil }
         try Task.checkCancellation()
-        let recommendations = VNDB本地推荐算法V2.排序候选(
-            model.visualNovels,
-            charactersByVisualNovel: context.characterEvidence,
-            profile: context.profile,
+        return VNDB离线推荐计算.排序(
+            model: model,
+            context: context,
             excludedIDs: excludedIDs,
-            limit: max(limit, 48),
-            minimumExplorationCount: 0,
-            collaborativeScores: context.collaborativeScores
-        )
-        let tagShelves = VNDB本地推荐算法V2.偏好标签书架(
-            candidates: model.visualNovels,
-            profile: context.profile,
-            excludedIDs: excludedIDs,
-            charactersByVisualNovel: context.characterEvidence
-        )
-        return VNDB离线推荐计算结果(
-            recommendations: recommendations,
-            tagShelves: tagShelves
+            limit: limit
         )
     }
 
@@ -738,44 +550,5 @@ actor VNDB离线推荐计算中心 {
         let loaded = try? VNDB离线推荐模型加载器.load()
         model = loaded
         return loaded
-    }
-
-    private func 角色证据按作品分组(
-        _ characters: [VNDB离线角色]
-    ) -> [String: [VNDB候选角色证据]] {
-        var result: [String: [VNDB候选角色证据]] = [:]
-        for character in characters {
-            let traits = character.traits.filter { $0.lie != true }
-            guard !traits.isEmpty else { continue }
-            for relation in character.visualNovels {
-                for trait in traits {
-                    result[relation.id, default: []].append(
-                        VNDB候选角色证据(
-                            characterID: character.id,
-                            characterName: character.name,
-                            traitID: trait.id,
-                            traitName: trait.name,
-                            groupName: trait.groupName,
-                            role: relation.role ?? "appears",
-                            hasImage: character.image?.url
-                                .map { !$0.isEmpty } == true,
-                            reliability: spoilerReliability(relation.spoiler)
-                                * spoilerReliability(trait.spoiler),
-                            canExplain: relation.spoiler == 0
-                                && trait.spoiler == 0
-                        )
-                    )
-                }
-            }
-        }
-        return result
-    }
-
-    private func spoilerReliability(_ spoiler: Int?) -> Double {
-        switch spoiler ?? 0 {
-        case 1: 0.90
-        case 2...: 0.80
-        default: 1
-        }
     }
 }

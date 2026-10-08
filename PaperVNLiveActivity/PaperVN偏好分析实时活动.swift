@@ -2,11 +2,7 @@ import ActivityKit
 import SwiftUI
 import WidgetKit
 
-/// `wand.and.sparkles.inverse` 自 iOS 18 起提供，更早系统使用相近图标。
-private var 偏好分析图标: String {
-    if #available(iOS 18.0, *) { return "wand.and.sparkles.inverse" }
-    return "wand.and.stars.inverse"
-}
+private let 偏好分析图标 = "wand.and.sparkles.inverse"
 
 @main
 struct PaperVN实时活动组件包: WidgetBundle {

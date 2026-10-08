@@ -121,11 +121,11 @@ struct 资料库编辑页面: View {
                     .accessibilityLabel("关闭")
                     .disabled(isSaving)
                     .confirmationDialog(
-                        "确定要放弃更改吗？",
+                        "要放弃更改吗？",
                         isPresented: $showDiscardAlert,
                         titleVisibility: .visible
                     ) {
-                        Button("保存更改") {
+                        Button("存储更改") {
                             Task {
                                 await save()
                             }
@@ -135,7 +135,7 @@ struct 资料库编辑页面: View {
                             dismiss()
                         }
                     } message: {
-                        Text("尚未保存的状态、评分或日期将会丢失。")
+                        Text("尚未存储的状态、评分或日期将会丢失。")
                     }
                 }
 
@@ -156,7 +156,7 @@ struct 资料库编辑页面: View {
                     }
                     .液态玻璃醒目按钮(in: Circle())
                     .tint(.blue)
-                    .accessibilityLabel("保存更改")
+                    .accessibilityLabel("存储更改")
                     .disabled(isSaving)
                 }
             }
@@ -179,7 +179,7 @@ struct 资料库编辑页面: View {
                 }
         )
         .alert(
-            "保存失败",
+            "无法存储",
             isPresented: Binding(
                 get: { saveError != nil },
                 set: { if !$0 { saveError = nil } }
@@ -290,7 +290,7 @@ struct 资料库编辑页面: View {
                 HStack(spacing: 8) {
                     ProgressView()
                         .controlSize(.small)
-                    Text("加载可选版本…")
+                    Text("正在载入可选版本…")
                 }
                 .font(.footnote)
                 .foregroundStyle(.secondary)
@@ -319,7 +319,7 @@ struct 资料库编辑页面: View {
             if !isLoadingReleases,
                releaseLoadError == nil,
                availableReleases.isEmpty {
-                Text("暂无可选的发行版本。")
+                Text("没有可选的发行版本。")
             }
         }
     }
@@ -551,11 +551,11 @@ struct 资料库编辑页面: View {
         } catch {
             if (error as? URLError)?.code == .timedOut {
                 releaseLoadError = String(
-                    localized: "加载发行版本超时，请检查网络后重试。"
+                    localized: "载入发行版本超时，请检查网络后再试。"
                 )
             } else {
                 releaseLoadError = String(
-                    localized: "无法加载发行版本：\(error.localizedDescription)"
+                    localized: "无法载入发行版本：\(error.localizedDescription)"
                 )
             }
         }

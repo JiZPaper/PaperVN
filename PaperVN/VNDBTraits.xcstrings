@@ -14924,25 +14924,25 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "体内給餌"
+            "value" : "女体盛り"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "체내 먹이 주기"
+            "value" : "뇨타이모리"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "体内喂食"
+            "value" : "女体盛"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "體內餵食"
+            "value" : "女體盛"
           }
         }
       }
@@ -55438,25 +55438,25 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ハーモニスト"
+            "value" : "ハーモニカ奏者"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "하모니스트"
+            "value" : "하모니카 연주자"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "和声师"
+            "value" : "口琴手"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "和聲師"
+            "value" : "口琴手"
           }
         }
       }
@@ -111286,7 +111286,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "性伴侣"
+            "value" : "炮友"
           }
         },
         "zh-Hant" : {
