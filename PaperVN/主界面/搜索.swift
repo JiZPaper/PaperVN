@@ -943,14 +943,15 @@ private struct 扩展搜索响应 {
 }
 
 private extension 搜索范围 {
-    /// 顶部分段选择器用的短名称
+    /// 顶部分段选择器用的短名称。分段平分屏幕宽度，每段只有约 58pt，
+    /// 各语言单独翻译成放得下的词（英语 VNs、Chars 等），不影响其他地方的“视觉小说”等文案。
     var 短标题: String {
         switch self {
-        case .visualNovel: return String(localized: "视觉小说")
-        case .character: return String(localized: "角色")
-        case .release: return String(localized: "发行版本")
-        case .staff: return String(localized: "制作人员")
-        case .producer: return String(localized: "会社")
+        case .visualNovel: return String(localized: "搜索分类.视觉小说", defaultValue: "视觉小说", comment: "搜索页顶部分段选择器，每段很窄，请用尽量短的词")
+        case .character: return String(localized: "搜索分类.角色", defaultValue: "角色", comment: "搜索页顶部分段选择器，每段很窄，请用尽量短的词")
+        case .release: return String(localized: "搜索分类.发行版本", defaultValue: "发行版本", comment: "搜索页顶部分段选择器，每段很窄，请用尽量短的词")
+        case .staff: return String(localized: "搜索分类.制作人员", defaultValue: "制作人员", comment: "搜索页顶部分段选择器，每段很窄，请用尽量短的词")
+        case .producer: return String(localized: "搜索分类.会社", defaultValue: "会社", comment: "搜索页顶部分段选择器，每段很窄，请用尽量短的词")
         }
     }
 
@@ -1103,6 +1104,7 @@ struct 搜索: View {
     @State private var resultDestination: 综合搜索导航目标?
     /// 用户点按展开或收起过的作品组；换了搜索词就清空，回到按相关性决定的默认状态
     @State private var 作品组平铺选择: [String: Int] = [:]
+    @State private var 综合搜索区域尺寸: CGSize = .zero
     @State private var 作品组动画代次: [String: Int] = [:]
     @State private var keyboardSearchFieldClearance: CGFloat = 0
 
@@ -1189,7 +1191,7 @@ struct 搜索: View {
     }
 
     private var searchPrompt: String {
-        String(localized: "作品、角色、会社、制作人员")
+        String(localized: "搜索VNDB")
     }
 
     private var usesIOS27SearchLayout: Bool {
@@ -1355,7 +1357,8 @@ struct 搜索: View {
     private var searchPresentationContent: some View {
         searchFilterObservedContent
         .toolbar {
-            ToolbarItemGroup(placement: .平台主操作) {
+            // iPad 的搜索框在右上角，展开时系统会把同一侧的其他按钮收进“…”，排序和筛选放到左侧
+            ToolbarItemGroup(placement: usesExplicitSearchToolbarItem ? .topBarLeading : .平台主操作) {
                 if hasSearchText || 浏览范围 == .visualNovel {
                     搜索排序菜单(
                         selection: $selectedSort,
@@ -1393,6 +1396,7 @@ struct 搜索: View {
                     placement: .平台主操作
                 )
             }
+
 
         }
         .sheet(isPresented: $showsFilters) {
@@ -1481,7 +1485,8 @@ struct 搜索: View {
         .overlay {
             searchEmptyContentUnavailableView
         }
-        .safeAreaInset(edge: .top, spacing: 0) {
+        // iOS 26 用 safeAreaBar，滚动边缘的渐进模糊会延伸到选择器下方，内容不会和选择器重叠
+        .平台安全区域栏(edge: .top, spacing: 0) {
             if 显示浏览范围选择器 {
                 浏览范围选择器
             }
@@ -2383,21 +2388,33 @@ struct 搜索: View {
         return 筛选
     }
 
+    /// 放得下时用分段选择器；字号很大或屏幕很窄、短名称也放不下时改用菜单，不截断文字。
     private var 浏览范围选择器: some View {
-        Picker(
-            "搜索范围",
-            selection: Binding(
-                get: { 浏览范围 },
-                set: { browseScope = $0 }
-            )
-        ) {
-            ForEach(可选浏览范围) { scope in
-                Text(verbatim: scope.短标题)
-                    .tag(scope)
+        let 选择 = Binding(
+            get: { 浏览范围 },
+            set: { browseScope = $0 }
+        )
+        return ViewThatFits(in: .horizontal) {
+            Picker("搜索范围", selection: 选择) {
+                ForEach(可选浏览范围) { scope in
+                    Text(verbatim: scope.短标题)
+                        .accessibilityLabel(Text(verbatim: scope.localizedTitle))
+                        .tag(scope)
+                }
             }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+
+            Picker("搜索范围", selection: 选择) {
+                ForEach(可选浏览范围) { scope in
+                    Label(scope.localizedTitle, systemImage: scope.systemImage)
+                        .tag(scope)
+                }
+            }
+            .pickerStyle(.menu)
+            .labelsHidden()
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .pickerStyle(.segmented)
-        .labelsHidden()
         .frame(maxWidth: 560)
         .padding(.horizontal, 16)
         .padding(.top, 4)
@@ -2412,7 +2429,7 @@ struct 搜索: View {
     @ViewBuilder
     private var 浏览范围选择器背景: some View {
         if #available(iOS 26.0, *) {
-            // iOS 26 起由滚动边缘效果处理选择器下方的内容
+            // iOS 26 起选择器放在 safeAreaBar 里，由滚动边缘效果模糊下方的内容
             Color.clear
         } else {
             Color.平台分组背景
@@ -2823,15 +2840,30 @@ struct 搜索: View {
 
     /// 有搜索词时的结果页：一张张圆角卡片。不用 List，卡片堆的展开收起才能做连贯的动画，
     /// 长按时也只浮起按住的那张卡片。
+    /// iPad（常规宽度、且足够宽）时结果分两列显示；iPhone 和窄分屏保持单列。
+    private var 综合搜索列数: Int {
+        horizontalSizeClass == .regular && 综合搜索区域尺寸.width >= 700 ? 2 : 1
+    }
+
+    /// 有搜索词时的结果页：一张张圆角卡片。不用 List，卡片堆的展开收起才能做连贯的动画，
+    /// 长按时也只浮起按住的那张卡片。两列时结果左右交替排列，两列各自往下排，
+    /// 一列里的卡片堆展开时不会在另一列留下空白。
     private var 综合搜索滚动页面: some View {
-        ScrollView {
-            LazyVStack(spacing: 12) {
+        let 列数 = 综合搜索列数
+        return ScrollView {
+            Group {
                 if 综合搜索正在载入 {
-                    ForEach(0..<5, id: \.self) { _ in
-                        搜索视觉小说加载占位行()
-                            .padding(综合行内边距)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color.平台次级分组背景, in: 综合卡片形状(下属: false))
+                    HStack(alignment: .top, spacing: 16) {
+                        ForEach(0..<列数, id: \.self) { _ in
+                            VStack(spacing: 12) {
+                                ForEach(0..<5, id: \.self) { _ in
+                                    搜索视觉小说加载占位行()
+                                        .padding(综合行内边距)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .background(Color.平台次级分组背景, in: 综合卡片形状(下属: false))
+                                }
+                            }
+                        }
                     }
                     .accessibilityHidden(true)
                 } else if case let .failed(message) = viewModel.视觉小说状态 {
@@ -2839,30 +2871,40 @@ struct 搜索: View {
                         submitSearch(immediately: true)
                     }
                 } else {
-                    let 条目 = 综合搜索条目列表
-                    ForEach(Array(条目.enumerated()), id: \.element.id) { 序号, item in
-                        综合搜索条目视图(item)
-                            // 前面的结果盖在后面的上面：卡片收回时下面的结果往上移，不会挡住正在收回的卡片
-                            .zIndex(Double(条目.count - 序号))
-                            // 卡片收回时原本在屏幕外的结果被懒加载出来，不要淡入，直接垫在正在收回的卡片下面
-                            .transition(.identity)
-                            .onAppear {
-                                if 序号 >= 条目.count - 平台列表分页.预取余量 {
-                                    加载更多()
+                    let 条目 = Array(综合搜索条目列表.enumerated())
+                    VStack(spacing: 12) {
+                        HStack(alignment: .top, spacing: 16) {
+                            ForEach(0..<列数, id: \.self) { 列 in
+                                LazyVStack(spacing: 12) {
+                                    ForEach(条目.filter { $0.offset % 列数 == 列 }, id: \.element.id) { 序号, item in
+                                        综合搜索条目视图(item)
+                                            // 前面的结果盖在后面的上面：卡片收回时下面的结果往上移，不会挡住正在收回的卡片
+                                            .zIndex(Double(条目.count - 序号))
+                                            // 卡片收回时原本在屏幕外的结果被懒加载出来，不要淡入，直接垫在正在收回的卡片下面
+                                            .transition(.identity)
+                                            .onAppear {
+                                                if 序号 >= 条目.count - 平台列表分页.预取余量 * 列数 {
+                                                    加载更多()
+                                                }
+                                            }
+                                    }
                                 }
+                                .frame(maxWidth: .infinity, alignment: .top)
                             }
-                    }
-                    if 综合搜索正在加载下一页 {
-                        ProgressView()
-                            .padding()
+                        }
+                        if 综合搜索正在加载下一页 {
+                            ProgressView()
+                                .padding()
+                        }
                     }
                 }
             }
-            .frame(maxWidth: 720)
+            .frame(maxWidth: 列数 == 1 ? 720 : 1480)
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
             .frame(maxWidth: .infinity)
         }
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { 综合搜索区域尺寸 = $0 }
         .scrollDismissesKeyboard(.immediately)
         .平台柔和滚动边缘(for: .top)
     }
@@ -3807,7 +3849,7 @@ enum 综合搜索导航目标: Hashable, Identifiable {
 }
 
 /// 按下时卡片变暗，与系统列表行一致。
-private struct 综合搜索卡片按钮样式: ButtonStyle {
+struct 综合搜索卡片按钮样式: ButtonStyle {
     let 形状: RoundedRectangle
 
     func makeBody(configuration: Configuration) -> some View {
@@ -3824,7 +3866,7 @@ private struct 综合搜索卡片按钮样式: ButtonStyle {
 /// 前 `平铺数量` 张下属卡片在作品卡片下面依次平铺（左右各内缩 `内缩`，居中）；
 /// 其余的叠在作品卡片后面，底边依次往下错开 `露出`、宽度依次收窄，只露出边缘。
 /// 在动画里逐张改变 `平铺数量`，卡片就一张张从作品卡片后面弹出或收回。
-private struct 卡片堆叠布局: Layout {
+struct 卡片堆叠布局: Layout {
     var 平铺数量: Int
     var 露出: CGFloat
     var 内缩: CGFloat

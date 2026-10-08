@@ -45,6 +45,7 @@ private extension View {
                 }
             }
         }
+        .沉浸取样校准登记("角色", keys: keys)
     }
 
     @ViewBuilder
@@ -103,6 +104,7 @@ struct 角色详情: View {
     @State private var isSwitchingTraitLanguage = false
     @State private var characterInfoPopover: 角色信息提示?
     @State private var showDescriptionSheet = false
+    @State private var isDescriptionTruncated = false
     @State private var showTranslatedDescription = false
     @State private var translatedDescription: String?
     @State private var isTranslatingDescription = false
@@ -121,7 +123,7 @@ struct 角色详情: View {
     @State private var immersiveTextSampleGeometry:
         沉浸封面文字取样几何?
     @State private var immersiveTextSamplingCoordinator =
-        沉浸封面文字取样任务协调器()
+        沉浸封面文字取样任务协调器(校准名称: "角色")
     @State private var immersiveHeroGestureIsActive = false
     @State private var immersiveAutomaticAppearance: 沉浸详情外观?
     @State private var immersiveAutomaticAppearanceURL: URL?
@@ -602,10 +604,10 @@ struct 角色详情: View {
                         loadedImage: immersivePresentedHeroImage
                     )
                         .frame(width: proxy.size.width, height: proxy.size.height)
-                        .scaleEffect(1.55)
-                        .blur(radius: 96)
-                        .saturation(1.18)
-                        .opacity(0.56)
+                        .scaleEffect(沉浸封面背景层参数.缩放)
+                        .blur(radius: 沉浸封面背景层参数.模糊半径)
+                        .saturation(沉浸封面背景层参数.饱和度)
+                        .opacity(沉浸封面背景层参数.不透明度)
 
                     ForEach(
                         immersiveImageURLs(for: detail),
@@ -632,7 +634,9 @@ struct 角色详情: View {
                     }
                 }
 
-                Color.平台系统背景.opacity(0.2)
+                Color.平台系统背景.opacity(
+                    沉浸封面背景层参数.系统背景覆盖不透明度
+                )
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
             .clipped()
@@ -690,8 +694,7 @@ struct 角色详情: View {
                     * (1 - transitionProgress)
             let sampleImageFrame = CGRect(
                 x: samplingFrame.minX,
-                y: samplingFrame.minY - pullDown
-                    + (horizontalSizeClass == .regular ? -60 : 0),
+                y: samplingFrame.minY - pullDown,
                 width: width,
                 height: heroHeight + fadeOverflow + informationExtension
             )
@@ -904,99 +907,21 @@ struct 角色详情: View {
         return hasVisibleTraits ? 316 : 192
     }
 
-    @ViewBuilder
     private func immersiveHeroImage(
         loadedImage: Image?,
         extendsThroughInformation: Bool,
         revealProgress: CGFloat
     ) -> some View {
-        if extendsThroughInformation {
-            immersiveHeroImageComposition(
-                loadedImage: loadedImage,
-                sharpStops: [
-                    .init(color: .white, location: 0),
-                    .init(color: .white, location: 0.32),
-                    .init(color: .white.opacity(0.78), location: 0.37),
-                    .init(color: .white.opacity(0.38), location: 0.44),
-                    .init(color: .clear, location: 0.54)
-                ],
-                mediumBlurRadius: 16,
-                mediumStops: [
-                    .init(color: .clear, location: 0.3),
-                    .init(color: .white.opacity(0.5), location: 0.39),
-                    .init(color: .white, location: 0.54),
-                    .init(color: .white, location: 0.74),
-                    .init(color: .white.opacity(0.46), location: 0.88),
-                    .init(color: .clear, location: 1)
-                ],
-                heavyBlurRadius: 36,
-                heavyStops: [
-                    .init(color: .clear, location: 0.58),
-                    .init(color: .white.opacity(0.4), location: 0.66),
-                    .init(color: .white, location: 0.78),
-                    .init(color: .white, location: 0.88),
-                    .init(color: .white.opacity(0.36), location: 0.97),
-                    .init(color: .clear, location: 1)
-                ],
-                fadeStops: [
-                    .init(color: .white, location: 0),
-                    .init(color: .white, location: 0.5),
-                    .init(color: .white.opacity(0.86), location: 0.62),
-                    .init(color: .white.opacity(0.58), location: 0.76),
-                    .init(color: .white.opacity(0.3), location: 0.86),
-                    .init(color: .white.opacity(0.08), location: 0.95),
-                    .init(color: .clear, location: 1)
-                ],
-                revealProgress: revealProgress
-            )
-        } else {
-            immersiveHeroImageComposition(
-                loadedImage: loadedImage,
-                sharpStops: [
-                    .init(color: .white, location: 0),
-                    .init(color: .white, location: 0.46),
-                    .init(color: .white.opacity(0.5), location: 0.64),
-                    .init(color: .clear, location: 0.84)
-                ],
-                mediumBlurRadius: 18,
-                mediumStops: [
-                    .init(color: .clear, location: 0.35),
-                    .init(color: .white.opacity(0.4), location: 0.49),
-                    .init(color: .white, location: 0.7),
-                    .init(color: .white.opacity(0.55), location: 0.82),
-                    .init(color: .clear, location: 0.96)
-                ],
-                heavyBlurRadius: 42,
-                heavyStops: [
-                    .init(color: .clear, location: 0.64),
-                    .init(color: .white.opacity(0.5), location: 0.76),
-                    .init(color: .white, location: 0.88),
-                    .init(color: .white.opacity(0.45), location: 0.98),
-                    .init(color: .clear, location: 1)
-                ],
-                fadeStops: [
-                    .init(color: .white, location: 0),
-                    .init(color: .white, location: 0.46),
-                    .init(color: .white.opacity(0.86), location: 0.58),
-                    .init(color: .white.opacity(0.62), location: 0.7),
-                    .init(color: .white.opacity(0.34), location: 0.82),
-                    .init(color: .white.opacity(0.1), location: 0.91),
-                    .init(color: .clear, location: 0.97),
-                    .init(color: .clear, location: 1)
-                ],
-                revealProgress: revealProgress
-            )
-        }
+        immersiveHeroImageComposition(
+            loadedImage: loadedImage,
+            gradient: extendsThroughInformation ? .紧凑延伸 : .紧凑标准,
+            revealProgress: revealProgress
+        )
     }
 
     private func immersiveHeroImageComposition(
         loadedImage: Image?,
-        sharpStops: [Gradient.Stop],
-        mediumBlurRadius: CGFloat,
-        mediumStops: [Gradient.Stop],
-        heavyBlurRadius: CGFloat,
-        heavyStops: [Gradient.Stop],
-        fadeStops: [Gradient.Stop],
+        gradient: 沉浸封面渐变方案,
         revealProgress: CGFloat
     ) -> some View {
         let revealProgress = min(max(revealProgress, 0), 1)
@@ -1009,7 +934,7 @@ struct 角色详情: View {
                 .mask {
                     ZStack {
                         LinearGradient(
-                            stops: sharpStops,
+                            stops: gradient.sharp.gradientStops,
                             startPoint: .top,
                             endPoint: .bottom
                         )
@@ -1021,10 +946,10 @@ struct 角色详情: View {
                 loadedImage: loadedImage,
                 revealProgress: revealProgress
             )
-                .blur(radius: mediumBlurRadius)
+                .blur(radius: gradient.mediumBlurRadius)
                 .mask {
                     LinearGradient(
-                        stops: mediumStops,
+                        stops: gradient.medium.gradientStops,
                         startPoint: .top,
                         endPoint: .bottom
                     )
@@ -1035,10 +960,10 @@ struct 角色详情: View {
                 loadedImage: loadedImage,
                 revealProgress: revealProgress
             )
-                .blur(radius: heavyBlurRadius)
+                .blur(radius: gradient.heavyBlurRadius)
                 .mask {
                     LinearGradient(
-                        stops: heavyStops,
+                        stops: gradient.heavy.gradientStops,
                         startPoint: .top,
                         endPoint: .bottom
                     )
@@ -1049,7 +974,7 @@ struct 角色详情: View {
         .mask {
             ZStack {
                 LinearGradient(
-                    stops: fadeStops,
+                    stops: gradient.fade.gradientStops,
                     startPoint: .top,
                     endPoint: .bottom
                 )
@@ -1372,8 +1297,9 @@ struct 角色详情: View {
             url: url,
             layout: .character,
             background: colorScheme == .dark ? .dark : .light,
-            extendsThroughInformation:
-                immersiveHeroInformationExtension(for: displayedDetail) > 0,
+            gradient: immersiveHeroInformationExtension(
+                for: displayedDetail
+            ) > 0 ? .紧凑延伸 : .紧凑标准,
             itemCounts: [
                 "traits": displayedDetail.traits?.filter {
                     !shouldHideTrait($0)
@@ -1536,7 +1462,9 @@ struct 角色详情: View {
         }
         let geometry = 沉浸封面文字取样几何(
             imageSize: CGSize(width: imageFrame.width, height: imageFrame.height),
-            regions: regions
+            regions: regions,
+            viewportSize: immersiveViewportSize,
+            contentOffsetY: horizontalSizeClass == .regular ? -60 : 0
         )
         guard immersiveTextSamplingCoordinator.latestGeometry != geometry else {
             return
@@ -1684,6 +1612,7 @@ struct 角色详情: View {
                     .lineLimit(1)
                 }
             }
+            .角色沉浸取样框([titleSampleKey])
             .frame(maxWidth: .infinity, alignment: .leading)
             .沉浸详情文字阴影(titleTextStyle)
 
@@ -1734,7 +1663,8 @@ struct 角色详情: View {
                     icon: "birthday.cake",
                     title: "年龄",
                     text: ageText(age),
-                    textStyle: immersiveMetadataTextStyle(for: "metadata.age")
+                    textStyle: immersiveMetadataTextStyle(for: "metadata.age"),
+                    sampleKey: "metadata.age"
                 )
             }
             if let birthday = birthdayText(detail.birthday) {
@@ -1742,7 +1672,8 @@ struct 角色详情: View {
                     icon: "calendar",
                     title: "生日",
                     text: birthday,
-                    textStyle: immersiveMetadataTextStyle(for: "metadata.birthday")
+                    textStyle: immersiveMetadataTextStyle(for: "metadata.birthday"),
+                    sampleKey: "metadata.birthday"
                 )
             }
             if resolvedCharacterValue(detail.sex) != nil
@@ -1751,7 +1682,8 @@ struct 角色详情: View {
                     icon: "person.crop.circle",
                     title: "性别",
                     text: combinedGenderText(detail),
-                    textStyle: immersiveMetadataTextStyle(for: "metadata.gender")
+                    textStyle: immersiveMetadataTextStyle(for: "metadata.gender"),
+                    sampleKey: "metadata.gender"
                 )
             }
             if let bloodType = detail.blood_type {
@@ -1759,7 +1691,8 @@ struct 角色详情: View {
                     icon: "drop",
                     title: "血型",
                     text: bloodTypeText(bloodType),
-                    textStyle: immersiveMetadataTextStyle(for: "metadata.bloodType")
+                    textStyle: immersiveMetadataTextStyle(for: "metadata.bloodType"),
+                    sampleKey: "metadata.bloodType"
                 )
                 .contentShape(Rectangle())
                 .onTapGesture {
@@ -1786,7 +1719,8 @@ struct 角色详情: View {
                     icon: "ruler",
                     title: "身高",
                     text: heightText(height),
-                    textStyle: immersiveMetadataTextStyle(for: "metadata.height")
+                    textStyle: immersiveMetadataTextStyle(for: "metadata.height"),
+                    sampleKey: "metadata.height"
                 )
             }
             if let weight = detail.weight {
@@ -1794,7 +1728,8 @@ struct 角色详情: View {
                     icon: "scalemass",
                     title: "体重",
                     text: weightText(weight),
-                    textStyle: immersiveMetadataTextStyle(for: "metadata.weight")
+                    textStyle: immersiveMetadataTextStyle(for: "metadata.weight"),
+                    sampleKey: "metadata.weight"
                 )
             }
             if let bust = detail.bust {
@@ -1802,7 +1737,8 @@ struct 角色详情: View {
                     icon: "circle.lefthalf.filled",
                     title: "胸围",
                     text: heightText(bust),
-                    textStyle: immersiveMetadataTextStyle(for: "metadata.bust")
+                    textStyle: immersiveMetadataTextStyle(for: "metadata.bust"),
+                    sampleKey: "metadata.bust"
                 )
             }
             if let waist = detail.waist {
@@ -1810,7 +1746,8 @@ struct 角色详情: View {
                     icon: "circle.lefthalf.filled",
                     title: "腰围",
                     text: heightText(waist),
-                    textStyle: immersiveMetadataTextStyle(for: "metadata.waist")
+                    textStyle: immersiveMetadataTextStyle(for: "metadata.waist"),
+                    sampleKey: "metadata.waist"
                 )
             }
             if let hips = detail.hips {
@@ -1818,7 +1755,8 @@ struct 角色详情: View {
                     icon: "circle.lefthalf.filled",
                     title: "臀围",
                     text: heightText(hips),
-                    textStyle: immersiveMetadataTextStyle(for: "metadata.hips")
+                    textStyle: immersiveMetadataTextStyle(for: "metadata.hips"),
+                    sampleKey: "metadata.hips"
                 )
             }
             if let cup = detail.cup, !cup.isEmpty {
@@ -1826,7 +1764,8 @@ struct 角色详情: View {
                     icon: "circle.lefthalf.filled",
                     title: "罩杯",
                     text: cup,
-                    textStyle: immersiveMetadataTextStyle(for: "metadata.cup")
+                    textStyle: immersiveMetadataTextStyle(for: "metadata.cup"),
+                    sampleKey: "metadata.cup"
                 )
             }
         }
@@ -1894,7 +1833,8 @@ struct 角色详情: View {
         icon: String,
         title: LocalizedStringKey,
         text: String,
-        textStyle: 沉浸详情文字样式? = nil
+        textStyle: 沉浸详情文字样式? = nil,
+        sampleKey: String? = nil
     ) -> some View {
         let resolvedTextStyle = textStyle
             ?? immersiveMetadataTextStyle(for: "loading")
@@ -1916,6 +1856,8 @@ struct 角色详情: View {
                     .lineLimit(2)
             }
         }
+        // 按文字实际占的宽度取样，不含格子里的空白。
+        .角色沉浸取样框(sampleKey.map { [$0] } ?? [])
         .frame(maxWidth: .infinity, alignment: .leading)
         .沉浸详情文字阴影(resolvedTextStyle)
     }
@@ -1935,7 +1877,8 @@ struct 角色详情: View {
                 HStack(alignment: .top, spacing: 10) {
                     简介预览文本视图(
                         text: displayedDescription(original),
-                        lineLimit: 7
+                        lineLimit: 7,
+                        onTruncationChange: { isDescriptionTruncated = $0 }
                     )
                     .font(.body)
                     .沉浸详情文字前景色(textStyle.primary, style: textStyle)
@@ -2009,7 +1952,9 @@ struct 角色详情: View {
             in: descriptionNamespace
         )
         .onTapGesture {
-            guard hasDescription, showsContent else { return }
+            guard hasDescription, showsContent, isDescriptionTruncated else {
+                return
+            }
             showDescriptionSheet = true
         }
         .allowsHitTesting(
@@ -2402,15 +2347,18 @@ struct 角色详情: View {
             .平台柔和滚动边缘(for: .top)
             .平台内联导航标题()
             .toolbar {
-                Text(
-                    verbatim: 简介预览文本处理.外部显示文本(
-                        displayedDescription(detail.cleanDescription ?? "")
-                    )
-                )
-                    .font(.body)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .textSelection(.enabled)
-                    .padding()
+                ToolbarItem(placement: .平台前导操作) {
+                    Button {
+                        showDescriptionSheet = false
+                    } label: {
+                        Image(systemName: "xmark")
+                    }
+                    .accessibilityLabel("关闭")
+                }
+
+                ToolbarItem(placement: .平台主操作) {
+                    descriptionParticipationButton(style: .toolbar)
+                }
             }
         }
         .平台近全屏弹窗()

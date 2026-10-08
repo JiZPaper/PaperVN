@@ -29,6 +29,7 @@ private extension View {
                 }
             }
         }
+        .沉浸取样校准登记("发行版本", keys: keys)
     }
 
     @ViewBuilder
@@ -1671,7 +1672,7 @@ struct 探索发行版本详情: View {
     @State private var immersiveTextSampleURL: URL?
     @State private var immersiveTextRevealURL: URL?
     @State private var immersiveTextSampleGeometry: 沉浸封面文字取样几何?
-    @State private var immersiveTextSamplingCoordinator = 沉浸封面文字取样任务协调器()
+    @State private var immersiveTextSamplingCoordinator = 沉浸封面文字取样任务协调器(校准名称: "发行版本")
     @State private var immersiveLoadedHeroImage: Image?
     @State private var immersiveLoadedHeroImageURL: URL?
     @State private var immersiveLoadedHeroAspectRatio: CGFloat?
@@ -1908,10 +1909,10 @@ struct 探索发行版本详情: View {
                 if !releaseImageURLs.isEmpty {
                     releaseBackdropImageLayer(loadedImage: immersivePresentedHeroImage)
                         .frame(width: proxy.size.width, height: proxy.size.height)
-                        .scaleEffect(1.55)
-                        .blur(radius: 96)
-                        .saturation(1.18)
-                        .opacity(0.56)
+                        .scaleEffect(沉浸封面背景层参数.缩放)
+                        .blur(radius: 沉浸封面背景层参数.模糊半径)
+                        .saturation(沉浸封面背景层参数.饱和度)
+                        .opacity(沉浸封面背景层参数.不透明度)
                     ForEach(releaseImageURLs, id: \.absoluteString) { url in
                         CachedAsyncImage(
                             url: url,
@@ -1933,7 +1934,7 @@ struct 探索发行版本详情: View {
                         .accessibilityHidden(true)
                     }
                 }
-                Color.平台系统背景.opacity(0.2)
+                Color.平台系统背景.opacity(沉浸封面背景层参数.系统背景覆盖不透明度)
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
             .clipped()
@@ -1982,8 +1983,7 @@ struct 探索发行版本详情: View {
                 + (fadeOverflow + informationExtension) * (1 - transitionProgress)
             let sampleImageFrame = CGRect(
                 x: samplingFrame.minX,
-                y: samplingFrame.minY - pullDown
-                    + (horizontalSizeClass == .regular ? -60 : 0),
+                y: samplingFrame.minY - pullDown,
                 width: width,
                 height: heroHeight + fadeOverflow + informationExtension
             )
@@ -2138,489 +2138,27 @@ struct 探索发行版本详情: View {
         .clipped()
     }
 
-    @ViewBuilder
     private func releaseHeroImage(
         loadedImage: Image?,
         extendsThroughInformation: Bool,
         blurTransitionStart: CGFloat,
         revealProgress: CGFloat
     ) -> some View {
-        if extendsThroughInformation, horizontalSizeClass == .regular {
-            releaseHeroImageComposition(
-                loadedImage: loadedImage,
-                sharpStops: releaseRegularSharpStops(
-                    transitionStart: blurTransitionStart
-                ),
-                mediumBlurRadius: 18,
-                mediumStops: releaseRegularMediumBlurStops(
-                    transitionStart: blurTransitionStart
-                ),
-                heavyBlurRadius: 42,
-                heavyStops: releaseRegularHeavyBlurStops(
-                    transitionStart: blurTransitionStart
-                ),
-                fadeStops: releaseRegularFadeStops(
-                    transitionStart: blurTransitionStart
-                ),
-                revealProgress: revealProgress
-            )
-        } else if extendsThroughInformation {
-            let transitionStart = max(blurTransitionStart, 0.32)
-            releaseHeroImageComposition(
-                loadedImage: loadedImage,
-                sharpStops: [
-                    .init(color: .white, location: 0),
-                    .init(
-                        color: .white,
-                        location: releaseCompactGradientLocation(
-                            0.32,
-                            from: 0.32,
-                            to: transitionStart
-                        )
-                    ),
-                    .init(
-                        color: .white.opacity(0.78),
-                        location: releaseCompactGradientLocation(
-                            0.37,
-                            from: 0.32,
-                            to: transitionStart
-                        )
-                    ),
-                    .init(
-                        color: .white.opacity(0.38),
-                        location: releaseCompactGradientLocation(
-                            0.44,
-                            from: 0.32,
-                            to: transitionStart
-                        )
-                    ),
-                    .init(
-                        color: .clear,
-                        location: releaseCompactGradientLocation(
-                            0.54,
-                            from: 0.32,
-                            to: transitionStart
-                        )
-                    )
-                ],
-                mediumBlurRadius: 16,
-                mediumStops: [
-                    .init(
-                        color: .clear,
-                        location: releaseCompactGradientLocation(
-                            0.3,
-                            from: 0.32,
-                            to: transitionStart
-                        )
-                    ),
-                    .init(
-                        color: .white.opacity(0.5),
-                        location: releaseCompactGradientLocation(
-                            0.39,
-                            from: 0.32,
-                            to: transitionStart
-                        )
-                    ),
-                    .init(
-                        color: .white,
-                        location: releaseCompactGradientLocation(
-                            0.54,
-                            from: 0.32,
-                            to: transitionStart
-                        )
-                    ),
-                    .init(
-                        color: .white,
-                        location: releaseCompactGradientLocation(
-                            0.74,
-                            from: 0.32,
-                            to: transitionStart
-                        )
-                    ),
-                    .init(
-                        color: .white.opacity(0.46),
-                        location: releaseCompactGradientLocation(
-                            0.88,
-                            from: 0.32,
-                            to: transitionStart
-                        )
-                    ),
-                    .init(color: .clear, location: 1)
-                ],
-                heavyBlurRadius: 36,
-                heavyStops: [
-                    .init(
-                        color: .clear,
-                        location: releaseCompactGradientLocation(
-                            0.58,
-                            from: 0.32,
-                            to: transitionStart
-                        )
-                    ),
-                    .init(
-                        color: .white.opacity(0.4),
-                        location: releaseCompactGradientLocation(
-                            0.66,
-                            from: 0.32,
-                            to: transitionStart
-                        )
-                    ),
-                    .init(
-                        color: .white,
-                        location: releaseCompactGradientLocation(
-                            0.78,
-                            from: 0.32,
-                            to: transitionStart
-                        )
-                    ),
-                    .init(
-                        color: .white,
-                        location: releaseCompactGradientLocation(
-                            0.88,
-                            from: 0.32,
-                            to: transitionStart
-                        )
-                    ),
-                    .init(
-                        color: .white.opacity(0.36),
-                        location: releaseCompactGradientLocation(
-                            0.97,
-                            from: 0.32,
-                            to: transitionStart
-                        )
-                    ),
-                    .init(color: .clear, location: 1)
-                ],
-                fadeStops: [
-                    .init(color: .white, location: 0),
-                    .init(
-                        color: .white,
-                        location: releaseCompactGradientLocation(
-                            0.5,
-                            from: 0.32,
-                            to: transitionStart
-                        )
-                    ),
-                    .init(
-                        color: .white.opacity(0.86),
-                        location: releaseCompactGradientLocation(
-                            0.62,
-                            from: 0.32,
-                            to: transitionStart
-                        )
-                    ),
-                    .init(
-                        color: .white.opacity(0.58),
-                        location: releaseCompactGradientLocation(
-                            0.76,
-                            from: 0.32,
-                            to: transitionStart
-                        )
-                    ),
-                    .init(
-                        color: .white.opacity(0.3),
-                        location: releaseCompactGradientLocation(
-                            0.86,
-                            from: 0.32,
-                            to: transitionStart
-                        )
-                    ),
-                    .init(
-                        color: .white.opacity(0.08),
-                        location: releaseCompactGradientLocation(
-                            0.95,
-                            from: 0.32,
-                            to: transitionStart
-                        )
-                    ),
-                    .init(color: .clear, location: 1)
-                ],
-                revealProgress: revealProgress
-            )
+        let gradient: 沉浸封面渐变方案 = if extendsThroughInformation, horizontalSizeClass == .regular {
+            .常规(transitionStart: blurTransitionStart)
         } else {
-            let transitionStart = max(blurTransitionStart, 0.46)
-            releaseHeroImageComposition(
-                loadedImage: loadedImage,
-                sharpStops: [
-                    .init(color: .white, location: 0),
-                    .init(
-                        color: .white,
-                        location: releaseCompactGradientLocation(
-                            0.46,
-                            from: 0.46,
-                            to: transitionStart
-                        )
-                    ),
-                    .init(
-                        color: .white.opacity(0.5),
-                        location: releaseCompactGradientLocation(
-                            0.64,
-                            from: 0.46,
-                            to: transitionStart
-                        )
-                    ),
-                    .init(
-                        color: .clear,
-                        location: releaseCompactGradientLocation(
-                            0.84,
-                            from: 0.46,
-                            to: transitionStart
-                        )
-                    )
-                ],
-                mediumBlurRadius: 18,
-                mediumStops: [
-                    .init(
-                        color: .clear,
-                        location: releaseCompactGradientLocation(
-                            0.35,
-                            from: 0.46,
-                            to: transitionStart
-                        )
-                    ),
-                    .init(
-                        color: .white.opacity(0.4),
-                        location: releaseCompactGradientLocation(
-                            0.49,
-                            from: 0.46,
-                            to: transitionStart
-                        )
-                    ),
-                    .init(
-                        color: .white,
-                        location: releaseCompactGradientLocation(
-                            0.7,
-                            from: 0.46,
-                            to: transitionStart
-                        )
-                    ),
-                    .init(
-                        color: .white.opacity(0.55),
-                        location: releaseCompactGradientLocation(
-                            0.82,
-                            from: 0.46,
-                            to: transitionStart
-                        )
-                    ),
-                    .init(
-                        color: .clear,
-                        location: releaseCompactGradientLocation(
-                            0.96,
-                            from: 0.46,
-                            to: transitionStart
-                        )
-                    )
-                ],
-                heavyBlurRadius: 42,
-                heavyStops: [
-                    .init(
-                        color: .clear,
-                        location: releaseCompactGradientLocation(
-                            0.64,
-                            from: 0.46,
-                            to: transitionStart
-                        )
-                    ),
-                    .init(
-                        color: .white.opacity(0.5),
-                        location: releaseCompactGradientLocation(
-                            0.76,
-                            from: 0.46,
-                            to: transitionStart
-                        )
-                    ),
-                    .init(
-                        color: .white,
-                        location: releaseCompactGradientLocation(
-                            0.88,
-                            from: 0.46,
-                            to: transitionStart
-                        )
-                    ),
-                    .init(
-                        color: .white.opacity(0.45),
-                        location: releaseCompactGradientLocation(
-                            0.98,
-                            from: 0.46,
-                            to: transitionStart
-                        )
-                    ),
-                    .init(color: .clear, location: 1)
-                ],
-                fadeStops: [
-                    .init(color: .white, location: 0),
-                    .init(
-                        color: .white,
-                        location: releaseCompactGradientLocation(
-                            0.46,
-                            from: 0.46,
-                            to: transitionStart
-                        )
-                    ),
-                    .init(
-                        color: .white.opacity(0.86),
-                        location: releaseCompactGradientLocation(
-                            0.58,
-                            from: 0.46,
-                            to: transitionStart
-                        )
-                    ),
-                    .init(
-                        color: .white.opacity(0.62),
-                        location: releaseCompactGradientLocation(
-                            0.7,
-                            from: 0.46,
-                            to: transitionStart
-                        )
-                    ),
-                    .init(
-                        color: .white.opacity(0.34),
-                        location: releaseCompactGradientLocation(
-                            0.82,
-                            from: 0.46,
-                            to: transitionStart
-                        )
-                    ),
-                    .init(
-                        color: .white.opacity(0.1),
-                        location: releaseCompactGradientLocation(
-                            0.91,
-                            from: 0.46,
-                            to: transitionStart
-                        )
-                    ),
-                    .init(
-                        color: .clear,
-                        location: releaseCompactGradientLocation(
-                            0.97,
-                            from: 0.46,
-                            to: transitionStart
-                        )
-                    ),
-                    .init(color: .clear, location: 1)
-                ],
-                revealProgress: revealProgress
-            )
+            extendsThroughInformation ? .紧凑延伸 : .紧凑标准
         }
-    }
-
-    private func releaseRegularSharpStops(
-        transitionStart: CGFloat
-    ) -> [Gradient.Stop] {
-        [
-            .init(color: .white, location: 0),
-            .init(color: .white, location: max(transitionStart - 0.08, 0)),
-            .init(color: .white.opacity(0.76), location: transitionStart),
-            .init(
-                color: .white.opacity(0.34),
-                location: releaseRegularGradientLocation(after: transitionStart, progress: 0.17)
-            ),
-            .init(
-                color: .clear,
-                location: releaseRegularGradientLocation(after: transitionStart, progress: 0.34)
-            )
-        ]
-    }
-
-    private func releaseRegularMediumBlurStops(
-        transitionStart: CGFloat
-    ) -> [Gradient.Stop] {
-        [
-            .init(color: .clear, location: max(transitionStart - 0.09, 0)),
-            .init(color: .white.opacity(0.42), location: max(transitionStart - 0.03, 0)),
-            .init(
-                color: .white,
-                location: releaseRegularGradientLocation(after: transitionStart, progress: 0.24)
-            ),
-            .init(
-                color: .white,
-                location: releaseRegularGradientLocation(after: transitionStart, progress: 0.61)
-            ),
-            .init(
-                color: .white.opacity(0.42),
-                location: releaseRegularGradientLocation(after: transitionStart, progress: 0.85)
-            ),
-            .init(color: .clear, location: 1)
-        ]
-    }
-
-    private func releaseRegularHeavyBlurStops(
-        transitionStart: CGFloat
-    ) -> [Gradient.Stop] {
-        [
-            .init(
-                color: .clear,
-                location: releaseRegularGradientLocation(after: transitionStart, progress: 0.1)
-            ),
-            .init(
-                color: .white.opacity(0.42),
-                location: releaseRegularGradientLocation(after: transitionStart, progress: 0.27)
-            ),
-            .init(
-                color: .white,
-                location: releaseRegularGradientLocation(after: transitionStart, progress: 0.51)
-            ),
-            .init(
-                color: .white,
-                location: releaseRegularGradientLocation(after: transitionStart, progress: 0.76)
-            ),
-            .init(
-                color: .white.opacity(0.34),
-                location: releaseRegularGradientLocation(after: transitionStart, progress: 0.92)
-            ),
-            .init(color: .clear, location: 1)
-        ]
-    }
-
-    private func releaseRegularFadeStops(
-        transitionStart: CGFloat
-    ) -> [Gradient.Stop] {
-        [
-            .init(color: .white, location: 0),
-            .init(color: .white, location: transitionStart),
-            .init(
-                color: .white.opacity(0.86),
-                location: releaseRegularGradientLocation(after: transitionStart, progress: 0.24)
-            ),
-            .init(
-                color: .white.opacity(0.6),
-                location: releaseRegularGradientLocation(after: transitionStart, progress: 0.51)
-            ),
-            .init(
-                color: .white.opacity(0.32),
-                location: releaseRegularGradientLocation(after: transitionStart, progress: 0.7)
-            ),
-            .init(
-                color: .white.opacity(0.08),
-                location: releaseRegularGradientLocation(after: transitionStart, progress: 0.9)
-            ),
-            .init(color: .clear, location: 1)
-        ]
-    }
-
-    private func releaseRegularGradientLocation(
-        after transitionStart: CGFloat,
-        progress: CGFloat
-    ) -> CGFloat {
-        transitionStart + (1 - transitionStart) * progress
-    }
-
-    private func releaseCompactGradientLocation(
-        _ location: CGFloat,
-        from baseLocation: CGFloat,
-        to transitionStart: CGFloat
-    ) -> CGFloat {
-        min(max(location, 0), 1)
+        return releaseHeroImageComposition(
+            loadedImage: loadedImage,
+            gradient: gradient,
+            revealProgress: revealProgress
+        )
     }
 
     private func releaseHeroImageComposition(
         loadedImage: Image?,
-        sharpStops: [Gradient.Stop],
-        mediumBlurRadius: CGFloat,
-        mediumStops: [Gradient.Stop],
-        heavyBlurRadius: CGFloat,
-        heavyStops: [Gradient.Stop],
-        fadeStops: [Gradient.Stop],
+        gradient: 沉浸封面渐变方案,
         revealProgress: CGFloat
     ) -> some View {
         let progress = min(max(revealProgress, 0), 1)
@@ -2628,23 +2166,23 @@ struct 探索发行版本详情: View {
             releaseHeroImageLayer(loadedImage: loadedImage, revealProgress: progress)
                 .mask {
                     ZStack {
-                        LinearGradient(stops: sharpStops, startPoint: .top, endPoint: .bottom)
+                        LinearGradient(stops: gradient.sharp.gradientStops, startPoint: .top, endPoint: .bottom)
                         Color.white.opacity(progress)
                     }
                 }
             releaseHeroImageLayer(loadedImage: loadedImage, revealProgress: progress)
-                .blur(radius: mediumBlurRadius)
-                .mask { LinearGradient(stops: mediumStops, startPoint: .top, endPoint: .bottom) }
+                .blur(radius: gradient.mediumBlurRadius)
+                .mask { LinearGradient(stops: gradient.medium.gradientStops, startPoint: .top, endPoint: .bottom) }
                 .opacity(1 - progress)
             releaseHeroImageLayer(loadedImage: loadedImage, revealProgress: progress)
-                .blur(radius: heavyBlurRadius)
-                .mask { LinearGradient(stops: heavyStops, startPoint: .top, endPoint: .bottom) }
+                .blur(radius: gradient.heavyBlurRadius)
+                .mask { LinearGradient(stops: gradient.heavy.gradientStops, startPoint: .top, endPoint: .bottom) }
                 .opacity(1 - progress)
         }
         .compositingGroup()
         .mask {
             ZStack {
-                LinearGradient(stops: fadeStops, startPoint: .top, endPoint: .bottom)
+                LinearGradient(stops: gradient.fade.gradientStops, startPoint: .top, endPoint: .bottom)
                 Color.white.opacity(progress)
             }
         }
@@ -2802,19 +2340,37 @@ struct 探索发行版本详情: View {
         scheduleImmersiveTextSamples(for: url, geometry: geometry, revealsImmediately: true)
     }
 
+    /// 与 releaseHero 静止状态（无下拉）的遮罩一致。
+    private func releaseSamplingGradient(geometry: 沉浸封面文字取样几何) -> 沉浸封面渐变方案 {
+        let informationExtension = releaseHeroInformationExtension
+        guard informationExtension > 0 else { return .紧凑标准 }
+        guard horizontalSizeClass == .regular else { return .紧凑延伸 }
+        let layerHeight = max(geometry.imageSize.height, 1)
+        let heroHeight = layerHeight - 72 - informationExtension
+        return .常规取样(transitionStart: (heroHeight + 24) / layerHeight)
+    }
+
     private func scheduleImmersiveTextSamples(for url: URL, geometry: 沉浸封面文字取样几何, revealsImmediately: Bool) {
         let request = 沉浸封面文字取样请求(
             url: url,
             layout: .visualNovel,
             background: colorScheme == .dark ? .dark : .light,
-            extendsThroughInformation: false,
-            itemCounts: [:],
+            gradient: releaseSamplingGradient(geometry: geometry),
+            // 发行版本页只显示元数据，不计算并不存在的标签胶囊。
+            itemCounts: ["tags": 0],
             geometry: geometry
         )
         immersiveTextSamplingCoordinator.submit(request) { request, samples in
             guard !immersiveHeroGestureIsActive,
                   currentImmersiveImageURL == request.url,
                   shouldAcceptImmersiveImage(at: request.url) else { return }
+            // 显示效果没变时不写状态，避免下拉等连续几何变化逐帧刷新整页。
+            let samplesChanged = immersiveTextSampleURL != request.url
+                || immersiveTextSamples != samples
+            guard samplesChanged
+                    || immersiveTextSampleGeometry == nil
+                    || (revealsImmediately && immersiveTextRevealURL != request.url)
+            else { return }
             var transaction = Transaction()
             transaction.animation = nil
             transaction.disablesAnimations = true
@@ -2843,7 +2399,12 @@ struct 探索发行版本详情: View {
             guard let sample = releaseImmersiveSamplingFrame(relative) else { continue }
             regions[key] = sample
         }
-        let geometry = 沉浸封面文字取样几何(imageSize: CGSize(width: imageFrame.width, height: imageFrame.height), regions: regions)
+        let geometry = 沉浸封面文字取样几何(
+            imageSize: CGSize(width: imageFrame.width, height: imageFrame.height),
+            regions: regions,
+            viewportSize: immersiveViewportSize,
+            contentOffsetY: horizontalSizeClass == .regular ? -60 : 0
+        )
         guard immersiveTextSamplingCoordinator.latestGeometry != geometry else { return }
         immersiveTextSamplingCoordinator.remember(geometry)
         guard !immersiveHeroGestureIsActive, let url = currentImmersiveImageURL else { return }
@@ -3004,9 +2565,10 @@ struct 探索发行版本详情: View {
                     .lineLimit(valueLineLimit)
             }
         }
+        // 按文字实际占的宽度取样，不含格子里的空白。
+        .发行版本沉浸取样框([sampleKey])
         .frame(maxWidth: .infinity, alignment: .leading)
         .沉浸详情文字阴影(textStyle)
-        .发行版本沉浸取样框([sampleKey])
     }
 
     private var releaseContent: some View {

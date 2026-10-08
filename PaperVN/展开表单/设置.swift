@@ -1173,7 +1173,7 @@ private struct 设置项目图标: View {
     }
 }
 
-private struct 设置类别介绍: View {
+struct 设置类别介绍: View {
     let title: LocalizedStringKey
     let description: LocalizedStringKey
     let systemImage: String

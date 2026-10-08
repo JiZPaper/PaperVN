@@ -15,6 +15,7 @@ struct PaperVNApp: App {
     @StateObject private var feedbackUpdateNotifier = 反馈更新提醒中心()
     @StateObject private var urlRouter = PaperVNURLRouter()
     @State private var showsRecommendationModelPrompt = false
+    @State private var showsWhatsNew = false
     @State private var recommendationModelDownloadState = 推荐模型下载状态.shared
 
     init() {
@@ -44,6 +45,21 @@ struct PaperVNApp: App {
         .environmentObject(parentalControls)
         .environmentObject(urlRouter)
         .平台柔和滚动边缘(for: .top)
+        .sheet(isPresented: $showsWhatsNew, onDismiss: {
+            新功能介绍.标记已读()
+            presentRecommendationModelPromptIfNeeded()
+        }) {
+            // 弹窗挂在 environmentObject 外层，需要再注入一次
+            新功能介绍页面 {
+                showsWhatsNew = false
+            }
+            .environmentObject(premiumStore)
+            .environmentObject(auth)
+            .environmentObject(kunAccount)
+            .environmentObject(bangumiAccount)
+            .environmentObject(parentalControls)
+            .environmentObject(urlRouter)
+        }
         .alert(item: $feedbackUpdateNotifier.alert) { alert in
             Alert(
                 title: Text(verbatim: alert.title),
@@ -93,7 +109,15 @@ struct PaperVNApp: App {
                 emergencyAvoidance.startMonitoring()
             }
             推荐后台分析中心.shared.启动需要的分析()
-            presentRecommendationModelPromptIfNeeded()
+            if 新功能介绍.应显示 {
+                // 启动时窗口还没准备好，立即呈现会被系统忽略
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(600))
+                    showsWhatsNew = true
+                }
+            } else {
+                presentRecommendationModelPromptIfNeeded()
+            }
         }
         .onOpenURL { url in
             _ = urlRouter.handle(url)

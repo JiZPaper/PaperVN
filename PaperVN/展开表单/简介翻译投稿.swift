@@ -526,7 +526,7 @@ struct 简介翻译投稿页面: View {
                 Button("好") { dismiss() }
             } message: { result in
                 if result.updated {
-                    Text("已更新你之前提交的译文，我们会重新审核。")
+                    Text("谢谢！更新的翻译已提交以供审核。")
                 } else {
                     Text("谢谢！你的翻译已提交以供审核。")
                 }
@@ -637,13 +637,13 @@ struct 简介翻译投稿页面: View {
         } footer: {
             switch existing.status {
             case .pending:
-                Text("修改后再次提交会更新这条正在审核的翻译。")
+                Text("更改后将重新提交以供审核。")
             case .rejected:
-                Text("修改后再次提交会重新审核。")
+                Text("更改后可重新提交以供审核。")
             case .accepted:
-                Text("这条翻译已加入开源项目。")
+                Text("翻译已通过。")
             case .withdrawn:
-                Text("这条翻译已撤回。")
+                Text("翻译已撤回。")
             }
         }
     }
@@ -712,7 +712,7 @@ struct 简介翻译贡献页面: View {
                             systemImage: "person.crop.circle.badge.exclamationmark"
                         )
                     } description: {
-                        Text("登录VNDB账户后即可贡献翻译")
+                        Text("登录VNDB账户以贡献翻译")
                     }
                 }
             }

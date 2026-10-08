@@ -32,21 +32,6 @@ nonisolated enum 简介预览文本处理 {
         return lines.joined(separator: "\n")
     }
 
-    static func 在截断空行显示省略号(
-        _ text: String,
-        lineIndex: Int
-    ) -> String {
-        var lines = text.components(separatedBy: "\n")
-        guard lines.indices.contains(lineIndex),
-              是空白行(lines[lineIndex]),
-              lineIndex + 1 < lines.count else {
-            return text
-        }
-
-        lines[lineIndex] = "…"
-        return lines[...lineIndex].joined(separator: "\n")
-    }
-
     static func 规范换行(_ text: String) -> String {
         text
             .replacingOccurrences(of: "\r\n", with: "\n")
@@ -117,66 +102,135 @@ nonisolated enum 简介预览文本处理 {
 struct 简介预览文本视图: View {
     let text: String
     let lineLimit: Int
+    var onTruncationChange: ((Bool) -> Void)? = nil
 
-    @State private var availableWidth: CGFloat = 0
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @State private var visibleHeight: CGFloat = 0
+    @State private var fullHeight: CGFloat = 0
+    @State private var prefixHeights: [String: CGFloat] = [:]
 
     var body: some View {
         Text(verbatim: previewText)
             .lineLimit(lineLimit)
             .truncationMode(.tail)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .onGeometryChange(for: CGFloat.self) { proxy in
-                proxy.size.width
-            } action: { newWidth in
-                availableWidth = newWidth
+                proxy.size.height
+            } action: { newHeight in
+                visibleHeight = newHeight
             }
+            .background(alignment: .topLeading) {
+                measurementViews
+                    .hidden()
+                    .accessibilityHidden(true)
+            }
+            .onChange(of: isTruncated, initial: true) { _, newValue in
+                onTruncationChange?(newValue)
+            }
+    }
+
+    private var isTruncated: Bool {
+        visibleHeight > 0 && fullHeight > visibleHeight + 1
+    }
+
+    /// 合并连续空行后的显示文本。
+    private var lines: [String] {
+        var result: [String] = []
+        for line in 简介预览文本处理.外部显示文本(text)
+            .components(separatedBy: "\n") {
+            if 简介预览文本处理.是空白行(line),
+               result.last.map(简介预览文本处理.是空白行) ?? true {
+                continue
+            }
+            result.append(简介预览文本处理.是空白行(line) ? "" : line)
+        }
+        return result
+    }
+
+    /// 后面还有内容的空行位置。
+    private var blankLineCandidates: [Int] {
+        guard lineLimit >= 2 else { return [] }
+        let lines = lines
+        return lines.indices.filter {
+            $0 > 0 && $0 + 1 < lines.count && lines[$0].isEmpty
+        }
+    }
+
+    private func prefix(before index: Int) -> String {
+        lines[..<index].joined(separator: "\n")
+    }
+
+    private var candidatePrefixes: [String] {
+        blankLineCandidates.map(prefix(before:))
+    }
+
+    // SwiftUI 对中日文按词断行，无法用 TextKit 复现，
+    // 因此直接用隐藏的 Text 量出空行前那段文字占几行。
+    @ViewBuilder
+    private var measurementViews: some View {
+        ZStack(alignment: .topLeading) {
+            let fullText = lines.joined(separator: "\n")
+            measuredText(fullText, lineLimit: nil) {
+                fullHeight = $0
+            }
+            .id(fullText)
+
+            // 以文字本身为标识，文字变化时重建视图以重新触发测量。
+            ForEach(candidatePrefixes, id: \.self) { prefix in
+                measuredText(prefix, lineLimit: nil) {
+                    prefixHeights["all|\(prefix)"] = $0
+                }
+                measuredText(prefix, lineLimit: lineLimit - 1) {
+                    prefixHeights["fits|\(prefix)"] = $0
+                }
+                if lineLimit >= 3 {
+                    measuredText(prefix, lineLimit: lineLimit - 2) {
+                        prefixHeights["short|\(prefix)"] = $0
+                    }
+                }
+            }
+        }
+    }
+
+    private func measuredText(
+        _ string: String,
+        lineLimit: Int?,
+        onHeight: @escaping (CGFloat) -> Void
+    ) -> some View {
+        Text(verbatim: string)
+            .lineLimit(lineLimit)
+            .fixedSize(horizontal: false, vertical: true)
+            .onGeometryChange(for: CGFloat.self) { proxy in
+                proxy.size.height
+            } action: { newHeight in
+                onHeight(newHeight)
+            }
+    }
+
+    /// 空行前的文字正好占 lineLimit - 1 行，即该空行落在最后一行可见位置。
+    private func blankLineIsLastVisible(_ index: Int) -> Bool {
+        let prefix = prefix(before: index)
+        guard let all = prefixHeights["all|\(prefix)"],
+              let fits = prefixHeights["fits|\(prefix)"],
+              all > 0,
+              abs(all - fits) < 0.5 else {
+            return false
+        }
+        guard lineLimit >= 3 else { return true }
+        guard let short = prefixHeights["short|\(prefix)"] else {
+            return false
+        }
+        return short < fits - 0.5
     }
 
     private var previewText: String {
-        let externalText = 简介预览文本处理.外部显示文本(text)
-        guard availableWidth > 0 else { return externalText }
-
-        let font = UIFont.preferredFont(
-            forTextStyle: .body,
-            compatibleWith: UITraitCollection(
-                preferredContentSizeCategory:
-                    UIContentSizeCategory(dynamicTypeSize)
-            )
-        )
-        let lines = externalText.components(separatedBy: "\n")
-        var visibleLineCount = 0
-
-        for (index, line) in lines.enumerated() {
-            visibleLineCount += renderedLineCount(of: line, font: font)
-            guard visibleLineCount >= lineLimit else { continue }
-
-            // 恰好落在最后一行可见位置的是空行，且后面还有内容时，
-            // 系统不会显示省略号，改为手动替换成省略号。
-            guard visibleLineCount == lineLimit,
-                  简介预览文本处理.是空白行(line),
-                  index + 1 < lines.count else {
-                return externalText
-            }
-            return 简介预览文本处理.在截断空行显示省略号(
-                externalText,
-                lineIndex: index
-            )
+        let lines = lines
+        // 最后一行可见的是空行且后面还有内容时，系统不会显示省略号，手动补上。
+        guard let index = blankLineCandidates.first(
+            where: blankLineIsLastVisible
+        ) else {
+            return lines.joined(separator: "\n")
         }
-        return externalText
-    }
-
-    private func renderedLineCount(of line: String, font: UIFont) -> Int {
-        guard !简介预览文本处理.是空白行(line) else { return 1 }
-        let bounds = (line as NSString).boundingRect(
-            with: CGSize(
-                width: availableWidth,
-                height: .greatestFiniteMagnitude
-            ),
-            options: [.usesLineFragmentOrigin, .usesFontLeading],
-            attributes: [.font: font],
-            context: nil
-        )
-        return max(1, Int((bounds.height / font.lineHeight).rounded()))
+        return (lines[..<index] + ["…"]).joined(separator: "\n")
     }
 }
 

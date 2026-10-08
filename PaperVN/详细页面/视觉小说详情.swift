@@ -108,10 +108,10 @@ private struct 视觉小说详情沉浸背景: View, Equatable {
                             width: proxy.size.width,
                             height: proxy.size.height
                         )
-                        .scaleEffect(1.55)
-                        .blur(radius: 96)
-                        .saturation(1.18)
-                        .opacity(0.56)
+                        .scaleEffect(沉浸封面背景层参数.缩放)
+                        .blur(radius: 沉浸封面背景层参数.模糊半径)
+                        .saturation(沉浸封面背景层参数.饱和度)
+                        .opacity(沉浸封面背景层参数.不透明度)
 
                     ForEach(imageURLs, id: \.absoluteString) { url in
                         CachedAsyncImage(
@@ -127,7 +127,9 @@ private struct 视觉小说详情沉浸背景: View, Equatable {
                     }
                 }
 
-                Color.平台系统背景.opacity(0.2)
+                Color.平台系统背景.opacity(
+                    沉浸封面背景层参数.系统背景覆盖不透明度
+                )
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
             .clipped()
@@ -196,6 +198,7 @@ private extension View {
                 }
             }
         }
+        .沉浸取样校准登记("视觉小说", keys: keys)
     }
 
     @ViewBuilder
@@ -646,6 +649,7 @@ struct 视觉小说详情: View {
     @State private var screenshotStackIsCompletingSwipe = false
     @State private var externalBrowserTarget: 外部浏览目标?
     @State private var showDescriptionSheet = false
+    @State private var isDescriptionTruncated = false
     @State private var showEditSheet = false
     @State private var showInfoSheet = false
     @State private var showLoginRequiredAlert = false
@@ -664,7 +668,7 @@ struct 视觉小说详情: View {
     @State private var immersiveTextSampleGeometry:
         沉浸封面文字取样几何?
     @State private var immersiveTextSamplingCoordinator =
-        沉浸封面文字取样任务协调器()
+        沉浸封面文字取样任务协调器(校准名称: "视觉小说")
     @State private var immersiveLoadedHeroImage: Image?
     @State private var immersiveLoadedHeroImageURL: URL?
     @State private var immersiveOutgoingHeroImage: Image?
@@ -1269,8 +1273,7 @@ struct 视觉小说详情: View {
                     * (1 - transitionProgress)
             let sampleImageFrame = CGRect(
                 x: samplingFrame.minX,
-                y: samplingFrame.minY - pullDown
-                    + (horizontalSizeClass == .regular ? -60 : 0),
+                y: samplingFrame.minY - pullDown,
                 width: width,
                 height: heroHeight + fadeOverflow + descriptionExtension
             )
@@ -1555,109 +1558,30 @@ struct 视觉小说详情: View {
         return hasVisibleTags ? 316 : 148
     }
 
-    @ViewBuilder
     private func immersiveHeroImage(
         loadedImage: Image?,
         extendsThroughDescription: Bool,
         regularTransitionStart: CGFloat,
         revealProgress: CGFloat
     ) -> some View {
+        immersiveHeroImageComposition(
+            loadedImage: loadedImage,
+            gradient: immersiveHeroGradient(
+                extendsThroughDescription: extendsThroughDescription,
+                regularTransitionStart: regularTransitionStart
+            ),
+            revealProgress: revealProgress
+        )
+    }
+
+    private func immersiveHeroGradient(
+        extendsThroughDescription: Bool,
+        regularTransitionStart: CGFloat
+    ) -> 沉浸封面渐变方案 {
         if extendsThroughDescription, horizontalSizeClass == .regular {
-            immersiveHeroImageComposition(
-                loadedImage: loadedImage,
-                sharpStops: regularSharpStops(
-                    transitionStart: regularTransitionStart
-                ),
-                mediumBlurRadius: 18,
-                mediumStops: regularMediumBlurStops(
-                    transitionStart: regularTransitionStart
-                ),
-                heavyBlurRadius: 42,
-                heavyStops: regularHeavyBlurStops(
-                    transitionStart: regularTransitionStart
-                ),
-                fadeStops: regularFadeStops(
-                    transitionStart: regularTransitionStart
-                ),
-                revealProgress: revealProgress
-            )
-        } else if extendsThroughDescription {
-            immersiveHeroImageComposition(
-                loadedImage: loadedImage,
-                sharpStops: [
-                    .init(color: .white, location: 0),
-                    .init(color: .white, location: 0.32),
-                    .init(color: .white.opacity(0.78), location: 0.37),
-                    .init(color: .white.opacity(0.38), location: 0.44),
-                    .init(color: .clear, location: 0.54)
-                ],
-                mediumBlurRadius: 16,
-                mediumStops: [
-                    .init(color: .clear, location: 0.3),
-                    .init(color: .white.opacity(0.5), location: 0.39),
-                    .init(color: .white, location: 0.54),
-                    .init(color: .white, location: 0.74),
-                    .init(color: .white.opacity(0.46), location: 0.88),
-                    .init(color: .clear, location: 1)
-                ],
-                heavyBlurRadius: 36,
-                heavyStops: [
-                    .init(color: .clear, location: 0.58),
-                    .init(color: .white.opacity(0.4), location: 0.66),
-                    .init(color: .white, location: 0.78),
-                    .init(color: .white, location: 0.88),
-                    .init(color: .white.opacity(0.36), location: 0.97),
-                    .init(color: .clear, location: 1)
-                ],
-                fadeStops: [
-                    .init(color: .white, location: 0),
-                    .init(color: .white, location: 0.5),
-                    .init(color: .white.opacity(0.86), location: 0.62),
-                    .init(color: .white.opacity(0.58), location: 0.76),
-                    .init(color: .white.opacity(0.3), location: 0.86),
-                    .init(color: .white.opacity(0.08), location: 0.95),
-                    .init(color: .clear, location: 1)
-                ],
-                revealProgress: revealProgress
-            )
-        } else {
-            immersiveHeroImageComposition(
-                loadedImage: loadedImage,
-                sharpStops: [
-                    .init(color: .white, location: 0),
-                    .init(color: .white, location: 0.46),
-                    .init(color: .white.opacity(0.5), location: 0.64),
-                    .init(color: .clear, location: 0.84)
-                ],
-                mediumBlurRadius: 18,
-                mediumStops: [
-                    .init(color: .clear, location: 0.35),
-                    .init(color: .white.opacity(0.4), location: 0.49),
-                    .init(color: .white, location: 0.7),
-                    .init(color: .white.opacity(0.55), location: 0.82),
-                    .init(color: .clear, location: 0.96)
-                ],
-                heavyBlurRadius: 42,
-                heavyStops: [
-                    .init(color: .clear, location: 0.64),
-                    .init(color: .white.opacity(0.5), location: 0.76),
-                    .init(color: .white, location: 0.88),
-                    .init(color: .white.opacity(0.45), location: 0.98),
-                    .init(color: .clear, location: 1)
-                ],
-                fadeStops: [
-                    .init(color: .white, location: 0),
-                    .init(color: .white, location: 0.46),
-                    .init(color: .white.opacity(0.86), location: 0.58),
-                    .init(color: .white.opacity(0.62), location: 0.7),
-                    .init(color: .white.opacity(0.34), location: 0.82),
-                    .init(color: .white.opacity(0.1), location: 0.91),
-                    .init(color: .clear, location: 0.97),
-                    .init(color: .clear, location: 1)
-                ],
-                revealProgress: revealProgress
-            )
+            return .常规(transitionStart: regularTransitionStart)
         }
+        return extendsThroughDescription ? .紧凑延伸 : .紧凑标准
     }
 
     @ViewBuilder
@@ -1698,169 +1622,9 @@ struct 视觉小说详情: View {
         .clipped()
     }
 
-    private func regularSharpStops(
-        transitionStart: CGFloat
-    ) -> [Gradient.Stop] {
-        [
-            .init(color: .white, location: 0),
-            .init(
-                color: .white,
-                location: max(transitionStart - 0.08, 0)
-            ),
-            .init(
-                color: .white.opacity(0.76),
-                location: transitionStart
-            ),
-            .init(
-                color: .white.opacity(0.34),
-                location: regularGradientLocation(
-                    after: transitionStart,
-                    progress: 0.17
-                )
-            ),
-            .init(
-                color: .clear,
-                location: regularGradientLocation(
-                    after: transitionStart,
-                    progress: 0.34
-                )
-            )
-        ]
-    }
-
-    private func regularMediumBlurStops(
-        transitionStart: CGFloat
-    ) -> [Gradient.Stop] {
-        [
-            .init(
-                color: .clear,
-                location: max(transitionStart - 0.09, 0)
-            ),
-            .init(
-                color: .white.opacity(0.42),
-                location: max(transitionStart - 0.03, 0)
-            ),
-            .init(
-                color: .white,
-                location: regularGradientLocation(
-                    after: transitionStart,
-                    progress: 0.24
-                )
-            ),
-            .init(
-                color: .white,
-                location: regularGradientLocation(
-                    after: transitionStart,
-                    progress: 0.61
-                )
-            ),
-            .init(
-                color: .white.opacity(0.42),
-                location: regularGradientLocation(
-                    after: transitionStart,
-                    progress: 0.85
-                )
-            ),
-            .init(color: .clear, location: 1)
-        ]
-    }
-
-    private func regularHeavyBlurStops(
-        transitionStart: CGFloat
-    ) -> [Gradient.Stop] {
-        [
-            .init(
-                color: .clear,
-                location: regularGradientLocation(
-                    after: transitionStart,
-                    progress: 0.1
-                )
-            ),
-            .init(
-                color: .white.opacity(0.42),
-                location: regularGradientLocation(
-                    after: transitionStart,
-                    progress: 0.27
-                )
-            ),
-            .init(
-                color: .white,
-                location: regularGradientLocation(
-                    after: transitionStart,
-                    progress: 0.51
-                )
-            ),
-            .init(
-                color: .white,
-                location: regularGradientLocation(
-                    after: transitionStart,
-                    progress: 0.76
-                )
-            ),
-            .init(
-                color: .white.opacity(0.34),
-                location: regularGradientLocation(
-                    after: transitionStart,
-                    progress: 0.92
-                )
-            ),
-            .init(color: .clear, location: 1)
-        ]
-    }
-
-    private func regularFadeStops(
-        transitionStart: CGFloat
-    ) -> [Gradient.Stop] {
-        [
-            .init(color: .white, location: 0),
-            .init(color: .white, location: transitionStart),
-            .init(
-                color: .white.opacity(0.86),
-                location: regularGradientLocation(
-                    after: transitionStart,
-                    progress: 0.24
-                )
-            ),
-            .init(
-                color: .white.opacity(0.6),
-                location: regularGradientLocation(
-                    after: transitionStart,
-                    progress: 0.51
-                )
-            ),
-            .init(
-                color: .white.opacity(0.32),
-                location: regularGradientLocation(
-                    after: transitionStart,
-                    progress: 0.7
-                )
-            ),
-            .init(
-                color: .white.opacity(0.08),
-                location: regularGradientLocation(
-                    after: transitionStart,
-                    progress: 0.9
-                )
-            ),
-            .init(color: .clear, location: 1)
-        ]
-    }
-
-    private func regularGradientLocation(
-        after transitionStart: CGFloat,
-        progress: CGFloat
-    ) -> CGFloat {
-        transitionStart + (1 - transitionStart) * progress
-    }
-
     private func immersiveHeroImageComposition(
         loadedImage: Image?,
-        sharpStops: [Gradient.Stop],
-        mediumBlurRadius: CGFloat,
-        mediumStops: [Gradient.Stop],
-        heavyBlurRadius: CGFloat,
-        heavyStops: [Gradient.Stop],
-        fadeStops: [Gradient.Stop],
+        gradient: 沉浸封面渐变方案,
         revealProgress: CGFloat
     ) -> some View {
         let revealProgress = min(max(revealProgress, 0), 1)
@@ -1873,7 +1637,7 @@ struct 视觉小说详情: View {
                 .mask {
                     ZStack {
                         LinearGradient(
-                            stops: sharpStops,
+                            stops: gradient.sharp.gradientStops,
                             startPoint: .top,
                             endPoint: .bottom
                         )
@@ -1885,10 +1649,10 @@ struct 视觉小说详情: View {
                 loadedImage: loadedImage,
                 revealProgress: revealProgress
             )
-                .blur(radius: mediumBlurRadius)
+                .blur(radius: gradient.mediumBlurRadius)
                 .mask {
                     LinearGradient(
-                        stops: mediumStops,
+                        stops: gradient.medium.gradientStops,
                         startPoint: .top,
                         endPoint: .bottom
                     )
@@ -1899,10 +1663,10 @@ struct 视觉小说详情: View {
                 loadedImage: loadedImage,
                 revealProgress: revealProgress
             )
-                .blur(radius: heavyBlurRadius)
+                .blur(radius: gradient.heavyBlurRadius)
                 .mask {
                     LinearGradient(
-                        stops: heavyStops,
+                        stops: gradient.heavy.gradientStops,
                         startPoint: .top,
                         endPoint: .bottom
                     )
@@ -1913,7 +1677,7 @@ struct 视觉小说详情: View {
         .mask {
             ZStack {
                 LinearGradient(
-                    stops: fadeStops,
+                    stops: gradient.fade.gradientStops,
                     startPoint: .top,
                     endPoint: .bottom
                 )
@@ -2154,15 +1918,24 @@ struct 视觉小说详情: View {
         revealsImmediately: Bool
     ) {
         let imageURLs = immersiveImageURLs(for: displayedDetail)
+        let descriptionExtension = immersiveHeroDescriptionExtension(
+            for: displayedDetail,
+            imageURLs: imageURLs
+        )
+        // 与 immersiveHero 中静止状态（无下拉）的过渡位置一致。
+        let layerHeight = max(geometry.imageSize.height, 1)
+        let heroHeight = layerHeight - 72 - descriptionExtension
         let request = 沉浸封面文字取样请求(
             url: url,
             layout: .visualNovel,
             background: colorScheme == .dark ? .dark : .light,
-            extendsThroughInformation:
-                immersiveHeroDescriptionExtension(
-                    for: displayedDetail,
-                    imageURLs: imageURLs
-                ) > 0,
+            gradient: descriptionExtension > 0
+                && horizontalSizeClass == .regular
+                ? .常规取样(
+                    transitionStart: (heroHeight + 24 - immersiveDescriptionOverlap)
+                        / layerHeight
+                )
+                : descriptionExtension > 0 ? .紧凑延伸 : .紧凑标准,
             itemCounts: [
                 "tags": displayedDetail.sortedTags.filter {
                     !shouldHideTag($0)
@@ -2252,7 +2025,9 @@ struct 视觉小说详情: View {
 
         let geometry = 沉浸封面文字取样几何(
             imageSize: CGSize(width: imageFrame.width, height: imageFrame.height),
-            regions: regions
+            regions: regions,
+            viewportSize: immersiveViewportSize,
+            contentOffsetY: horizontalSizeClass == .regular ? -60 : 0
         )
         guard immersiveTextSamplingCoordinator.latestGeometry != geometry else {
             return
@@ -2452,9 +2227,10 @@ struct 视觉小说详情: View {
                 .lineLimit(2)
             }
         }
+        // 按文字实际占的宽度取样，不含标题右侧的空白。
+        .视觉小说沉浸取样框(["metadata.title"])
         .frame(maxWidth: .infinity, alignment: .leading)
         .沉浸详情文字阴影(textStyle)
-        .视觉小说沉浸取样框(["metadata.title"])
     }
 
     private var immersiveLoadingMetadata: some View {
@@ -2600,9 +2376,9 @@ struct 视觉小说详情: View {
                     .allowsTightening(valueLineLimit == 1)
             }
         }
+        .视觉小说沉浸取样框(sampleKey.map { [$0] } ?? [])
         .frame(maxWidth: .infinity, alignment: .leading)
         .沉浸详情文字阴影(textStyle)
-        .视觉小说沉浸取样框(sampleKey.map { [$0] } ?? [])
     }
 
     private func immersiveInlineTags(
@@ -2662,6 +2438,7 @@ struct 视觉小说详情: View {
                 immersiveTagCapsule(
                     tag,
                     allTags: tags,
+                    sampleKey: "tags.item.\(index)",
                     textStyle: immersiveMetadataTextStyle(
                         for: "tags.item.\(index)"
                     )
@@ -2695,6 +2472,7 @@ struct 视觉小说详情: View {
     private func immersiveTagCapsule(
         _ tag: 视觉小说标签,
         allTags: [视觉小说标签],
+        sampleKey: String,
         textStyle: 沉浸详情文字样式
     ) -> some View {
         let blurred = shouldBlurTag(tag)
@@ -2717,6 +2495,7 @@ struct 视觉小说详情: View {
             .padding(.vertical, 7)
             .沉浸详情文字阴影(textStyle)
             .高透明提亮材质背景(in: Capsule())
+            .视觉小说沉浸取样框([sampleKey])
             .blur(radius: blurred ? 5 : 0)
             .contentShape(Capsule())
             .onTapGesture {
@@ -3866,7 +3645,7 @@ struct 视觉小说详情: View {
                         revealDescription = true
                     }
                 }
-            } else {
+            } else if isDescriptionTruncated {
                 showDescriptionSheet = true
             }
         }
@@ -4810,7 +4589,8 @@ struct 视觉小说详情: View {
     ) -> some View {
         简介预览文本视图(
             text: displayedDescription(original),
-            lineLimit: 7
+            lineLimit: 7,
+            onTruncationChange: { isDescriptionTruncated = $0 }
         )
             .font(.body)
             .foregroundStyle(foregroundColor)

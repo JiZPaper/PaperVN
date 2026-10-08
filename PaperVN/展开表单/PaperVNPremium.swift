@@ -301,6 +301,7 @@ struct PaperVNPremiumView: View {
 
     @State private var hasAppeared = false
     @State private var isShowingSuccess = false
+    @State private var 内容宽度: CGFloat = 0
 
     var body: some View {
         ScrollView {
@@ -324,7 +325,15 @@ struct PaperVNPremiumView: View {
         .task {
             await store.loadProductIfNeeded()
         }
-        .onAppear {
+        // 宽度稳定后再开始入场动画：作为弹窗（尤其是弹窗上的弹窗）出现时宽度会先变化，
+        // 立即动画会把文字重新排版也一起动画，文字会斜着飞进来
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { 新宽度 in
+            内容宽度 = 新宽度
+        }
+        .task(id: 内容宽度) {
+            guard 内容宽度 > 0 else { return }
+            try? await Task.sleep(for: .milliseconds(80))
+            guard !Task.isCancelled else { return }
             revealContent()
         }
         .alert(
