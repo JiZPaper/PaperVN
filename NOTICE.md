@@ -4,13 +4,13 @@ Copyright © 2026 Paper. All rights reserved except as stated below.
 
 ## License
 
-Unless otherwise noted, the source code and other original material in this repository are licensed under the [Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License](https://creativecommons.org/licenses/by-nc-sa/4.0/) (CC BY-NC-SA 4.0). The full license text is in [LICENSE](LICENSE).
+Unless otherwise noted, the source code and other original material in this repository are licensed under the [Creative Commons Attribution-ShareAlike 4.0 International License](https://creativecommons.org/licenses/by-sa/4.0/) (CC BY-SA 4.0). The full license text is in [LICENSE](LICENSE).
 
-When you share this material or adaptations of it, you must give appropriate credit to JiZPaper (简纸Paper), link to the license, indicate whether changes were made, use it only for non-commercial purposes, and distribute your contributions under the same license.
+When you share this material or adaptations of it, you must give appropriate credit to JiZPaper (简纸Paper), link to the license, indicate whether changes were made, and distribute your contributions under the same license.
 
 ## Not covered by the license
 
-The following are **not** licensed under CC BY-NC-SA 4.0 or any other license. No rights to them are granted:
+The following are **not** licensed under CC BY-SA 4.0 or any other license. No rights to them are granted:
 
 - **The PaperVN name.** “PaperVN” identifies the official app and its services. Adaptations you distribute must use a different name and must not suggest that they are the official app or are endorsed by JiZPaper. You may use the name only to state, accurately, that your work is based on PaperVN.
 - **The PaperVN icon and logo**, including all files in:
