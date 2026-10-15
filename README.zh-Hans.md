@@ -58,7 +58,7 @@ PaperVN 已为 VNDB 中 6,000 多个视觉小说标签与角色特征提供本�
 
 ## 协议与免责声明
 
-本项目采用[CC BY-NC-SA 4.0](LICENSE)许可协议。**PaperVN的名称和图标不在本许可协议范围内**。第三方代码、图像和数据适用其各自的条款。详见[NOTICE.md](NOTICE.md)。
+本项目采用[CC BY-SA 4.0](LICENSE)许可协议。**PaperVN的名称和图标不在本许可协议范围内**。第三方代码、图像和数据适用其各自的条款。详见[NOTICE.md](NOTICE.md)。
 
 PaperVN是非官方的第三方App，与VNDB、Bangumi番组计划、Steam和鲲Galgame均无关联，也未获得其认可。
 

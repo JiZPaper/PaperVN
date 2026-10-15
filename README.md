@@ -58,7 +58,7 @@ Requires an iPhone with iOS 26 or later, or an iPad with iPadOS 26 or later.
 
 ## License & Disclaimer
 
-This project is licensed under [CC BY-NC-SA 4.0](LICENSE). **The PaperVN name and icon are not covered by this license**. Third-party code, images, and data are subject to their own terms. See [NOTICE.md](NOTICE.md) for details.
+This project is licensed under [CC BY-SA 4.0](LICENSE). **The PaperVN name and icon are not covered by this license**. Third-party code, images, and data are subject to their own terms. See [NOTICE.md](NOTICE.md) for details.
 
 PaperVN is an unofficial third-party app. It is not affiliated with or endorsed by VNDB, Bangumi, Steam, or KunGalgame.
 
