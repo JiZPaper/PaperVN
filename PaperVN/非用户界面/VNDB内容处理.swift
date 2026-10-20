@@ -798,6 +798,60 @@ enum 列表行布局 {
     static let 元数据间距: CGFloat = 12
 }
 
+/// 列表行里的元数据（日期、评分、进度等）一项接一项排列，放不下时整项换到下一行，
+/// 不在一项中间断开：系统文字调到辅助功能的更大字体时，日期不会被拆成“2018-04-2”“7”两行。
+struct 元数据流式布局: Layout {
+    var 间距: CGFloat
+    var 行距: CGFloat = 2
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let 行们 = 排列(subviews, 宽度: proposal.width ?? .infinity)
+        let 宽 = 行们.map(\.宽).max() ?? 0
+        let 高 = 行们.map(\.高).reduce(0, +) + 行距 * CGFloat(max(行们.count - 1, 0))
+        return CGSize(width: proposal.width.map { min($0, 宽) } ?? 宽, height: 高)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var y = bounds.minY
+        for 行 in 排列(subviews, 宽度: bounds.width) {
+            var x = bounds.minX
+            for (下标, 尺寸) in 行.项 {
+                subviews[下标].place(
+                    at: CGPoint(x: x, y: y + (行.高 - 尺寸.height) / 2),
+                    proposal: ProposedViewSize(width: min(尺寸.width, bounds.width), height: 尺寸.height)
+                )
+                x += 尺寸.width + 间距
+            }
+            y += 行.高 + 行距
+        }
+    }
+
+    private struct 行 {
+        var 项: [(Int, CGSize)] = []
+        var 宽: CGFloat = 0
+        var 高: CGFloat = 0
+    }
+
+    private func 排列(_ subviews: Subviews, 宽度: CGFloat) -> [行] {
+        var 行们: [行] = []
+        var 当前 = 行()
+        for (下标, subview) in subviews.enumerated() {
+            let 尺寸 = subview.sizeThatFits(.unspecified)
+            guard 尺寸.width > 0 else { continue }
+            let 新宽 = 当前.项.isEmpty ? 尺寸.width : 当前.宽 + 间距 + 尺寸.width
+            if !当前.项.isEmpty, 新宽 > 宽度 {
+                行们.append(当前)
+                当前 = 行()
+            }
+            当前.宽 = 当前.项.isEmpty ? 尺寸.width : 当前.宽 + 间距 + 尺寸.width
+            当前.高 = max(当前.高, 尺寸.height)
+            当前.项.append((下标, 尺寸))
+        }
+        if !当前.项.isEmpty { 行们.append(当前) }
+        return 行们
+    }
+}
+
 enum 列表封面布局 {
     static let 宽度: CGFloat = 72
     static let 高度: CGFloat = 100
@@ -1789,66 +1843,32 @@ enum 简介翻译语言: String, CaseIterable, Identifiable {
 
     enum 强制内容安全策略 {
         static let 色情阈值 = 0.8
-        static let 最大色情阈值 = 2.0
+        /// VNDB图片色情评分高于此值视为露骨。即使在网站上开启了敏感内容，
+        /// 露骨图片也始终受限制，只能逐张点按显示。
+        static let 露骨阈值 = 1.3
+        static let 最大色情阈值 = 露骨阈值
 
-        static let 高级设置解锁键 = "contentSafetyAdvancedControlsUnlocked"
-        private static var 禁止解锁Token: String? { 内容安全私有配置.禁止解锁Token }
-        private static let 当前Token禁止键 = "contentSafetyUnlockBlockedForCurrentToken"
-
+        /// 敏感内容只能在PaperVN网站上开启，见`敏感内容网页设置`。
         static func 可使用高级设置(
-            token: String? = nil,
             defaults: UserDefaults = .standard
         ) -> Bool {
-            guard defaults.bool(forKey: 高级设置解锁键) else { return false }
-            if let token {
-                return token != 禁止解锁Token
-            }
-            return !defaults.bool(forKey: 当前Token禁止键)
+            敏感内容网页设置.已开启(defaults: defaults)
         }
 
         static var 当前色情阈值上限: Double {
             可使用高级设置() ? 最大色情阈值 : 色情阈值
         }
 
-        @discardableResult
-        static func 尝试解锁(
-            token: String,
-            defaults: UserDefaults = .standard
-        ) -> Bool {
-            guard token != 禁止解锁Token else {
-                应用到用户设置(defaults, token: token)
-                return false
-            }
-            defaults.set(true, forKey: 高级设置解锁键)
-            应用到用户设置(defaults, token: token)
-            return true
-        }
-
-        static func 同步当前Token(
-            _ token: String,
-            defaults: UserDefaults = .standard
-        ) {
-            let isBlocked = token == 禁止解锁Token
-            defaults.set(isBlocked, forKey: 当前Token禁止键)
-            if isBlocked {
-                应用到用户设置(defaults, token: token)
-            }
-        }
-
         static func 应用到用户设置(
             _ defaults: UserDefaults = .standard,
-            保留更严格阈值: Bool = true,
-            token: String? = nil
+            保留更严格阈值: Bool = true
         ) {
             if 紧急回避设置.会话正在进行(defaults: defaults) {
                 紧急回避设置.应用最严格限制(to: defaults)
                 return
             }
 
-            let allowsAdvancedSettings = 可使用高级设置(
-                token: token,
-                defaults: defaults
-            )
+            let allowsAdvancedSettings = 可使用高级设置(defaults: defaults)
             if !allowsAdvancedSettings,
                defaults.object(forKey: "contentFilterEnabled") as? Bool != true {
                 defaults.set(true, forKey: "contentFilterEnabled")
@@ -1874,25 +1894,6 @@ enum 简介翻译语言: String, CaseIterable, Identifiable {
             }) {
                 defaults.set(内容过滤模式.both.rawValue, forKey: "filterMode")
             }
-        }
-    }
-
-    enum 内容安全高级设置解锁入口 {
-        static var 角色ID: String? { 内容安全私有配置.解锁角色?.id }
-        static var 固定角色结果: 角色搜索结果? { 内容安全私有配置.解锁角色 }
-
-        static func 是触发搜索(_ query: String) -> Bool {
-            guard let 搜索词 = 内容安全私有配置.解锁搜索词,
-                  固定角色结果 != nil else { return false }
-            return query.trimmingCharacters(in: .whitespacesAndNewlines) == 搜索词
-        }
-
-        static func 合并固定结果(
-            _ results: [角色搜索结果],
-            query: String
-        ) -> [角色搜索结果] {
-            guard 是触发搜索(query), let 固定角色结果 else { return results }
-            return [固定角色结果] + results.filter { $0.id != 固定角色结果.id }
         }
     }
 
@@ -1932,6 +1933,8 @@ enum 简介翻译语言: String, CaseIterable, Identifiable {
             sexualThreshold: Double,
             mode: 内容过滤模式
         ) -> Bool {
+            // 露骨图片不受安全限制开关和限制范围影响。
+            if 是露骨图片(sexual) { return true }
             guard 色情内容需要限制(enabled: enabled, mode: mode) else {
                 return false
             }
@@ -1939,6 +1942,10 @@ enum 简介翻译语言: String, CaseIterable, Identifiable {
                 sexualThreshold,
                 强制内容安全策略.当前色情阈值上限
             )
+        }
+
+        static func 是露骨图片(_ sexual: Double?) -> Bool {
+            (sexual ?? 0) > 强制内容安全策略.露骨阈值
         }
 
         static func 图片允许手动解除模糊(
@@ -1993,23 +2000,16 @@ enum 简介翻译语言: String, CaseIterable, Identifiable {
             violenceThreshold: Double,
             mode: 内容过滤模式
         ) -> Bool {
-            let sexualRestricted = 色情图片需要限制(
+            if 色情图片需要限制(
                 sexual: sexual,
                 enabled: enabled,
                 sexualThreshold: sexualThreshold,
                 mode: mode
-            )
-            guard enabled else { return false }
-            let violenceValue = violence ?? 0
-
-            switch mode {
-            case .sexualOnly:
-                return sexualRestricted
-            case .violenceOnly:
-                return violenceValue > violenceThreshold
-            case .both:
-                return sexualRestricted || violenceValue > violenceThreshold
+            ) {
+                return true
             }
+            guard enabled, mode != .sexualOnly else { return false }
+            return (violence ?? 0) > violenceThreshold
         }
 
         static func 视觉小说需要限制(
@@ -2845,14 +2845,12 @@ struct 标题工具 {
         辅助功能粗体: Bool = false
     ) -> AttributedString {
         var attributed = AttributedString(文本)
-        let defaultWeight = 系统字体粗细 ?? (是粗体 ? .semibold : .regular)
         let textStyle = textStyle(for: 基础大小)
         let makeFont: (Font.Weight) -> Font = { weight in
             精确字号
                 ? .system(size: 基础大小, weight: weight)
                 : .system(textStyle, weight: weight)
         }
-        let defaultFont = makeFont(defaultWeight)
         let normalizedLanguageCode = normalizedLanguageCode(语言代码)
         let sharedHanName = 语言代码 == nil
             && 空格视为日语
@@ -2872,6 +2870,15 @@ struct 标题工具 {
         let usesJapaneseTypography = normalizedLanguageCode.map {
             $0 == "ja" || $0.hasPrefix("ja-")
         } ?? effectiveIsJapanese
+        // 中文（来源标明的，或没有标明语言、按名字判断为中文的）标题整段用 medium：
+        // 苹方 Semibold 比同一层级冬青黑体 W5 的日文重得多。调用方明确指定粗细时以调用方为准
+        let isChineseText = !usesJapaneseTypography && (
+            normalizedLanguageCode.map { $0 == "zh" || $0.hasPrefix("zh-") }
+                ?? (containsHan(文本) && !requiresJapaneseFont(文本))
+        )
+        let defaultWeight = 系统字体粗细
+            ?? (是粗体 ? (isChineseText ? .medium : .semibold) : .regular)
+        let defaultFont = makeFont(defaultWeight)
 
         attributed.font = defaultFont
 
@@ -3270,27 +3277,37 @@ struct 标题工具 {
     }
 }
 
+/// 列表里多语言文字的层级。字体规则：
+/// - 拉丁字母、数字用系统字体，粗细按层级：标题 semibold，副标题 regular；
+/// - 日文用冬青黑体（Hiragino Sans）W5（标题、副标题相同；详情页大标题另用 W6 配 bold，人名用 W4 配 regular）；
+/// - 中文用苹方并设中文字形，粗细同系统字体；标题是中文时（来源标明或按名字判断）整段用 medium（苹方 Semibold 比冬青黑体 W5 重得多），在 标题工具.生成富文本 里统一处理；
+/// - 作品名、人名不论放在哪里都按标题的层级显示，不能借用副标题的层级（副标题是 regular，标题放进去拉丁字母、中文会偏细）；
+/// - 字号用 @ScaledMetric 跟随系统的文字大小（含辅助功能的更大字体），开启“粗体文本”时冬青黑体和苹方也加粗一档。
 enum 多语言列表文字层级: Equatable {
     case 主标题
+    /// 卡片、分组里较小的一行作品名、人名（例如搜索结果里叠在下面的系列作品、角色）：字号同副标题，粗细同主标题。
+    case 下属标题
     case 副标题
 
     fileprivate var 基础大小: CGFloat {
         switch self {
         case .主标题: 16
-        case .副标题: 14
+        case .下属标题, .副标题: 14
         }
     }
 
     fileprivate var 相对文字样式: Font.TextStyle {
         switch self {
         case .主标题: .callout
-        case .副标题: .subheadline
+        case .下属标题, .副标题: .subheadline
         }
     }
 
     fileprivate var 是粗体: Bool {
         self != .副标题
     }
+
+    fileprivate var 日文字体名称: String { "HiraginoSans-W5" }
 }
 
 struct 多语言列表文本: View {
@@ -3309,7 +3326,7 @@ struct 多语言列表文本: View {
     init(
         _ title: 标题工具.标题结果,
         层级: 多语言列表文字层级,
-        日文字体名称: String = "HiraginoSans-W5",
+        日文字体名称: String? = nil,
         系统字体粗细: Font.Weight? = nil,
         语言来源已知: Bool = true
     ) {
@@ -3329,7 +3346,7 @@ struct 多语言列表文本: View {
         isJapanese: Bool,
         语言代码: String? = nil,
         层级: 多语言列表文字层级,
-        日文字体名称: String = "HiraginoSans-W5",
+        日文字体名称: String? = nil,
         系统字体粗细: Font.Weight? = nil,
         语言来源已知: Bool = true,
         空格视为日语: Bool = false
@@ -3338,7 +3355,8 @@ struct 多语言列表文本: View {
         self.isJapanese = isJapanese
         self.语言代码 = 语言代码
         self.层级 = 层级
-        self.日文字体名称 = 日文字体名称
+        self.日文字体名称 = 日文字体名称 ?? 层级.日文字体名称
+        // 中文标题用 medium 的规则在 标题工具.生成富文本 里统一处理（包括没有标明语言、按名字判断为中文的）
         self.系统字体粗细 = 系统字体粗细
         self.语言来源已知 = 语言来源已知
         self.空格视为日语 = 空格视为日语

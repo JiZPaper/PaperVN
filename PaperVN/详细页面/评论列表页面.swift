@@ -84,13 +84,8 @@ struct 评论卡片: View {
                 HStack(spacing: 6) {
                     Text(verbatim: 评论.source.title)
                     if let 时间 = 评论.timestamp {
-                        Text(
-                            Date(timeIntervalSince1970: TimeInterval(时间)),
-                            format: .relative(
-                                presentation: .numeric,
-                                unitsStyle: .wide
-                            )
-                        )
+                        Text(verbatim: Date(timeIntervalSince1970: TimeInterval(时间))
+                            .相对时间文本(presentation: .numeric))
                     } else if let dateText = 评论.dateText {
                         Text(verbatim: dateText)
                     }
@@ -275,7 +270,8 @@ struct 评论列表页面: View {
             }
             .pickerStyle(.inline)
         } label: {
-            Image(systemName: "ellipsis")
+            // 省略号留给系统溢出菜单，排序菜单使用独立符号
+            Image(systemName: "arrow.up.arrow.down")
         }
         .accessibilityLabel("排序")
     }

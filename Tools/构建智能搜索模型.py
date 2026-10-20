@@ -70,7 +70,10 @@ def 阶段别名(参数, 工作目录: Path):
 
 def 阶段模糊(参数, 工作目录: Path):
     导出 = Path(参数.dump) if 参数.dump else 下载导出(工作目录)
-    模糊.构建(导出, 工作目录 / "data", 工作目录, 仓库 / "Tools/智能搜索模型/评估查询-名称.json")
+    作品数据 = Path(参数.works_data) if 参数.works_data else None
+    模糊.构建(导出, 工作目录 / "data", 工作目录, 仓库 / "Tools/智能搜索模型/评估查询-名称.json",
+              作品数据目录=作品数据, 作品映射路径=仓库 / "PaperVN/Resources/PaperVNWorkMap.json",
+              额外别名=Path(参数.extra_aliases) if 参数.extra_aliases else None)
 
 
 def main():
@@ -78,6 +81,8 @@ def main():
     解析器.add_argument("stages", nargs="*", default=["prepare", "aliases", "fuzzy"])
     解析器.add_argument("--work-dir", default=str(仓库 / ".build/smart-search-model"))
     解析器.add_argument("--dump", help="已解压的 VNDB 数据库导出目录（包含 db/）")
+    解析器.add_argument("--extra-aliases", help="另外提供的别名文件（{\"结果\": {条目键: [别名, …]}}），不放在仓库里")
+    解析器.add_argument("--works-data", help="动画、漫画与轻小说的数据目录（和 Tools/构建作品映射.py 用的相同，见 智能搜索模型/作品.py）")
     解析器.add_argument("--translations", help="VNDB-Description-Translations 仓库目录")
     参数 = 解析器.parse_args()
     工作目录 = Path(参数.work_dir)

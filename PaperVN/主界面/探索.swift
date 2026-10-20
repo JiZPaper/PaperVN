@@ -781,7 +781,7 @@ private final class 探索作品资料库操作: ObservableObject {
                 资料库加入时间记录.record(userID: auth.userID, vnID: item.id)
                 itemsByID[item.id] = provisionalLibraryItem(for: item)
 
-                if UserDefaults.standard.bool(forKey: Bangumi账户.同步设置键),
+                if PaperVNSync中心.已启用,
                    bangumiAccount.isLoggedIn {
                     try await bangumiAccount.synchronize(
                         vndbID: item.id,
@@ -1667,7 +1667,9 @@ struct 探索发行版本详情: View {
     }
     @State private var revealHeroImage = false
     @State private var immersiveHeroGestureIsActive = false
+    @State private var immersiveHeroIsExpanded = false
     @State private var immersiveViewportSize: CGSize = .zero
+    @State private var immersiveDivisionFrame: CGRect?
     @State private var immersiveTextSamples: [String: 沉浸玻璃文字取样结果] = [:]
     @State private var immersiveTextSampleURL: URL?
     @State private var immersiveTextRevealURL: URL?
@@ -1707,6 +1709,9 @@ struct 探索发行版本详情: View {
                     onGestureActivityChanged: updateImmersiveHeroGestureActivity
                 ) { dragContext in
                     releaseHeroAndPrimaryInformation(dragContext)
+                        .onChange(of: dragContext.isExpanded) { _, isExpanded in
+                            updateImmersiveHeroExpansion(isExpanded)
+                        }
                 } content: {
                     releaseContent
                 }
@@ -1720,6 +1725,7 @@ struct 探索发行版本详情: View {
         } action: { size in
             immersiveViewportSize = size
         }
+        .沉浸详情折叠区域(读取到: $immersiveDivisionFrame)
         .coordinateSpace(name: "ReleaseImmersiveDetailScroll")
         .onPreferenceChange(
             探索发行版本沉浸取样框PreferenceKey.self
@@ -1951,7 +1957,7 @@ struct 探索发行版本详情: View {
 
         return VStack(alignment: .leading, spacing: 24) {
             releaseHero(dragContext)
-            releasePrimaryInformation
+            releasePrimaryInformationAvoidingFold
                 .padding(.top, -releaseInformationOverlap)
                 .padding(.bottom, cardOffset)
                 .compositingGroup()
@@ -2403,12 +2409,34 @@ struct 探索发行版本详情: View {
             imageSize: CGSize(width: imageFrame.width, height: imageFrame.height),
             regions: regions,
             viewportSize: immersiveViewportSize,
-            contentOffsetY: horizontalSizeClass == .regular ? -60 : 0
+            contentOffsetY: horizontalSizeClass == .regular ? -60 : 0,
+            封面已展开: immersiveHeroIsExpanded
         )
         guard immersiveTextSamplingCoordinator.latestGeometry != geometry else { return }
         immersiveTextSamplingCoordinator.remember(geometry)
         guard !immersiveHeroGestureIsActive, let url = currentImmersiveImageURL else { return }
         scheduleImmersiveTextSamples(for: url, geometry: geometry, revealsImmediately: true)
+    }
+
+    /// 下拉展开或收起封面时，信息卡片背后的背景整个换掉，需要按新的状态重新取样。
+    private func updateImmersiveHeroExpansion(_ isExpanded: Bool) {
+        guard immersiveHeroIsExpanded != isExpanded else { return }
+        immersiveHeroIsExpanded = isExpanded
+        guard var geometry = immersiveTextSamplingCoordinator.latestGeometry
+                ?? immersiveTextSampleGeometry else {
+            return
+        }
+        geometry.封面已展开 = isExpanded
+        immersiveTextSamplingCoordinator.remember(geometry)
+        guard !immersiveHeroGestureIsActive,
+              let url = currentImmersiveImageURL else {
+            return
+        }
+        scheduleImmersiveTextSamples(
+            for: url,
+            geometry: geometry,
+            revealsImmediately: true
+        )
     }
 
     private func updateImmersiveHeroGestureActivity(_ isActive: Bool) {
@@ -2427,6 +2455,18 @@ struct 探索发行版本详情: View {
         func snapped(_ value: CGFloat) -> CGFloat { (value * 2).rounded() / 2 }
         let result = CGRect(x: snapped(frame.minX), y: snapped(frame.minY), width: snapped(frame.width), height: snapped(frame.height))
         return 探索发行版本沉浸取样框有效(result) ? result : nil
+    }
+
+    /// iPhone Duo 横向半折叠时，信息卡移到折叠区域一侧，与视觉小说详情的单栏处理一致。
+    @ViewBuilder
+    private var releasePrimaryInformationAvoidingFold: some View {
+        if horizontalSizeClass == .regular {
+            沉浸详情等高双栏布局(divisionFrame: immersiveDivisionFrame) {
+                releasePrimaryInformation
+            }
+        } else {
+            releasePrimaryInformation
+        }
     }
 
     private var releasePrimaryInformation: some View {
@@ -3214,7 +3254,6 @@ struct Today语录栏目: View {
     let onSelectVisualNovel: (探索语录作品) -> Void
     var usesTodayContainerStyle = false
     var usesWideLayout = false
-    var usesEqualWidthColumns = false
 
     @AppStorage("staffNameLang")
     private var staffNameLang: 制作人员语言 = .romaji
@@ -3303,28 +3342,7 @@ struct Today语录栏目: View {
 
     private func quoteContent(_ quote: 探索语录) -> some View {
         Group {
-            if usesWideLayout, usesEqualWidthColumns, hasSources(quote) {
-                沉浸详情等高双栏布局(spacing: 20) {
-                    quoteText(quote)
-                        .padding(.vertical, 16)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .clipped()
-
-                    quoteSources(quote)
-                        .padding(.vertical, 16)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .clipped()
-                }
-                .overlay {
-                    HStack(spacing: 0) {
-                        Spacer(minLength: 0)
-                        Divider()
-                        Spacer(minLength: 0)
-                    }
-                    .allowsHitTesting(false)
-                }
-                .padding(.horizontal, 18)
-            } else if usesWideLayout {
+            if usesWideLayout {
                 HStack(alignment: .top, spacing: 18) {
                     quoteText(quote)
                         .padding(.vertical, 16)

@@ -5,11 +5,14 @@ nonisolated enum 智能搜索条目类型: Sendable, Hashable {
     case 角色
     case 会社
     case 制作人员
+    case 动画
+    case 漫画
+    case 轻小说
 }
 
 nonisolated struct 智能搜索命中: Sendable, Hashable {
     let 类型: 智能搜索条目类型
-    /// VNDB 编号，如 "v2002"、"c6487"、"p98"、"s216"。
+    /// VNDB 编号，如 "v2002"、"c6487"、"p98"、"s216"；动画、漫画、轻小说是“a”“m”“n”加 MAL ID，如 "a10495"。
     let 编号: String
     let 概率: Float
     /// 查询和这个条目的某个名字（标题、别名、梗、角色名）明显对得上。
@@ -46,6 +49,9 @@ actor 智能搜索引擎 {
         var 作品数: Int { 文件.头.visualNovelCount }
         var 角色数: Int { 文件.头.characterCount }
         var 会社数: Int { 文件.头.producerCount }
+        var 制作人员数: Int { 文件.头.staffCount }
+        var 动画数: Int { 文件.头.animeCount ?? 0 }
+        var 漫画数: Int { 文件.头.mangaCount ?? 0 }
 
         init(文件: 智能搜索模型文件) throws {
             self.文件 = 文件
@@ -57,6 +63,7 @@ actor 智能搜索引擎 {
             所属作品 = try 文件.数组段("docs/parents", 类型: UInt32.self)
             let 头 = 文件.头
             let 数量 = 头.visualNovelCount + 头.characterCount + 头.producerCount + 头.staffCount
+                + (头.animeCount ?? 0) + (头.mangaCount ?? 0) + (头.lightNovelCount ?? 0)
             guard 编号.count == 数量,
                   先验.count == 数量,
                   系列.count == 头.visualNovelCount,
@@ -69,7 +76,13 @@ actor 智能搜索引擎 {
             if 文档 < 作品数 { return .视觉小说 }
             if 文档 < 作品数 + 角色数 { return .角色 }
             if 文档 < 作品数 + 角色数 + 会社数 { return .会社 }
-            return .制作人员
+            var 起点 = 作品数 + 角色数 + 会社数 + 制作人员数
+            if 文档 < 起点 { return .制作人员 }
+            起点 += 动画数
+            if 文档 < 起点 { return .动画 }
+            起点 += 漫画数
+            if 文档 < 起点 { return .漫画 }
+            return .轻小说
         }
     }
 
@@ -187,6 +200,12 @@ actor 智能搜索引擎 {
                 前缀 = "p"
             case .制作人员:
                 前缀 = "s"
+            case .动画:
+                前缀 = "a"
+            case .漫画:
+                前缀 = "m"
+            case .轻小说:
+                前缀 = "n"
             }
             return 智能搜索命中(
                 类型: 类型,
@@ -202,7 +221,7 @@ actor 智能搜索引擎 {
 
     private static func 类型权重(_ 类型: 智能搜索条目类型) -> Float {
         switch 类型 {
-        case .视觉小说, .角色: return 1
+        case .视觉小说, .角色, .动画, .漫画, .轻小说: return 1
         case .会社, .制作人员: return 0.3
         }
     }

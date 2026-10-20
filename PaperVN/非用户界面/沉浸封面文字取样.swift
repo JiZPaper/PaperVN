@@ -198,6 +198,9 @@ nonisolated struct 沉浸封面文字取样几何: Sendable, Equatable {
     var viewportSize: CGSize?
     /// 封面内容相对图层的竖直偏移（常规宽度下封面整体上移 60pt）。
     var contentOffsetY: CGFloat = 0
+    /// 下拉展开了完整封面。这时封面缩成页面中间的圆角图，信息卡片下方只有全屏模糊底图，
+    /// 合成时不叠封面三层，否则会按收起时的封面位置判断，标题配错颜色。
+    var 封面已展开 = false
 }
 
 nonisolated struct 沉浸封面文字取样请求: Sendable, Equatable {
@@ -733,6 +736,7 @@ nonisolated struct 沉浸封面合成模型: Sendable {
         let imageSize: CGSize
         let viewportSize: CGSize?
         let contentOffsetY: CGFloat
+        let 封面已展开: Bool
 
         init(_ request: 沉浸封面文字取样请求) {
             url = request.url
@@ -741,6 +745,7 @@ nonisolated struct 沉浸封面合成模型: Sendable {
             imageSize = request.geometry.imageSize
             viewportSize = request.geometry.viewportSize
             contentOffsetY = request.geometry.contentOffsetY
+            封面已展开 = request.geometry.封面已展开
         }
     }
 
@@ -754,6 +759,7 @@ nonisolated struct 沉浸封面合成模型: Sendable {
     let background: 沉浸详情背景色调
     let gradient: 沉浸封面渐变方案
     let imageSize: CGSize
+    private let 封面已展开: Bool
     private let sharp: 沉浸取样栅格
     private let medium: 沉浸取样栅格
     private let heavy: 沉浸取样栅格
@@ -773,6 +779,7 @@ nonisolated struct 沉浸封面合成模型: Sendable {
         self.background = background
         self.gradient = gradient
         self.imageSize = imageSize
+        封面已展开 = geometry.封面已展开
 
         let sourceAspect = CGFloat(map.width) / CGFloat(map.height)
         let contentOffsetY = geometry.contentOffsetY
@@ -880,6 +887,9 @@ nonisolated struct 沉浸封面合成模型: Sendable {
     }
 
     private func masks(atY y: CGFloat) -> 行遮罩 {
+        if 封面已展开 {
+            return 行遮罩(sharp: 0, medium: 0, heavy: 0, fade: 0)
+        }
         let location = y / imageSize.height
         return 行遮罩(
             sharp: Float(gradient.sharp.不透明度(at: location)),

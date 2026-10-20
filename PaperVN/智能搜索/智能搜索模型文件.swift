@@ -144,7 +144,8 @@ nonisolated final class 只读映射文件: @unchecked Sendable {
 /// "PVSS" | 格式版本 UInt32 | 头长度 UInt32 | 头 JSON | 各段数据（16 字节对齐，小端序）。
 nonisolated struct 智能搜索模型文件: @unchecked Sendable {
     /// 2：纯名称模糊匹配（名称索引 + 排序器），不再包含查询编码器。
-    static let 支持的格式版本: UInt32 = 2
+    /// 3：加入动画、漫画、轻小说条目（排在制作人员之后，编号是 MAL ID）。
+    static let 支持的格式版本: ClosedRange<UInt32> = 2...3
 
     nonisolated struct 段: Decodable, Sendable {
         let offset: Int
@@ -158,6 +159,10 @@ nonisolated struct 智能搜索模型文件: @unchecked Sendable {
         let characterCount: Int
         let producerCount: Int
         let staffCount: Int
+        /// 格式 2 的文件没有这三项。
+        let animeCount: Int?
+        let mangaCount: Int?
+        let lightNovelCount: Int?
         let nameCount: Int
         let gramCount: Int
         let maxIDF: Double
@@ -193,7 +198,7 @@ nonisolated struct 智能搜索模型文件: @unchecked Sendable {
     static func 读取头(_ 数据: Data) throws -> 头信息 {
         let 版本 = try 读取格式版本(数据)
         let 头长度 = Int(数据.读取UInt32小端(偏移: 8))
-        guard 版本 == 支持的格式版本, 数据.count >= 12 + 头长度 else {
+        guard 支持的格式版本.contains(版本), 数据.count >= 12 + 头长度 else {
             throw 智能搜索模型错误.文件无效
         }
         let 起点 = 数据.startIndex + 12

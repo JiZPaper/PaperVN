@@ -190,13 +190,18 @@ struct 更多标签页面: View {
                                 .controlSize(.small)
                                 .frame(width: 16, height: 16)
                         } else {
-                            Image(systemName: "translate")
-                                .font(.subheadline.weight(.medium))
-                                .frame(width: 16, height: 16)
+                            Label(
+                                showTranslatedText
+                                    ? "显示未人工翻译标签的原文"
+                                    : "自动翻译没有人工译文的标签",
+                                systemImage: "translate"
+                            )
+                            .font(.subheadline.weight(.medium))
+                            .frame(width: 16, height: 16)
                         }
                     }
                     .disabled(isSwitchingTranslation)
-                    .foregroundStyle(showTranslatedText ? .blue : .secondary)
+                    .foregroundStyle(showTranslatedText ? Color.blue : .secondary)
                     .accessibilityLabel(
                         showTranslatedText
                             ? "显示未人工翻译标签的原文"
@@ -489,19 +494,19 @@ struct 更多特征页面: View {
                     Button {
                         toggleTranslation()
                     } label: {
-                        Image(systemName: "translate")
-                            .font(.subheadline.weight(.medium))
-                            .frame(width: 16, height: 16)
+                        Label(
+                            showTranslatedTraits
+                                ? "显示特征原文"
+                                : "显示特征译文",
+                            systemImage: "translate"
+                        )
+                        .font(.subheadline.weight(.medium))
+                        .frame(width: 16, height: 16)
                     }
                     .foregroundStyle(
-                        showTranslatedTraits ? .blue : .secondary
+                        showTranslatedTraits ? Color.blue : .secondary
                     )
                     .disabled(isSwitchingTranslation)
-                    .accessibilityLabel(
-                        showTranslatedTraits
-                            ? "显示特征原文"
-                            : "显示特征译文"
-                    )
                 }
             }
         }

@@ -18,6 +18,7 @@ import bisect
 import collections
 import hashlib
 import json
+import re
 import math
 import random
 import struct
@@ -28,11 +29,12 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from . import 别名, 名称
+from . import 作品 as 作品条目, 别名, 名称
 
-格式版本 = 2
+格式版本 = 3
 文件名 = "PaperVNSmartSearch.pvss"
-类型顺序 = ["v", "c", "p", "s"]
+# 视觉小说、角色、会社、制作人员，以及动画、漫画、轻小说（编号是 MAL ID）
+类型顺序 = ["v", "c", "p", "s", "a", "m", "n"]
 
 名称候选数 = 80
 覆盖候选数 = 40
@@ -54,8 +56,88 @@ def _读表(目录: Path, 表名: str):
 
 # MARK: - 文档
 
-def 构建文档(导出目录: Path, 数据目录: Path) -> list[dict]:
-    """返回按 作品、角色、会社、制作人员 排好的文档：key、kind、names、prior、display、series、parent。"""
+_名字空间 = {"User", "Talk", "Wikipedia", "Template", "Category", "Help", "Portal", "Draft", "File", "用户", "討論", "讨论", "利用者", "ノート", "Project"}
+_列表页 = re.compile(r"^List of|episodes|characters|一覧|一览|列表|登場人物|登场人物|角色列表|の登場|のエピソード", re.I)
+_括注 = re.compile(r"\s*[（(][^）)]*[）)]\s*$")
+
+
+def 补充网络别名(文档: list[dict], 数据目录: Path, 额外别名: Path | None):
+    """网络上的叫法和梗，加进名称并当作别名训练：
+    - Wikipedia（中、日、英）里重定向到作品条目的名称（wikipedia-redirects.json，按 Wikidata 的 MAL/VNDB ID 归到作品）；
+    - 手工整理的社区叫法（社区叫法.json，按名称指定作品或角色）；
+    - 另外提供的别名文件（用 --extra-aliases 指定，不放在仓库里）。
+    已经是别的条目名字的不加（重定向常把角色名指向作品条目），单个字的不加。"""
+    按键 = {d["key"]: d for d in 文档}
+    名字归属 = collections.defaultdict(set)
+    for d in 文档:
+        for n in d["names"]:
+            名字归属[名称.规范化(n)].add(d["key"])
+
+    def 加(键: str, 名: str, 来源计数: collections.Counter, 来源: str):
+        d = 按键.get(键)
+        if d is None:
+            return
+        if 来源 != "社区叫法" and (_括注.search(名) or ":" in 名 and 名.split(":")[0] in _名字空间 or "/" in 名):
+            # 带消歧义括注的重定向（“Attack (anime)”）去掉括注后多半是普通词；User:、Talk: 等不是作品名
+            return
+        名 = _括注.sub("", 名).strip()
+        规范 = 名称.规范化(名)
+        if len(规范) < 2 or len(名) > 40:
+            return
+        if 来源 != "社区叫法" and _列表页.search(名):
+            return
+        if 名字归属.get(规范, set()) - {键}:
+            # 网上抓来的名称已经是别的条目的名字时不加（重定向常把续作、角色指向系列条目）
+            # 手工整理的叫法逐条核对过，和别的条目同名也照加（排序器按热度区分）
+            if 来源 != "社区叫法":
+                return
+        if 规范 in {名称.规范化(n) for n in d["names"]}:
+            d.setdefault("aliases", [])
+            if 名 not in d["aliases"]:
+                d["aliases"].append(名)
+            return
+        d["names"].append(名)
+        d.setdefault("aliases", []).append(名)
+        名字归属[规范].add(键)
+        来源计数[来源] += 1
+
+    计数: collections.Counter = collections.Counter()
+    路径 = 数据目录 / "wikipedia-redirects.json"
+    if 路径.exists():
+        for 键, 名列表 in json.loads(路径.read_text(encoding="utf-8")).items():
+            # Wikidata 的 MAL 漫画编号也包括轻小说
+            目标 = [键] if 键 in 按键 else ([f"n{键[1:]}"] if 键[0] == "m" else [])
+            for k in 目标:
+                for 名 in 名列表:
+                    加(k, 名, 计数, "Wikipedia")
+    if 额外别名 and 额外别名.exists():
+        for 键, 名列表 in json.loads(额外别名.read_text(encoding="utf-8"))["结果"].items():
+            for 名 in 名列表:
+                加(键, 名, 计数, "额外别名")
+    社区 = json.loads((Path(__file__).with_name("社区叫法.json")).read_text(encoding="utf-8"))
+    对不上 = []
+    for 项 in 社区["作品"]:
+        目标 = [k for k in 名字归属.get(名称.规范化(项["名称"]), set()) if k[0] in "vamn"]
+        if not 目标:
+            对不上.append(项["名称"])
+        for k in 目标:
+            for 名 in 项["叫法"]:
+                加(k, 名, 计数, "社区叫法")
+    for 项 in 社区["角色"]:
+        目标 = [k for k in 名字归属.get(名称.规范化(项["名称"]), set()) if k[0] == "c"]
+        if not 目标 and 项.get("所属作品"):
+            目标 = [k for k in 名字归属.get(名称.规范化(项["所属作品"]), set()) if k[0] in "amn"]
+        if not 目标:
+            对不上.append(项["名称"])
+        for k in 目标:
+            for 名 in 项["叫法"]:
+                加(k, 名, 计数, "社区叫法")
+    print(f"网络别名：{dict(计数)}；社区叫法里对不上的名称 {len(对不上)}：{对不上[:40]}")
+
+
+def 构建文档(导出目录: Path, 数据目录: Path, 作品数据目录: Path | None = None, 作品映射路径: Path | None = None,
+            额外别名: Path | None = None) -> list[dict]:
+    """返回按 作品、角色、会社、制作人员、动画、漫画、轻小说 排好的文档：key、kind、names、prior、display、series、parent。"""
     db = 导出目录 / "db"
     语料 = 别名.合并别名([json.loads(行) for 行 in open(数据目录 / "corpus.jsonl", encoding="utf-8")], 数据目录)
     作品 = [d for d in 语料 if d["kind"] == "v"]
@@ -182,8 +264,34 @@ def 构建文档(导出目录: Path, 数据目录: Path) -> list[dict]:
     for d in 会社 + 人员:
         d["names"] = list(dict.fromkeys(d["names"] + 社区.get(d["key"], [])))
 
-    文档 = 作品 + 角色 + 会社 + 人员
-    print(f"作品 {len(作品)}（{len(set(系列.values()))} 个系列），角色 {len(角色)}，会社 {len(会社)}，制作人员 {len(人员)}")
+    动画漫画 = 作品条目.构建文档(作品数据目录, 作品映射路径) if 作品数据目录 else []
+    # 同名改编：视觉小说在 Bangumi、社区别名里的简称和梗（“SP”“白学”）也是同名动画、漫画、轻小说的叫法
+    if 动画漫画 and (数据目录 / "aliases.json").exists():
+        补充别名 = json.loads((数据目录 / "aliases.json").read_text(encoding="utf-8"))
+        原名到作品 = collections.defaultdict(set)
+        for d in 作品:
+            别名集 = {名称.规范化(n) for n in 补充别名.get(d["key"], [])}
+            for n in d["names"]:
+                规范 = 名称.规范化(n)
+                if len(规范) >= 4 and 规范 not in 别名集:
+                    原名到作品[规范].add(d["key"])
+        传递 = 0
+        for d in 动画漫画:
+            来源 = set().union(*(原名到作品.get(名称.规范化(n), set()) for n in d["names"]))
+            # 只在同名的视觉小说唯一时传递，避免一个名字对着好几部作品时把别名传错
+            if len(来源) != 1:
+                continue
+            新别名 = [n for n in 补充别名.get(next(iter(来源)), []) if n not in d["names"]]
+            d["names"] += 新别名
+            d["aliases"] = d.get("aliases", []) + 新别名
+            传递 += len(新别名)
+        print(f"同名视觉小说传给动画漫画轻小说的别名 {传递}")
+    for d in 动画漫画:
+        d["names"] = list(dict.fromkeys(d["names"] + 社区.get(d["key"], [])))
+    if 作品数据目录:
+        补充网络别名(作品 + 角色 + 动画漫画, 作品数据目录, 额外别名)
+    文档 = 作品 + 角色 + 会社 + 人员 + 动画漫画
+    print(f"作品 {len(作品)}（{len(set(系列.values()))} 个系列），角色 {len(角色)}，会社 {len(会社)}，制作人员 {len(人员)}，动画漫画轻小说 {len(动画漫画)}")
     return 文档
 
 
@@ -239,6 +347,10 @@ def 生成查询(文档: list[dict], 数据目录: Path, 种子: int, 每文档�
     随机 = random.Random(种子)
     别名表 = json.loads((数据目录 / "aliases.json").read_text(encoding="utf-8")) if (数据目录 / "aliases.json").exists() else {}
     别名规范 = {k: {名称.规范化(n) for n in v} for k, v in 别名表.items()}
+    # 动画、漫画、轻小说的别名（Bangumi 标签、同名视觉小说传来的）带在文档里
+    for d in 文档:
+        if d.get("aliases"):
+            别名规范.setdefault(d["key"], set()).update(名称.规范化(n) for n in d["aliases"])
 
     def 评估文档(键: str) -> bool:
         return int(hashlib.md5(键.encode()).hexdigest()[:8], 16) % 100 < 3
@@ -584,6 +696,9 @@ def 打包(路径: Path, 文档: list[dict], 计算: 特征计算, 排序器数�
         "characterCount": 数量["c"],
         "producerCount": 数量["p"],
         "staffCount": 数量["s"],
+        "animeCount": 数量["a"],
+        "mangaCount": 数量["m"],
+        "lightNovelCount": 数量["n"],
         "nameCount": len(索引.名称),
         "gramCount": int(len(索引.键)),
         "maxIDF": 索引.最大idf,
@@ -620,8 +735,9 @@ def 打包(路径: Path, 文档: list[dict], 计算: 特征计算, 排序器数�
 
 # MARK: - 入口
 
-def 构建(导出目录: Path, 数据目录: Path, 工作目录: Path, 人工评估路径: Path, 种子: int = 20261008):
-    文档 = 构建文档(导出目录, 数据目录)
+def 构建(导出目录: Path, 数据目录: Path, 工作目录: Path, 人工评估路径: Path, 种子: int = 20261008,
+         作品数据目录: Path | None = None, 作品映射路径: Path | None = None, 额外别名: Path | None = None):
+    文档 = 构建文档(导出目录, 数据目录, 作品数据目录, 作品映射路径, 额外别名)
     计算 = 特征计算(文档)
     查找 = 名称查找(文档)
     print(f"名称 {len(计算.索引.名称)}，片段 {len(计算.索引.键)}", flush=True)

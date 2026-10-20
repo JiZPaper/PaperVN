@@ -8,8 +8,25 @@
 	</array>
 	<key>BangumiOAuthClientID</key>
 	<string>$(BANGUMI_OAUTH_CLIENT_ID)</string>
-	<key>BangumiOAuthClientSecret</key>
-	<string>$(BANGUMI_OAUTH_CLIENT_SECRET)</string>
+	<key>MALClientID</key>
+	<string>$(MAL_CLIENT_ID)</string>
+	<key>AniListClientID</key>
+	<string>$(ANILIST_CLIENT_ID)</string>
+	<key>AnnictClientID</key>
+	<string>$(ANNICT_CLIENT_ID)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>CFBundleURLName</key>
+			<string>com.jizpaper.PaperVN</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>papervn</string>
+			</array>
+		</dict>
+	</array>
 	<key>KUNOAuthClientID</key>
 	<string>f80456b95e7a5aa2ccfbadad6d727981</string>
 	<key>UIBackgroundModes</key>

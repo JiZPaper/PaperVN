@@ -146,8 +146,10 @@ final class 视觉小说外部ID目录: @unchecked Sendable {
         let normalizedID = vndbID
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
-        return values[normalizedID]
-            ?? 视觉小说外部ID(bangumiIDs: [], steamIDs: [])
+        if let value = values[normalizedID] { return value }
+        // 对应文件里没有的作品，用作品映射里从 Wikidata 补充的 Bangumi 条目
+        let extra = 作品映射.视觉小说补充Bangumi条目(normalizedID).map { [$0] } ?? []
+        return 视觉小说外部ID(bangumiIDs: extra, steamIDs: [])
     }
 }
 
@@ -516,8 +518,16 @@ final class 视觉小说外部数据服务: ObservableObject {
         return result
     }
 
+    /// 读取任意 Bangumi 条目的吐槽（动画、漫画、轻小说详情页用）。
+    func bangumiComments(subjectID: Int) async throws -> [视觉小说评论] {
+        try await bangumiComments(ids: [subjectID])
+    }
+
     private func bangumiComments(vndbID: String) async throws -> [视觉小说评论] {
-        let ids = 视觉小说外部ID目录.shared.ids(for: vndbID).bangumiIDs
+        try await bangumiComments(ids: 视觉小说外部ID目录.shared.ids(for: vndbID).bangumiIDs)
+    }
+
+    private func bangumiComments(ids: [Int]) async throws -> [视觉小说评论] {
         guard !ids.isEmpty else { return [] }
         let 访问令牌 = await Bangumi账户.有效访问令牌()
         let requests = ids.compactMap { id -> 评论请求? in

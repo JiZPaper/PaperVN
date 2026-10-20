@@ -1,4 +1,10 @@
 BANGUMI_OAUTH_CLIENT_ID = bgm69526a888c61b4902
-BANGUMI_OAUTH_CLIENT_SECRET =
+// Bangumi 的 client secret 只放在 PaperVN Sync 服务器上（/etc/papervn/sync.env），不要再写进 App
+// MyAnimeList 注册为 iOS 类型，没有 client secret；在 PaperVN.private.xcconfig 里填 MAL_CLIENT_ID
+MAL_CLIENT_ID =
+// AniList 用隐式授权，只需要 Client ID（Redirect URL 填 papervn://oauth/anilist）
+ANILIST_CLIENT_ID = 54303
+// Annict 的 client secret 只放在 PaperVN Sync 服务器上（Redirect URI 填 papervn://oauth/annict）
+ANNICT_CLIENT_ID = 0_UwplSV_ZSL1fALvA5TT0gzmBBb-_Ht145XUbqUgSo
 
 #include? "PaperVN.private.xcconfig"

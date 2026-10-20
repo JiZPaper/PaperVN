@@ -255,6 +255,7 @@ private struct TabBarPreviewHost: View {
             .environmentObject(用户登录(previewing: true))
             .environmentObject(鲲Galgame账户(previewing: true))
             .environmentObject(Bangumi账户(previewing: true))
+            .environmentObject(MyAnimeList账户(previewing: true))
             .environmentObject(家长控制中心.shared)
             .environmentObject(PaperVNURLRouter())
     }

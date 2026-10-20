@@ -187,8 +187,34 @@ nonisolated enum PaperVNConnect网络设置 {
         上游映射(
             直连基础地址: "https://store.steampowered.com",
             转发基础地址: "\(connect基础地址)/steam"
+        ),
+        上游映射(
+            直连基础地址: "https://api.themoviedb.org",
+            转发基础地址: "\(connect基础地址)/tmdb"
         )
     ]
+
+    /// 转发连续出错后暂停使用一段时间（5 分钟），期间请求直接走直连。
+    private enum 转发暂停 {
+        private static let 锁 = NSLock()
+        nonisolated(unsafe) private static var 失败次数 = 0
+        nonisolated(unsafe) private static var 暂停到: Date?
+
+        static var 暂停中: Bool {
+            锁.lock(); defer { 锁.unlock() }
+            guard let until = 暂停到 else { return false }
+            if until > Date() { return true }
+            暂停到 = nil
+            失败次数 = 0
+            return false
+        }
+
+        static func 记录失败() {
+            锁.lock(); defer { 锁.unlock() }
+            失败次数 += 1
+            if 失败次数 >= 2 { 暂停到 = Date().addingTimeInterval(5 * 60) }
+        }
+    }
 
     static func 请求应回退(statusCode: Int) -> Bool {
         statusCode == 403
@@ -309,6 +335,9 @@ nonisolated enum PaperVNConnect网络设置 {
                 return (data, httpResponse)
             } catch {
                 guard index < candidates.count - 1 else { throw error }
+                // 转发在网络层出错（TLS 握手失败、超时等）：之后一段时间直接走直连，
+                // 不然每个请求都要先等转发超时，同步会非常慢
+                if error is URLError { 转发暂停.记录失败() }
                 lastError = error
             }
         }
@@ -324,6 +353,7 @@ nonisolated enum PaperVNConnect网络设置 {
             throw URLError(.badURL)
         }
         guard 自动转发已启用,
+              !转发暂停.暂停中,
               let mapping = 上游映射表.first(where: {
                   地址(url.absoluteString, belongsTo: $0.直连基础地址)
               }) else {
@@ -742,7 +772,7 @@ final class VNDB服务: ObservableObject, VNDB搜索服务协议 {
     private let baseURL: String
     private let session: URLSession
     private let userListFields = """
-    id,vote,started,finished,notes,labels{id,label},\
+    id,lastmod,vote,started,finished,notes,labels{id,label},\
     releases{list_status,id,title,alttitle,released,languages{lang,title,latin,mtl,main},platforms},\
     vn{title,titles{lang,title,latin,official,main},image{url,thumbnail,dims,sexual,violence},rating,votecount,released}
     """
@@ -3345,7 +3375,7 @@ final class VNDB服务: ObservableObject, VNDB搜索服务协议 {
         page: Int
     ) -> String {
         let direction = isDescending ? "descending" : "ascending"
-        return "user_list_\(userID)_\(filter.rawValue)_\(sort.rawValue)_\(direction)_\(page)"
+        return "user_list_v2_\(userID)_\(filter.rawValue)_\(sort.rawValue)_\(direction)_\(page)"
     }
 
     private func userItemCacheKey(
@@ -4211,74 +4241,108 @@ final class VNDB探索服务: VNDB探索服务协议 {
                 throw VNDB探索服务错误.推荐请求预算不足
             }
             reportProgress(38)
-            let libraryCharacters: [探索角色]
-            let characterSnapshotKey =
-                "recommendation_library_characters_v3_\(userID)"
-            let savedCharacters: 推荐资料库角色快照 = loadCache(
-                key: characterSnapshotKey
-            )?.value ?? 推荐资料库角色快照(
-                coveredVisualNovelIDs: [],
-                characters: []
-            )
-            var charactersByID = Dictionary(
-                savedCharacters.characters.map { ($0.id, $0) },
-                uniquingKeysWith: { _, latest in latest }
-            )
-            var coveredVisualNovelIDs = savedCharacters.coveredVisualNovelIDs
-            let modelMissingVisualNovelIDs = await VNDB离线推荐计算中心.shared
-                .需要下载角色的作品ID(libraryIDs)
-            let missingVisualNovelIDs = modelMissingVisualNovelIDs
-                .subtracting(coveredVisualNovelIDs)
-            if !missingVisualNovelIDs.isEmpty {
-                let downloadedCharacters = try await recommendationCharacters(
-                    visualNovelIDs: Array(missingVisualNovelIDs),
-                    budget: budget
-                )
-                for character in downloadedCharacters {
-                    charactersByID[character.id] = character
-                }
-                coveredVisualNovelIDs.formUnion(missingVisualNovelIDs)
-            }
-            let updatedSnapshot = 推荐资料库角色快照(
-                coveredVisualNovelIDs: coveredVisualNovelIDs,
-                characters: Array(charactersByID.values)
-            )
-            saveCache(updatedSnapshot, key: characterSnapshotKey)
-            libraryCharacters = charactersByID.values.filter { character in
-                (character.visualNovels ?? []).contains {
-                    libraryIDs.contains($0.id)
+            // 计算失败（多半是内存不足）时释放模型、稍等后重试，而不是一直占着内存直到被系统终止。
+            let retryDelays: [Duration] = [.seconds(5), .seconds(20), .seconds(60)]
+            var attempt = 0
+            while true {
+                do {
+                    let result = try await 计算离线推荐(
+                        library: library,
+                        userID: userID,
+                        excluded: excluded,
+                        limit: limit,
+                        budget: budget,
+                        reportProgress: reportProgress
+                    )
+                    await VNDB离线推荐计算中心.shared.结束计算()
+                    saveCache(result.recommendations, key: recommendationKey)
+                    saveCache(result.recommendations, key: latestRecommendationKey)
+                    saveCache(result.tagShelves, key: tagShelvesKey)
+                    saveCache(result.tagShelves, key: latestTagShelvesKey)
+                    reportProgress(100)
+                    return Array(result.recommendations.prefix(limit))
+                } catch {
+                    await VNDB离线推荐计算中心.shared.结束计算()
+                    // 没有可推荐作品之类的结果重试也不会变。
+                    guard !(error is CancellationError),
+                          !(error is VNDB探索服务错误),
+                          !Task.isCancelled,
+                          attempt < retryDelays.count else {
+                        throw error
+                    }
+                    try await Task.sleep(for: retryDelays[attempt])
+                    attempt += 1
                 }
             }
-
-            if let context = try await VNDB离线推荐计算中心.shared.准备计算(
-                   library: library,
-                   downloadedCharacters: libraryCharacters,
-                   excludedIDs: excluded
-               ) {
-                reportProgress(68)
-                guard let result = try await VNDB离线推荐计算中心.shared.排序(
-                    context,
-                    excludedIDs: excluded,
-                    limit: limit
-                ) else {
-                    throw VNDB探索服务错误.推荐请求预算不足
-                }
-                reportProgress(94)
-                guard !result.recommendations.isEmpty else {
-                    throw VNDB探索服务错误.推荐请求预算不足
-                }
-                saveCache(result.recommendations, key: recommendationKey)
-                saveCache(result.recommendations, key: latestRecommendationKey)
-                saveCache(result.tagShelves, key: tagShelvesKey)
-                saveCache(result.tagShelves, key: latestTagShelvesKey)
-                reportProgress(100)
-                return Array(result.recommendations.prefix(limit))
-            }
-
-            throw VNDB探索服务错误.推荐请求预算不足
         } catch {
             throw error
         }
+    }
+
+    private func 计算离线推荐(
+        library: [探索用户列表项目],
+        userID: String,
+        excluded: Set<String>,
+        limit: Int,
+        budget: 推荐请求预算,
+        reportProgress: (Int) -> Void
+    ) async throws -> VNDB离线推荐计算结果 {
+        let libraryIDs = Set(library.map(\.id))
+        let libraryCharacters: [探索角色]
+        let characterSnapshotKey =
+            "recommendation_library_characters_v3_\(userID)"
+        let savedCharacters: 推荐资料库角色快照 = loadCache(
+            key: characterSnapshotKey
+        )?.value ?? 推荐资料库角色快照(
+            coveredVisualNovelIDs: [],
+            characters: []
+        )
+        var charactersByID = Dictionary(
+            savedCharacters.characters.map { ($0.id, $0) },
+            uniquingKeysWith: { _, latest in latest }
+        )
+        var coveredVisualNovelIDs = savedCharacters.coveredVisualNovelIDs
+        let modelMissingVisualNovelIDs = try await VNDB离线推荐计算中心.shared
+            .需要下载角色的作品ID(libraryIDs)
+        let missingVisualNovelIDs = modelMissingVisualNovelIDs
+            .subtracting(coveredVisualNovelIDs)
+        if !missingVisualNovelIDs.isEmpty {
+            let downloadedCharacters = try await recommendationCharacters(
+                visualNovelIDs: Array(missingVisualNovelIDs),
+                budget: budget
+            )
+            for character in downloadedCharacters {
+                charactersByID[character.id] = character
+            }
+            coveredVisualNovelIDs.formUnion(missingVisualNovelIDs)
+        }
+        let updatedSnapshot = 推荐资料库角色快照(
+            coveredVisualNovelIDs: coveredVisualNovelIDs,
+            characters: Array(charactersByID.values)
+        )
+        saveCache(updatedSnapshot, key: characterSnapshotKey)
+        libraryCharacters = charactersByID.values.filter { character in
+            (character.visualNovels ?? []).contains {
+                libraryIDs.contains($0.id)
+            }
+        }
+
+        let context = try await VNDB离线推荐计算中心.shared.准备计算(
+            library: library,
+            downloadedCharacters: libraryCharacters,
+            excludedIDs: excluded
+        )
+        reportProgress(68)
+        let result = try await VNDB离线推荐计算中心.shared.排序(
+            context,
+            excludedIDs: excluded,
+            limit: limit
+        )
+        reportProgress(94)
+        guard !result.recommendations.isEmpty else {
+            throw VNDB探索服务错误.推荐请求预算不足
+        }
+        return result
     }
 
     func 已缓存推荐(

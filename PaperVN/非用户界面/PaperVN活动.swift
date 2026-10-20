@@ -1448,21 +1448,6 @@ private extension View {
         }
     }
 
-    @ViewBuilder
-    func PaperVN活动半折双栏适配(_ isEnabled: Bool) -> some View {
-        if isEnabled {
-            self
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .containerRelativeFrame(
-                    .horizontal,
-                    count: 2,
-                    span: 1,
-                    spacing: 20
-                )
-        } else {
-            self
-        }
-    }
 }
 
 struct PaperVN活动栏目: View {
@@ -1475,7 +1460,6 @@ struct PaperVN活动栏目: View {
     var 液态玻璃回退色调: Color? = nil
     var title: String?
     var horizontalInset: CGFloat = 20
-    var usesTwoColumnFoldLayout = false
     var hidesWhenEmpty = false
     var onRetry: (() -> Void)?
 
@@ -1525,7 +1509,7 @@ struct PaperVN活动栏目: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(
                         alignment: .top,
-                        spacing: usesTwoColumnFoldLayout ? 20 : 14
+                        spacing: 14
                     ) {
                         ForEach(events) { event in
                             PaperVN活动卡片(
@@ -1533,9 +1517,6 @@ struct PaperVN活动栏目: View {
                                 scene: cardScene,
                                 液态玻璃外观: 液态玻璃外观,
                                 液态玻璃回退色调: 液态玻璃回退色调
-                            )
-                            .PaperVN活动半折双栏适配(
-                                usesTwoColumnFoldLayout
                             )
                         }
                     }
@@ -1585,13 +1566,10 @@ struct PaperVN活动栏目: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(
                     alignment: .top,
-                    spacing: usesTwoColumnFoldLayout ? 20 : 14
+                    spacing: 14
                 ) {
                     ForEach(0..<3, id: \.self) { _ in
                         PaperVN活动加载骨架卡片(scene: cardScene)
-                            .PaperVN活动半折双栏适配(
-                                usesTwoColumnFoldLayout
-                            )
                     }
                 }
                 .padding(.vertical, 2)

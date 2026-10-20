@@ -109,7 +109,7 @@ let 作品 = Dictionary(
     model.visualNovels.map { ($0.id, $0) },
     uniquingKeysWith: { first, _ in first }
 )
-let 角色证据 = VNDB离线推荐计算.角色证据按作品分组(model.characters)
+let 角色证据 = VNDB角色证据索引(model.characters)
 print(String(
     format: "已载入模型 %@（%d 部作品），评估 %d 名留出用户（%.0f 秒）。",
     model.模型标识,

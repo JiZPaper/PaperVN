@@ -84,6 +84,22 @@
         }
       }
     },
+    "“%@”与%@上的“%@”是什么关系？特别篇、单行本或其他版本会并入“%@”，不单独同步。此匹配会匿名发送给PaperVN，审核后用于所有用户的同步。" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "“%1$@”与%2$@上的“%3$@”是什么关系？特别篇、单行本或其他版本会并入“%4$@”，不单独同步。此匹配会匿名发送给PaperVN，审核后用于所有用户的同步。"
+          }
+        }
+      }
+    },
+    "“%@”也会从已登录的平台中删除。" : {
+
+    },
+    "“%@”也会从已登录的平台中删除。Bangumi番组计划不支持通过PaperVN删除作品，需要在Bangumi番组计划上手动删除。" : {
+
+    },
     "“为你推荐”功能需要至少4 GB内存的设备。" : {
       "localizations" : {
         "de" : {
@@ -484,6 +500,166 @@
         }
       }
     },
+    "%@：同步方式为“仅导出”，资料库会同步到这些平台，但不从这些平台导入。" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: Synchronisierung ist auf „Nur exportieren“ gesetzt. Die Mediathek wird dorthin synchronisiert, aber nicht von dort importiert."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: Sync is set to Export Only, so your library is synced to these platforms but not imported from them."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@：同期方法が「書き出しのみ」のため、ライブラリはこれらのプラットフォームに同期されますが、読み込みはしません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: 동기화 방식이 '내보내기만'이므로 보관함이 이 플랫폼에 동기화되지만 가져오지는 않습니다."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: Synchronizacja ustawiona na „Tylko eksport”, więc biblioteka jest synchronizowana z tymi platformami, ale nie jest z nich importowana."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@：同步方式為「僅匯出」，資料庫會同步到這些平台，但不從這些平台匯入。"
+          }
+        }
+      }
+    },
+    "%@：同步方式为“无”，不参与导入。" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: Synchronisierung ist auf „Keine“ gesetzt, daher nicht importiert."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: Sync is set to None, so not imported."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@：同期方法が「なし」のため、読み込みません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: 동기화 방식이 '없음'이므로 가져오지 않습니다."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: Synchronizacja ustawiona na „Brak”, więc nie zostanie zaimportowane."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@：同步方式為「無」，不參與匯入。"
+          }
+        }
+      }
+    },
+    "%@：没有动画、漫画与轻小说。" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: Keine Anime, Manga oder Light Novels."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: No anime, manga, or light novels."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@：アニメ、マンガ、ライトノベルがありません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: 애니메이션, 만화 및 라이트 노벨이 없습니다."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: Brak anime, mang i light noveli."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@：沒有動畫、漫畫與輕小說。"
+          }
+        }
+      }
+    },
+    "%@：没有登录，不参与导入。" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: Nicht angemeldet, daher nicht importiert."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: Not signed in, so not imported."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@：サインインしていないため、読み込みません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: 로그인하지 않아 가져오지 않습니다."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: Nie zalogowano, więc nie zostanie zaimportowane."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@：沒有登入，不參與匯入。"
+          }
+        }
+      }
+    },
     "%@（%@）" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -525,6 +701,95 @@
         }
       }
     },
+    "%@上的作品" : {
+
+    },
+    "%@上的作品只会导入到资料库，资料库中的更改不会同步到%@。" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@上的作品只会导入到资料库，资料库中的更改不会同步到%2$@。"
+          }
+        }
+      }
+    },
+    "%@上的作品比上次同步时少了很多。" : {
+
+    },
+    "%@不支持%@记录。无法向%@同步资料库。" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@不支持%2$@记录。无法向%3$@同步资料库。"
+          }
+        }
+      }
+    },
+    "%@不支持通过PaperVN删除作品，需要在%@上手动删除。" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@不支持通过PaperVN删除作品，需要在%2$@上手动删除。"
+          }
+        }
+      }
+    },
+    "%@与%@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@与%2$@"
+          }
+        }
+      }
+    },
+    "%@元" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ CNY"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CN¥%@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@元"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@위안"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ CNY"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@元"
+          }
+        }
+      }
+    },
+    "%@分" : {
+
+    },
     "%@型" : {
       "localizations" : {
         "de" : {
@@ -564,6 +829,9 @@
           }
         }
       }
+    },
+    "%@资料库" : {
+
     },
     "%1$@满足以下%2$@条件的%3$@。" : {
       "extractionState" : "manual",
@@ -902,6 +1170,9 @@
         }
       }
     },
+    "%lld卷" : {
+
+    },
     "%lld小时" : {
       "localizations" : {
         "de" : {
@@ -1116,6 +1387,66 @@
         }
       }
     },
+    "%lld话" : {
+
+    },
+    "%lld部作品" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld Titel"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld titles"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld作品"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld개 작품"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tytuły: %lld"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld部作品"
+          }
+        }
+      }
+    },
+    "%lld集" : {
+
+    },
+    "%lld集 × %lld分钟" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld集 × %2$lld分钟"
+          }
+        }
+      }
+    },
+    "+1" : {
+      "shouldTranslate" : false
+    },
     "0" : {
       "localizations" : {
         "en" : {
@@ -1294,6 +1625,21 @@
         }
       }
     },
+    "AniList" : {
+
+    },
+    "AniList人气" : {
+
+    },
+    "AniList评分" : {
+
+    },
+    "Annict" : {
+
+    },
+    "API读取访问令牌无效。" : {
+
+    },
     "App Store商品暂时不可用，请稍后再试。" : {
       "localizations" : {
         "de" : {
@@ -1330,6 +1676,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此項目暫時無法在App Store取得，請稍後再試。"
+          }
+        }
+      }
+    },
+    "Apple Watch要求我更新系统" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meine Apple Watch hat ein Update verlangt"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "My Apple Watch required me to update"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Watchにアップデートを求められた"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Watch 때문에 업데이트해야 했어요"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Watch wymagał ode mnie uaktualnienia"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Watch要求我更新系統"
           }
         }
       }
@@ -1374,6 +1760,9 @@
         }
       }
     },
+    "Bangumi上的动画、漫画与轻小说只会导入到资料库，资料库中的更改不会同步到Bangumi。" : {
+
+    },
     "Bangumi番组计划" : {
       "localizations" : {
         "de" : {
@@ -1413,6 +1802,9 @@
           }
         }
       }
+    },
+    "Bangumi番组计划不提供PaperVN所需“从资料库删除”功能对应的API。无法向Bangumi番组计划同步资料库。" : {
+
     },
     "Bangumi番组计划登录已失效，请重新登录。" : {
       "localizations" : {
@@ -1494,7 +1886,11 @@
         }
       }
     },
+    "Bangumi番组计划评分" : {
+
+    },
     "Bangumi番组计划请求失败。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -1575,6 +1971,7 @@
       }
     },
     "Bangumi番组计划返回了无法识别的响应。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -2254,6 +2651,46 @@
         }
       }
     },
+    "In a seaside town slowly sinking beneath the rising sea, Natsuki salvages a sleeping robot girl named Atri from the ocean floor..." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In a seaside town slowly sinking beneath the rising sea, Natsuki salvages a sleeping robot girl named Atri from the ocean floor..."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "海面上昇によって沈みゆく海辺の町。夏生は海の底から、眠っている少女型ロボット・アトリを引き揚げる……"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In a seaside town slowly sinking beneath the rising sea, Natsuki salvages a sleeping robot girl named Atri from the ocean floor..."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In a seaside town slowly sinking beneath the rising sea, Natsuki salvages a sleeping robot girl named Atri from the ocean floor..."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In a seaside town slowly sinking beneath the rising sea, Natsuki salvages a sleeping robot girl named Atri from the ocean floor..."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In a seaside town slowly sinking beneath the rising sea, Natsuki salvages a sleeping robot girl named Atri from the ocean floor..."
+          }
+        }
+      }
+    },
     "iOS" : {
       "localizations" : {
         "de" : {
@@ -2456,6 +2893,12 @@
           }
         }
       }
+    },
+    "MyAnimeList" : {
+
+    },
+    "MyAnimeList评分" : {
+
     },
     "Neo Geo Pocket" : {
       "localizations" : {
@@ -2777,6 +3220,46 @@
         }
       }
     },
+    "OS 26华而不实" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OS 26 war mehr Schein als Sein"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OS 26 was all style, no substance"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OS 26は見かけ倒しだった"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OS 26은 겉만 번지르르했어요"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OS 26 był ładny, ale niepraktyczny"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OS 26華而不實"
+          }
+        }
+      }
+    },
     "PaperVN Connect" : {
       "localizations" : {
         "de" : {
@@ -2856,6 +3339,12 @@
           }
         }
       }
+    },
+    "PaperVN Sync" : {
+
+    },
+    "PaperVN Sync已关闭" : {
+
     },
     "PaperVN Today" : {
       "localizations" : {
@@ -2937,45 +3426,48 @@
         }
       }
     },
-    "PaperVN按照“偏好语言＞备用语言＞VNDB默认标题”的顺序获取标题。" : {
+    "PaperVN已开源" : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "PaperVN ruft Titel in dieser Reihenfolge ab: „Bevorzugte Sprache > Ausweichsprache > VNDB-Standardtitel“."
+            "value" : "PaperVN ist Open Source"
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "PaperVN retrieves titles in this order: “Preferred Language > Fallback Language > VNDB Default Title.”"
+            "value" : "PaperVN Is Open Source"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "PaperVNは「優先する言語＞フォールバック言語＞VNDBのデフォルトタイトル」の順にタイトルを取得します。"
+            "value" : "PaperVNはオープンソースになりました"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "PaperVN은 ‘선호 언어 > 대체 언어 > VNDB 기본 제목’ 순서로 제목을 가져옵니다."
+            "value" : "PaperVN이 오픈 소스가 되었습니다"
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "PaperVN pobiera tytuły w tej kolejności: „Preferowany język > Język zastępczy > Domyślny tytuł VNDB”."
+            "value" : "PaperVN jest open source"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "PaperVN會依照「偏好語言＞備用語言＞VNDB預設標題」的順序取得標題。"
+            "value" : "PaperVN已開源"
           }
         }
       }
+    },
+    "PaperVN按照“偏好语言＞备用语言＞默认标题”的顺序获取标题。" : {
+
     },
     "PaperVN新功能" : {
       "localizations" : {
@@ -3133,6 +3625,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "PaperVN活動"
+          }
+        }
+      }
+    },
+    "PaperVN进路调查" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Umfrage zur Zukunft von PaperVN"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PaperVN Roadmap Survey"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PaperVN進路調査"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PaperVN 진로 조사"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ankieta o przyszłości PaperVN"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PaperVN進路調查"
           }
         }
       }
@@ -3977,6 +4509,12 @@
         }
       }
     },
+    "TMDB" : {
+
+    },
+    "TMDB评分" : {
+
+    },
     "Today" : {
       "localizations" : {
         "de" : {
@@ -4173,6 +4711,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Token無效。"
+          }
+        }
+      }
+    },
+    "UI太丑了" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Benutzeroberfläche ist zu hässlich"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The UI is too ugly"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "UIがダサすぎる"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "UI가 너무 못생겼어요"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Interfejs jest zbyt brzydki"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "UI太醜了"
           }
         }
       }
@@ -4881,6 +5459,16 @@
         }
       }
     },
+    "上次同步时有%lld部作品，当前有%lld部。" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "上次同步时有%1$lld部作品，当前有%2$lld部。"
+          }
+        }
+      }
+    },
     "下载" : {
       "localizations" : {
         "de" : {
@@ -5361,6 +5949,49 @@
         }
       }
     },
+    "不可用" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht verfügbar"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unavailable"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "利用できません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "사용할 수 없음"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Niedostępne"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法使用"
+          }
+        }
+      }
+    },
+    "不在资料库中" : {
+
+    },
     "不推荐" : {
       "localizations" : {
         "de" : {
@@ -5637,6 +6268,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "與資料庫中的作品來自相同開發與發行商「%@」"
+          }
+        }
+      }
+    },
+    "与当前App合并" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In diese App integrieren"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Combine with this app"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このAppに統合する"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "현재 앱에 통합"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Połączyć z obecną aplikacją"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "與目前App合併"
           }
         }
       }
@@ -5961,6 +6632,46 @@
         }
       }
     },
+    "为什么？" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Warum?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Why?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "その理由は？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이유는 무엇인가요?"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dlaczego?"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "為什麼？"
+          }
+        }
+      }
+    },
     "为你推荐" : {
       "localizations" : {
         "de" : {
@@ -6129,6 +6840,46 @@
         }
       }
     },
+    "久岛鸥" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kushima Kamome"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kushima Kamome"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "久島鴎"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "쿠시마 카모메"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kushima Kamome"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "久島鷗"
+          }
+        }
+      }
+    },
     "乌克兰语" : {
       "localizations" : {
         "de" : {
@@ -6205,6 +6956,172 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "烏都文"
+          }
+        }
+      }
+    },
+    "也从资料库中删除" : {
+
+    },
+    "也可以输入作品编号或粘贴作品页面的链接。" : {
+
+    },
+    "亚托莉" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Atri"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Atri"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アトリ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "아토리"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Atri"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "亞托莉"
+          }
+        }
+      }
+    },
+    "亚托莉 -我挚爱的时光-" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ATRI -My Dear Moments-"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ATRI -My Dear Moments-"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ATRI -My Dear Moments-"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ATRI -My Dear Moments-"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ATRI -My Dear Moments-"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "亞托莉 -我摯愛的時光-"
+          }
+        }
+      }
+    },
+    "仅导入" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nur importieren"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import Only"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み込みのみ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "가져오기만"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tylko import"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "僅匯入"
+          }
+        }
+      }
+    },
+    "仅导出" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nur exportieren"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export Only"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き出しのみ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "내보내기만"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tylko eksport"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "僅匯出"
           }
         }
       }
@@ -6369,6 +7286,9 @@
         }
       }
     },
+    "从VNDB导入视觉小说" : {
+
+    },
     "从此版本开始，偏好分析所需的模型不再包含在PaperVN App中，偏好分析将用于Today页面的“为你推荐”部分。" : {
       "localizations" : {
         "de" : {
@@ -6529,6 +7449,9 @@
         }
       }
     },
+    "休刊" : {
+
+    },
     "会社" : {
       "localizations" : {
         "de" : {
@@ -6649,6 +7572,9 @@
         }
       }
     },
+    "作品" : {
+
+    },
     "作品、角色、会社、制作人员" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6689,6 +7615,12 @@
           }
         }
       }
+    },
+    "作品数量减少" : {
+
+    },
+    "作者" : {
+
     },
     "作者：%@" : {
       "localizations" : {
@@ -6769,6 +7701,12 @@
           }
         }
       }
+    },
+    "你似乎已经看过“%@”。自动填充的观看日期可能不准确。" : {
+
+    },
+    "你似乎已经读过“%@”。自动填充的阅读日期可能不准确。" : {
+
     },
     "你最近提交的一个反馈因滥用已被忽略。" : {
       "localizations" : {
@@ -6890,6 +7828,46 @@
         }
       }
     },
+    "你升级到OS 27了吗？" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hast du auf OS 27 aktualisiert?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Have you updated to OS 27?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OS 27にアップデートしましたか？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OS 27로 업데이트했나요?"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Czy masz już OS 27?"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你升級到OS 27了嗎？"
+          }
+        }
+      }
+    },
     "你已有%lld个未结反馈。为了防止滥用，在我们查看你的问题之前，你将无法提交反馈。" : {
       "localizations" : {
         "de" : {
@@ -6978,6 +7956,86 @@
         }
       }
     },
+    "你常使用什么网站记录这些？" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Welche Websites nutzt du dafür meistens?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Which sites do you usually use to track them?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記録によく使うサイトは？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "주로 어떤 사이트에 기록하나요?"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Z jakich serwisów zwykle w tym celu korzystasz?"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你常使用什麼網站記錄這些？"
+          }
+        }
+      }
+    },
+    "你常在iPhone或iPad上游玩视觉小说吗？" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spielst du oft Visual Novels auf dem iPhone oder iPad?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Do you often play visual novels on iPhone or iPad?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iPhoneやiPadでビジュアルノベルをよく遊びますか？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iPhone이나 iPad에서 비주얼 노벨을 자주 플레이하나요?"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Czy często grasz w powieści wizualne na iPhonie lub iPadzie?"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你常在iPhone或iPad上遊玩視覺小說嗎？"
+          }
+        }
+      }
+    },
     "你提交的这条译文已被采纳。如有问题，请通过反馈告诉我们。" : {
       "localizations" : {
         "de" : {
@@ -7014,6 +8072,86 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你提交的這則譯文已被採納。如有問題，請透過回饋告訴我們。"
+          }
+        }
+      }
+    },
+    "你是否已经在使用第三方App来更改记录？" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nutzt du bereits Apps von Drittanbietern, um deine Einträge zu ändern?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Do you already use third-party apps to update your entries?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記録の変更にサードパーティ製のAppをすでに使っていますか？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기록을 변경할 때 이미 타사 앱을 사용하고 있나요?"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Czy używasz już aplikacji innych firm do zmieniania wpisów?"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你是否已經在使用第三方App來更改記錄？"
+          }
+        }
+      }
+    },
+    "你有记录动画、漫画、轻小说观看/阅读状态的习惯吗？" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hältst du fest, welche Anime du schaust und welche Manga und Light Novels du liest?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Do you keep track of the anime you watch or the manga and light novels you read?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アニメ・漫画・ライトノベルの視聴／読書状況を記録する習慣はありますか？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "애니메이션, 만화, 라이트 노벨의 시청/독서 상태를 기록하는 습관이 있나요?"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Czy zapisujesz, jakie anime oglądasz oraz jakie mangi i light novels czytasz?"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你有記錄動畫、漫畫、輕小說觀看/閱讀狀態的習慣嗎？"
           }
         }
       }
@@ -7057,6 +8195,9 @@
           }
         }
       }
+    },
+    "你需要使用API读取访问令牌来登录TMDB。如果你还没有，可以在TMDB网站的Settings > API中申请。" : {
+
     },
     "你需要使用Token来登录VNDB。如果你还没有Token，可以在My Profile > Applications中创建。请为此Token开放所有权限，否则将无法对资料库进行操作。" : {
       "localizations" : {
@@ -7103,6 +8244,21 @@
           }
         }
       }
+    },
+    "使用AniList账户登录" : {
+
+    },
+    "使用Annict账户登录" : {
+
+    },
+    "使用Bangumi番组计划账户登录" : {
+
+    },
+    "使用MyAnimeList账户登录" : {
+
+    },
+    "使用TMDB账户登录" : {
+
     },
     "使用VNDB账户登录" : {
       "localizations" : {
@@ -7223,6 +8379,9 @@
           }
         }
       }
+    },
+    "使用鲲Galgame账户登录" : {
+
     },
     "俄语" : {
       "localizations" : {
@@ -7384,87 +8543,11 @@
         }
       }
     },
-    "修改后再次提交会更新这条正在审核的翻译。" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Wenn du erneut einreichst, wird diese Übersetzung aktualisiert, solange sie geprüft wird."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Submitting again updates this translation while it’s under review."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "修正して再度投稿すると、審査中のこの翻訳が更新されます。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "수정 후 다시 제출하면 검토 중인 이 번역이 업데이트됩니다."
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ponowne przesłanie zaktualizuje to tłumaczenie, dopóki jest sprawdzane."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "修改後再次提交會更新這則正在審核的翻譯。"
-          }
-        }
-      }
+    "保留并重新上传到%@" : {
+
     },
-    "修改后再次提交会重新审核。" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Wenn du sie bearbeitest und erneut einreichst, wird sie erneut geprüft."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "If you edit and submit again, it will be reviewed again."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "修正して再度投稿すると、もう一度審査されます。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "수정 후 다시 제출하면 다시 검토됩니다."
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Po edycji i ponownym przesłaniu zostanie ponownie sprawdzone."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "修改後再次提交會重新審核。"
-          }
-        }
-      }
+    "保留所有资料库中的作品。同一部作品的记录不同时进行手动确认。" : {
+
     },
     "修改后的推荐将重新等待审核。" : {
       "localizations" : {
@@ -7665,6 +8748,9 @@
           }
         }
       }
+    },
+    "停止同步" : {
+
     },
     "储存空间" : {
       "localizations" : {
@@ -7985,6 +9071,12 @@
           }
         }
       }
+    },
+    "全部使用" : {
+
+    },
+    "全部使用%@" : {
+
     },
     "共享" : {
       "localizations" : {
@@ -8307,6 +9399,9 @@
         }
       }
     },
+    "关闭此页面不会中断同步。" : {
+
+    },
     "其他" : {
       "localizations" : {
         "de" : {
@@ -8427,6 +9522,9 @@
         }
       }
     },
+    "其他平台上的更改" : {
+
+    },
     "其他版本" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8464,46 +9562,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "其他版本"
-          }
-        }
-      }
-    },
-    "其他账户" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Andere Accounts"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Other Accounts"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "その他のアカウント"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "기타 계정"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Inne konta"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "其他帳號"
           }
         }
       }
@@ -8988,6 +10046,12 @@
         }
       }
     },
+    "分别保留" : {
+
+    },
+    "分别保留资料库时，其他账户中的%lld部作品已在资料库中隐藏。" : {
+
+    },
     "分析偏好" : {
       "localizations" : {
         "de" : {
@@ -9024,6 +10088,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "分析偏好"
+          }
+        }
+      }
+    },
+    "分离为多个App" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In mehrere Apps aufteilen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Split into separate apps"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "複数のAppに分ける"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "여러 앱으로 분리"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rozdzielić na kilka aplikacji"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分離為多個App"
           }
         }
       }
@@ -9751,6 +10855,9 @@
         }
       }
     },
+    "剧透" : {
+
+    },
     "剧透内容" : {
       "localizations" : {
         "de" : {
@@ -9911,6 +11018,12 @@
         }
       }
     },
+    "加入计划观看" : {
+
+    },
+    "加入计划阅读" : {
+
+    },
     "加泰罗尼亚语" : {
       "localizations" : {
         "de" : {
@@ -9950,6 +11063,12 @@
           }
         }
       }
+    },
+    "动画" : {
+
+    },
+    "动画制作" : {
+
     },
     "包含你偏好的角色特征“%@”" : {
       "localizations" : {
@@ -10036,6 +11155,9 @@
           }
         }
       }
+    },
+    "匹配作品" : {
+
     },
     "匹配条件" : {
       "localizations" : {
@@ -10398,6 +11520,47 @@
         }
       }
     },
+    "参与PaperVN进路调查" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "An der Umfrage zur Zukunft von PaperVN teilnehmen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Take the PaperVN Roadmap Survey"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PaperVN進路調査に回答する"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PaperVN 진로 조사에 참여하기"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weź udział w ankiecie o przyszłości PaperVN"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "參與PaperVN進路調查"
+          }
+        }
+      }
+    },
     "参与Today" : {
       "localizations" : {
         "de" : {
@@ -10474,6 +11637,86 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "參與作品"
+          }
+        }
+      }
+    },
+    "参与导入的资料库" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zu importierende Mediatheken"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Libraries to Import"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み込むライブラリ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "가져올 보관함"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Biblioteki do zaimportowania"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "參與匯入的資料庫"
+          }
+        }
+      }
+    },
+    "双向同步" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In beide Richtungen synchronisieren"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Two-Way Sync"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "双方向同期"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "양방향 동기화"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Synchronizacja dwukierunkowa"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "雙向同步"
           }
         }
       }
@@ -11278,6 +12521,46 @@
         }
       }
     },
+    "可以选择多项。" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Du kannst mehrere Antworten auswählen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can choose more than one."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "複数選択できます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "여러 개를 선택할 수 있습니다."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Możesz wybrać kilka odpowiedzi."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可以選擇多項。"
+          }
+        }
+      }
+    },
     "可用" : {
       "localizations" : {
         "de" : {
@@ -11314,6 +12597,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "可用"
+          }
+        }
+      }
+    },
+    "可用内存不足，暂时无法完成偏好分析。" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht genügend Arbeitsspeicher verfügbar. Die Präferenzanalyse kann vorerst nicht abgeschlossen werden."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not enough memory is available to finish the preference analysis right now."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メモリが不足しているため、現在は好み分析を完了できません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "사용 가능한 메모리가 부족하여 지금은 취향 분석을 완료할 수 없습니다."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Za mało dostępnej pamięci, aby teraz ukończyć analizę preferencji."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可用記憶體不足，暫時無法完成偏好分析。"
           }
         }
       }
@@ -11444,6 +12767,9 @@
         }
       }
     },
+    "合并" : {
+
+    },
     "同人" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11565,6 +12891,110 @@
         }
       }
     },
+    "同步" : {
+
+    },
+    "同步%@" : {
+
+    },
+    "同步Annict动画，漫画与轻小说仍然合并。" : {
+
+    },
+    "同步任务" : {
+
+    },
+    "同步失败" : {
+
+    },
+    "同步完成" : {
+
+    },
+    "同步方式" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Synchronisierungsmethode"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync Method"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同期方法"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "동기화 방식"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sposób synchronizacji"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步方式"
+          }
+        }
+      }
+    },
+    "同步资料库。" : {
+
+    },
+    "名称" : {
+
+    },
+    "否" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nein"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "いいえ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "아니요"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nie"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "否"
+          }
+        }
+      }
+    },
     "启用" : {
       "localizations" : {
         "de" : {
@@ -11604,6 +13034,12 @@
           }
         }
       }
+    },
+    "启用PaperVN Sync以使用资料库。" : {
+
+    },
+    "和上次同步的不是同一个账户" : {
+
     },
     "哔哩哔哩频道" : {
       "localizations" : {
@@ -11724,6 +13160,99 @@
           }
         }
       }
+    },
+    "在%@上找不到对应的作品，这些作品不会同步到%@。" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "在%1$@上找不到对应的作品，这些作品不会同步到%2$@。"
+          }
+        }
+      }
+    },
+    "在App Store中评分" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Im App Store bewerten"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rate on the App Store"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App Storeで評価"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App Store에서 평가하기"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oceń w App Store"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在App Store中評分"
+          }
+        }
+      }
+    },
+    "在GitHub中查看" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auf GitHub ansehen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View on GitHub"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GitHubで見る"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GitHub에서 보기"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zobacz w serwisie GitHub"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在GitHub中檢視"
+          }
+        }
+      }
+    },
+    "在MyAnimeList中打开" : {
+
     },
     "在VNDB中查看" : {
       "localizations" : {
@@ -11922,46 +13451,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在此貼上Token…"
-          }
-        }
-      }
-    },
-    "在编辑VNDB资料库时，向Bangumi番组计划资料库同步可用内容。" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Synchronisiere verfügbare Inhalte beim Bearbeiten der VNDB-Mediathek mit der Bangumi-Mediathek."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "When editing your VNDB library, sync available content to your Bangumi library."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "VNDBライブラリを編集するときに、利用可能な内容をBangumi番組計画のライブラリへ同期します。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "VNDB 보관함을 편집할 때 사용 가능한 내용을 Bangumi 보관함에 동기화합니다."
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Podczas edycji biblioteki VNDB synchronizuj dostępne treści z biblioteką Bangumi."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "編輯VNDB資料庫時，將可用內容同步至Bangumi番組計畫資料庫。"
           }
         }
       }
@@ -12326,6 +13815,86 @@
         }
       }
     },
+    "夏日口袋：夏日绚烂之中" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Summer Pockets: Xiari Xuanlan Zhi Zhong"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Summer Pockets: Xiari Xuanlan Zhi Zhong"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「Summer Pockets」ショートストーリー ～夏の眩しさの中で～"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Summer Pockets: Xiari Xuanlan Zhi Zhong"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Summer Pockets: Xiari Xuanlan Zhi Zhong"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "夏日口袋：夏日絢爛之中"
+          }
+        }
+      }
+    },
+    "夏日岛可梦" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SP"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SP"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SP"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SP"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SP"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "夏日島可夢"
+          }
+        }
+      }
+    },
     "外传" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -12607,6 +14176,49 @@
         }
       }
     },
+    "如果PaperVN要加入更多主要功能，你希望怎么做？" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wie sollten weitere große Funktionen in PaperVN angeboten werden?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If PaperVN adds more major features, how should they be offered?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PaperVNに主要な機能をさらに追加するとしたら、どうしてほしいですか？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PaperVN에 주요 기능이 더 추가된다면 어떤 방식이 좋을까요?"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jeśli PaperVN otrzyma więcej głównych funkcji, jak mają być udostępnione?"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "如果PaperVN要加入更多主要功能，你希望怎麼做？"
+          }
+        }
+      }
+    },
+    "媒体类型" : {
+
+    },
     "存储" : {
       "localizations" : {
         "de" : {
@@ -12727,6 +14339,46 @@
         }
       }
     },
+    "它们之中有付费App吗？" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ist darunter eine kostenpflichtige App?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Are any of them paid apps?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "その中に有料のAppはありますか？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "그중에 유료 앱이 있나요?"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Czy któraś z nich jest płatna?"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "它們之中有付費App嗎？"
+          }
+        }
+      }
+    },
     "安全限制" : {
       "localizations" : {
         "de" : {
@@ -12806,6 +14458,9 @@
           }
         }
       }
+    },
+    "完整版" : {
+
     },
     "完整版本" : {
       "localizations" : {
@@ -13207,6 +14862,9 @@
         }
       }
     },
+    "将删除的作品" : {
+
+    },
     "小于约2小时" : {
       "localizations" : {
         "de" : {
@@ -13286,6 +14944,9 @@
           }
         }
       }
+    },
+    "尚未存储的状态、进度、评分或日期将会丢失。" : {
+
     },
     "尚未提交的译文将会丢失。" : {
       "localizations" : {
@@ -13533,47 +15194,6 @@
         }
       }
     },
-    "展开原文" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Originaltext einblenden"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Expand Original Text"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "原文を展開"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "원문 펼치기"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Rozwiń tekst oryginalny"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "展開原文"
-          }
-        }
-      }
-    },
     "展开评论" : {
       "localizations" : {
         "de" : {
@@ -13613,6 +15233,9 @@
           }
         }
       }
+    },
+    "已中止" : {
+
     },
     "已关闭" : {
       "localizations" : {
@@ -13654,6 +15277,9 @@
         }
       }
     },
+    "已删除" : {
+
+    },
     "已取消" : {
       "localizations" : {
         "de" : {
@@ -13693,6 +15319,9 @@
           }
         }
       }
+    },
+    "已同步" : {
+
     },
     "已完成 – 当前版本已实现预期效果" : {
       "localizations" : {
@@ -14176,47 +15805,6 @@
         }
       }
     },
-    "已更新你之前提交的译文，我们会重新审核。" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Deine frühere Übersetzung wurde aktualisiert und wird erneut geprüft."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Your earlier translation has been updated, and we’ll review it again."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "以前に投稿した訳文を更新しました。もう一度審査します。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "이전에 제출한 번역을 업데이트했습니다. 다시 검토하겠습니다."
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Twoje wcześniejsze tłumaczenie zostało zaktualizowane i zostanie ponownie sprawdzone."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已更新你之前提交的譯文，我們會重新審核。"
-          }
-        }
-      }
-    },
     "已查看" : {
       "localizations" : {
         "de" : {
@@ -14296,6 +15884,12 @@
           }
         }
       }
+    },
+    "已登录" : {
+
+    },
+    "已看集数" : {
+
     },
     "已确定潜在修复方案 – 在将来的更新中提供" : {
       "localizations" : {
@@ -14377,6 +15971,9 @@
         }
       }
     },
+    "已观看" : {
+
+    },
     "已计划 – 在将来的更新中提供" : {
       "localizations" : {
         "de" : {
@@ -14416,6 +16013,9 @@
           }
         }
       }
+    },
+    "已读话数" : {
+
     },
     "已购买PaperVN Premium" : {
       "localizations" : {
@@ -14657,6 +16257,9 @@
         }
       }
     },
+    "已阅读" : {
+
+    },
     "已隐藏不安全的内容" : {
       "localizations" : {
         "de" : {
@@ -14696,6 +16299,9 @@
           }
         }
       }
+    },
+    "已隐藏的作品" : {
+
     },
     "巴斯克语" : {
       "localizations" : {
@@ -15017,6 +16623,9 @@
           }
         }
       }
+    },
+    "年龄分级" : {
+
     },
     "年龄范围未共享" : {
       "localizations" : {
@@ -15454,6 +17063,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "開啟後，「搜尋」將與其他分頁分開，顯示在標籤列右側。你也可以稍後在「設定」>「搜尋」中更改。"
+          }
+        }
+      }
+    },
+    "开始使用PaperVN" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PaperVN jetzt verwenden"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start Using PaperVN"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PaperVNを使い始める"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PaperVN 사용 시작하기"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zacznij korzystać z PaperVN"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開始使用PaperVN"
           }
         }
       }
@@ -15994,6 +17643,9 @@
         }
       }
     },
+    "总集篇" : {
+
+    },
     "恢复购买" : {
       "localizations" : {
         "de" : {
@@ -16110,6 +17762,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "感謝你的支持"
+          }
+        }
+      }
+    },
+    "懒得更新" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Lust zu aktualisieren"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Too lazy to update"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アップデートが面倒"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "업데이트하기 귀찮아요"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nie chce mi się aktualizować"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "懶得更新"
           }
         }
       }
@@ -16234,6 +17926,46 @@
         }
       }
     },
+    "我喜欢尝鲜" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ich probiere gern Neues aus"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I like trying new things"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しいものを試すのが好き"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "새로운 걸 먼저 써 보는 걸 좋아해요"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lubię testować nowości"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我喜歡嚐鮮"
+          }
+        }
+      }
+    },
     "我是一名即将进入大学的高中毕业生，当前我的主力机是一台3000元的丐版Mac mini。你的购买将支持我在2028年换一台更好的Mac，并继续认真维护PaperVN。" : {
       "localizations" : {
         "de" : {
@@ -16310,6 +18042,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "我的評分"
+          }
+        }
+      }
+    },
+    "我认为出厂系统就是最好的" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das vorinstallierte System ist für mich das beste"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I think the system it shipped with is the best"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "出荷時のOSが一番だと思う"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "출고 시 OS가 최고라고 생각해요"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uważam, że system fabryczny jest najlepszy"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "我認為出廠系統就是最好的"
           }
         }
       }
@@ -16434,6 +18206,49 @@
         }
       }
     },
+    "所有平台的资料库将被所选资料库覆盖。" : {
+
+    },
+    "所有平台的资料库将被所选资料库覆盖。“仅导入”的平台不会被更改。" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Mediatheken aller Plattformen werden durch die ausgewählte Mediathek ersetzt. Plattformen mit „Nur importieren“ werden nicht geändert."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Libraries on all platforms will be replaced with the selected library. Import-only platforms won't be changed."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべてのプラットフォームのライブラリが選択したライブラリで上書きされます。「読み込みのみ」のプラットフォームは変更されません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "모든 플랫폼의 보관함이 선택한 보관함으로 덮어쓰입니다. '가져오기만' 플랫폼은 변경되지 않습니다."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Biblioteki na wszystkich platformach zostaną zastąpione wybraną biblioteką. Platformy „Tylko import” nie zostaną zmienione."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "所有平台的資料庫將被所選資料庫覆蓋。「僅匯入」的平台不會被更改。"
+          }
+        }
+      }
+    },
     "所有用户受到影响" : {
       "localizations" : {
         "de" : {
@@ -16473,6 +18288,18 @@
           }
         }
       }
+    },
+    "手动匹配" : {
+
+    },
+    "手动匹配找不到的作品。" : {
+
+    },
+    "打开推荐视觉小说页面" : {
+
+    },
+    "找不到对应的作品" : {
+
     },
     "技术" : {
       "localizations" : {
@@ -16630,6 +18457,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "拒絕原因"
+          }
+        }
+      }
+    },
+    "拷贝" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kopieren"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コピー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "복사"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kopiuj"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拷貝"
           }
         }
       }
@@ -18360,46 +20227,6 @@
         }
       }
     },
-    "搜索VNDB" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "VNDB durchsuchen"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Search VNDB"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "VNDBを検索"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "VNDB 검색"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Szukaj w VNDB"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "搜尋VNDB"
-          }
-        }
-      }
-    },
     "搜索分类.会社" : {
       "comment" : "搜索页顶部分段选择器，每段很窄，请用尽量短的词",
       "extractionState" : "manual",
@@ -18640,88 +20467,6 @@
         }
       }
     },
-    "搜索制作人员" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mitwirkende suchen"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Search Staff"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "スタッフを検索"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "제작진 검색"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Szukaj ekipy"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "搜尋製作人員"
-          }
-        }
-      }
-    },
-    "搜索发行版本" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Veröffentlichungen suchen"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Search Releases"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "リリースを検索"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "출시 버전 검색"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Szukaj wydań"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "搜尋發行版本"
-          }
-        }
-      }
-    },
     "搜索国家或地区" : {
       "localizations" : {
         "de" : {
@@ -18842,47 +20587,6 @@
         }
       }
     },
-    "搜索开发与发行商" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Entwickler und Publisher suchen"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Search Developers and Publishers"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "開発・販売元を検索"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "개발사 및 배급사 검색"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Szukaj dewelopera lub wydawcy"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "搜尋開發與發行商"
-          }
-        }
-      }
-    },
     "搜索标签" : {
       "localizations" : {
         "de" : {
@@ -18963,6 +20667,9 @@
         }
       }
     },
+    "搜索结果只包含符合条件的%@。" : {
+
+    },
     "搜索范围" : {
       "localizations" : {
         "de" : {
@@ -18999,47 +20706,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "搜尋範圍"
-          }
-        }
-      }
-    },
-    "搜索角色" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Figuren suchen"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Search Characters"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "キャラクターを検索"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "캐릭터 검색"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Szukaj postaci"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "搜尋角色"
           }
         }
       }
@@ -19404,47 +21070,6 @@
         }
       }
     },
-    "收起原文" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Originaltext ausblenden"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Collapse Original Text"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "原文を折りたたむ"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "원문 접기"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Zwiń tekst oryginalny"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "收起原文"
-          }
-        }
-      }
-    },
     "收起评论" : {
       "localizations" : {
         "de" : {
@@ -19484,6 +21109,9 @@
           }
         }
       }
+    },
+    "改编" : {
+
     },
     "放弃更改" : {
       "localizations" : {
@@ -19564,6 +21192,15 @@
           }
         }
       }
+    },
+    "放送中" : {
+
+    },
+    "放送开始" : {
+
+    },
+    "放送状态" : {
+
     },
     "数据来源" : {
       "localizations" : {
@@ -19688,6 +21325,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "更多"
+          }
+        }
+      }
+    },
+    "斑鸠夏生" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ikaruga Natsuki"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ikaruga Natsuki"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "斑鳩夏生"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이카루가 나츠키"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ikaruga Natsuki"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "斑鳩夏生"
           }
         }
       }
@@ -19891,6 +21568,9 @@
           }
         }
       }
+    },
+    "无作品" : {
+
     },
     "无反馈" : {
       "localizations" : {
@@ -20572,6 +22252,9 @@
         }
       }
     },
+    "无法删除" : {
+
+    },
     "无法删除文件" : {
       "localizations" : {
         "de" : {
@@ -20851,6 +22534,9 @@
           }
         }
       }
+    },
+    "无法完成操作" : {
+
     },
     "无法完成资料库操作" : {
       "localizations" : {
@@ -21252,6 +22938,12 @@
         }
       }
     },
+    "无法登录AniList" : {
+
+    },
+    "无法登录Annict" : {
+
+    },
     "无法登录Bangumi番组计划" : {
       "localizations" : {
         "de" : {
@@ -21291,6 +22983,12 @@
           }
         }
       }
+    },
+    "无法登录MyAnimeList" : {
+
+    },
+    "无法登录TMDB" : {
+
     },
     "无法登录VNDB" : {
       "localizations" : {
@@ -21371,6 +23069,9 @@
           }
         }
       }
+    },
+    "无法编辑资料库" : {
+
     },
     "无法翻译" : {
       "localizations" : {
@@ -21492,46 +23193,6 @@
         }
       }
     },
-    "无法获取游戏，请检查网络连接或稍后再试。" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Spiel konnte nicht abgerufen werden. Prüfe deine Netzwerkverbindung oder versuche es später erneut."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Couldn’t fetch the game. Check your network connection or try again later."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ゲームを取得できませんでした。ネットワーク接続を確認して、後でもう一度お試しください。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "게임을 가져올 수 없습니다. 네트워크 연결을 확인하거나 나중에 다시 시도해 주세요."
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nie można pobrać gry. Sprawdź połączenie z siecią lub spróbuj ponownie później."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "無法取得遊戲，請檢查網路連線或稍後再試。"
-          }
-        }
-      }
-    },
     "无法访问系统钥匙串。" : {
       "localizations" : {
         "de" : {
@@ -21571,6 +23232,12 @@
           }
         }
       }
+    },
+    "无法读取登录凭据（%d）。" : {
+
+    },
+    "无法读取账户信息，请重新登录。" : {
+
     },
     "无法读取附件" : {
       "localizations" : {
@@ -22012,45 +23679,8 @@
         }
       }
     },
-    "无视觉小说" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Keine Visual Novels"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No Visual Novels"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ビジュアルノベルはありません"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "비주얼 노벨 없음"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Brak powieści wizualnych"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "無視覺小說"
-          }
-        }
-      }
+    "无结果" : {
+
     },
     "无角色图片" : {
       "localizations" : {
@@ -22532,6 +24162,12 @@
         }
       }
     },
+    "是同一部作品" : {
+
+    },
+    "是此作品的特别篇或其他版本" : {
+
+    },
     "显示" : {
       "localizations" : {
         "de" : {
@@ -22571,6 +24207,12 @@
           }
         }
       }
+    },
+    "显示剧透标签（%lld）" : {
+
+    },
+    "显示已隐藏的作品" : {
+
     },
     "显示方式" : {
       "localizations" : {
@@ -22937,6 +24579,9 @@
           }
         }
       }
+    },
+    "暂时无法获取作品信息，请稍后再试。" : {
+
     },
     "暂时无法读取登录凭据，请稍后再试。" : {
       "localizations" : {
@@ -23418,8 +25063,15 @@
         }
       }
     },
-    "更改后可重新提交以供审核。" : {},
-    "更改后将重新提交以供审核。" : {},
+    "更改" : {
+
+    },
+    "更改后可重新提交以供审核。" : {
+
+    },
+    "更改后将重新提交以供审核。" : {
+
+    },
     "更改游玩状态时自动填写开始或结束日期。" : {
       "localizations" : {
         "de" : {
@@ -23700,6 +25352,12 @@
         }
       }
     },
+    "有%lld部作品在此平台上缺失，未同步" : {
+
+    },
+    "有%lld项更改需要确认。" : {
+
+    },
     "服务器当前不可用，请稍后再试。" : {
       "localizations" : {
         "de" : {
@@ -23816,6 +25474,127 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "服務條款"
+          }
+        }
+      }
+    },
+    "未定" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unbekannt"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TBA"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未定"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "미정"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Brak daty"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未定"
+          }
+        }
+      }
+    },
+    "未开启" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deaktiviert"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Off"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オフ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "끔"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wyłączone"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未開啟"
+          }
+        }
+      }
+    },
+    "未开始" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht begonnen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not Started"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未プレイ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "시작 안 함"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nie rozpoczęto"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未開始"
           }
         }
       }
@@ -23980,6 +25759,9 @@
         }
       }
     },
+    "未登录" : {
+
+    },
     "未知" : {
       "localizations" : {
         "de" : {
@@ -24140,6 +25922,9 @@
         }
       }
     },
+    "未能同步" : {
+
+    },
     "未设置" : {
       "localizations" : {
         "de" : {
@@ -24176,6 +25961,47 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未設定"
+          }
+        }
+      }
+    },
+    "未评分" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht bewertet"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unrated"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未評価"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "평가 없음"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bez oceny"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未評分"
           }
         }
       }
@@ -24883,6 +26709,12 @@
           }
         }
       }
+    },
+    "标题、编号或链接" : {
+
+    },
+    "检查更改" : {
+
     },
     "检查更新" : {
       "localizations" : {
@@ -25611,6 +27443,15 @@
         }
       }
     },
+    "正在匹配作品…" : {
+
+    },
+    "正在同步" : {
+
+    },
+    "正在同步…" : {
+
+    },
     "正在处理…" : {
       "localizations" : {
         "de" : {
@@ -26091,6 +27932,9 @@
         }
       }
     },
+    "此%@上的资料库" : {
+
+    },
     "此功能仅建议居住在数据来源站点被封禁的国家或地区（如中国大陆）的用户启用。可能不适用你当前的网络环境。" : {
       "localizations" : {
         "de" : {
@@ -26371,6 +28215,9 @@
         }
       }
     },
+    "没有更改" : {
+
+    },
     "没有符合当前筛选条件的结果。" : {
       "localizations" : {
         "de" : {
@@ -26410,6 +28257,12 @@
           }
         }
       }
+    },
+    "没有缺失的作品" : {
+
+    },
+    "没有需要确认的更改" : {
+
     },
     "法律信息" : {
       "localizations" : {
@@ -26771,6 +28624,12 @@
         }
       }
     },
+    "添加" : {
+
+    },
+    "添加作品到资料库。" : {
+
+    },
     "添加到资料库" : {
       "localizations" : {
         "de" : {
@@ -26810,6 +28669,9 @@
           }
         }
       }
+    },
+    "添加前会先在%@上查找对应的作品，找不到的不会添加。" : {
+
     },
     "添加日期" : {
       "localizations" : {
@@ -26887,46 +28749,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新增更多資訊"
-          }
-        }
-      }
-    },
-    "添加视觉小说到资料库。" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Füge die Visual Novel deiner Mediathek hinzu."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add the visual novel to your library."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ビジュアルノベルをライブラリに追加します。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "비주얼 노벨을 보관함에 추가합니다."
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dodaj powieść wizualną do biblioteki."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "將視覺小說加入資料庫。"
           }
         }
       }
@@ -27531,6 +29353,9 @@
         }
       }
     },
+    "漫画" : {
+
+    },
     "热门作品" : {
       "localizations" : {
         "de" : {
@@ -28047,6 +29872,47 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "生日月份"
+          }
+        }
+      }
+    },
+    "用于在PaperVN网站上识别此设备。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wird verwendet, um dieses Gerät auf der PaperVN-Website zu identifizieren."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Used to identify this device on the PaperVN website."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PaperVNのWebサイトでこのデバイスを識別するために使用されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PaperVN 웹 사이트에서 이 기기를 식별하는 데 사용됩니다."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Służy do identyfikacji tego urządzenia w witrynie PaperVN."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用於在PaperVN網站上識別此裝置。"
           }
         }
       }
@@ -28612,6 +30478,21 @@
         }
       }
     },
+    "登录AniList" : {
+
+    },
+    "登录Annict" : {
+
+    },
+    "登录Bangumi番组计划" : {
+
+    },
+    "登录MyAnimeList" : {
+
+    },
+    "登录TMDB" : {
+
+    },
     "登录VNDB" : {
       "localizations" : {
         "de" : {
@@ -28692,7 +30573,9 @@
         }
       }
     },
-    "登录VNDB账户以贡献翻译" : {},
+    "登录VNDB账户以贡献翻译" : {
+
+    },
     "登录VNDB账户后即可推荐视觉小说" : {
       "localizations" : {
         "de" : {
@@ -28733,46 +30616,11 @@
         }
       }
     },
-    "登录VNDB账户后即可贡献翻译" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Melde dich bei einem VNDB-Account an, um Übersetzungen beizutragen"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sign in to a VNDB account to contribute translations"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "VNDBアカウントにログインすると翻訳に協力できます"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "VNDB 계정에 로그인하면 번역에 기여할 수 있습니다"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Zaloguj się na konto VNDB, aby pomagać w tłumaczeniu"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "登入VNDB帳號後即可貢獻翻譯"
-          }
-        }
-      }
+    "登录后可以发布吐槽，并通过PaperVN Sync同步资料库中的视觉小说、动画、漫画与轻小说。" : {
+
+    },
+    "登录未完成，请重试。" : {
+
     },
     "登录结果中缺少授权码。" : {
       "localizations" : {
@@ -28890,6 +30738,49 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "登入驗證失敗。"
+          }
+        }
+      }
+    },
+    "登录鲲Galgame" : {
+
+    },
+    "白羽" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shiroha"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shiroha"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "しろは"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "시로하"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shiroha"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "白羽"
           }
         }
       }
@@ -29176,6 +31067,12 @@
         }
       }
     },
+    "确认以同步动画、漫画与轻小说。" : {
+
+    },
+    "确认同步" : {
+
+    },
     "社区" : {
       "localizations" : {
         "de" : {
@@ -29292,6 +31189,47 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "視覺小說"
+          }
+        }
+      }
+    },
+    "视觉小说、动画、漫画与轻小说" : {
+      "comment" : "搜索框的占位文字：可以搜索的内容",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Visual Novels, Anime, Manga und Light Novels"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Visual Novels, Anime, Manga, and Light Novels"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ビジュアルノベル、アニメ、マンガ、ライトノベル"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "비주얼 노벨, 애니메이션, 만화 및 라이트 노벨"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Visual novele, anime, mangi i light novele"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "視覺小說、動畫、漫畫與輕小說"
           }
         }
       }
@@ -29507,6 +31445,52 @@
           }
         }
       }
+    },
+    "稍后" : {
+
+    },
+    "空门苍" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sorakado Ao"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sorakado Ao"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "空門蒼"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "소라카도 아오"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sorakado Ao"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "空門蒼"
+          }
+        }
+      }
+    },
+    "立即同步" : {
+
     },
     "立陶宛语" : {
       "localizations" : {
@@ -29766,6 +31750,12 @@
         }
       }
     },
+    "第%lld话" : {
+
+    },
+    "第%lld集" : {
+
+    },
     "第%lld页，共%lld页" : {
       "localizations" : {
         "de" : {
@@ -29848,46 +31838,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "篩選"
-          }
-        }
-      }
-    },
-    "筛选与排序" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Filtern und sortieren"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Filter and Sort"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "フィルタと並べ替え"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "필터 및 정렬"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Filtruj i sortuj"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "篩選與排序"
           }
         }
       }
@@ -30049,6 +31999,47 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "篩選條件衝突"
+          }
+        }
+      }
+    },
+    "筛选生效时，搜索结果只显示符合条件的%@。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wenn der Filter aktiv ist, werden in den Suchergebnissen nur passende %@ angezeigt."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When filtering, search results show only %@ that match."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フィルタ適用中は、条件に一致する%@のみが検索結果に表示されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "필터가 적용되면 검색 결과에 조건에 맞는 %@만 표시됩니다."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gdy filtr jest aktywny, wyniki wyszukiwania pokazują tylko pasujące elementy typu %@."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "篩選生效時，搜尋結果只顯示符合條件的%@。"
           }
         }
       }
@@ -31016,6 +33007,9 @@
         }
       }
     },
+    "统计信息" : {
+
+    },
     "继续" : {
       "localizations" : {
         "de" : {
@@ -31584,6 +33578,9 @@
         }
       }
     },
+    "缺失的作品" : {
+
+    },
     "网络" : {
       "localizations" : {
         "de" : {
@@ -31944,8 +33941,12 @@
         }
       }
     },
-    "翻译已撤回。" : {},
-    "翻译已通过。" : {},
+    "翻译已撤回。" : {
+
+    },
+    "翻译已通过。" : {
+
+    },
     "翻译投稿服务返回了无效响应。" : {
       "localizations" : {
         "de" : {
@@ -32272,6 +34273,46 @@
         }
       }
     },
+    "而且永远免费" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Und für immer kostenlos"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "And Free Forever"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "これからもずっと無料"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "그리고 언제나 무료"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I zawsze za darmo"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "而且永遠免費"
+          }
+        }
+      }
+    },
     "职位" : {
       "localizations" : {
         "de" : {
@@ -32588,6 +34629,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "自動填寫「結束日期」"
+          }
+        }
+      }
+    },
+    "自动更新" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatische Updates"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatic updates"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動アップデート"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자동 업데이트"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatyczne uaktualnienia"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動更新"
           }
         }
       }
@@ -33232,6 +35313,9 @@
         }
       }
     },
+    "要停止同步吗？" : {
+
+    },
     "要关闭反馈吗？" : {
       "localizations" : {
         "de" : {
@@ -33513,6 +35597,12 @@
         }
       }
     },
+    "要退出AniList账户吗？" : {
+
+    },
+    "要退出Annict账户吗？" : {
+
+    },
     "要退出Bangumi番组计划账户吗？" : {
       "localizations" : {
         "de" : {
@@ -33552,6 +35642,12 @@
           }
         }
       }
+    },
+    "要退出MyAnimeList账户吗？" : {
+
+    },
+    "要退出TMDB账户吗？" : {
+
     },
     "要退出VNDB账户吗？" : {
       "localizations" : {
@@ -33632,6 +35728,15 @@
           }
         }
       }
+    },
+    "覆盖资料库" : {
+
+    },
+    "观看中" : {
+
+    },
+    "观看日期" : {
+
     },
     "角色" : {
       "localizations" : {
@@ -34010,6 +36115,12 @@
         }
       }
     },
+    "计划观看" : {
+
+    },
+    "计划阅读" : {
+
+    },
     "让搜索单独显示" : {
       "localizations" : {
         "de" : {
@@ -34086,6 +36197,49 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "讓更多人讀懂簡介"
+          }
+        }
+      }
+    },
+    "记录不同" : {
+
+    },
+    "设备码" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gerätecode"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Device Code"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "デバイスコード"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기기 코드"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kod urządzenia"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "裝置碼"
           }
         }
       }
@@ -34902,6 +37056,12 @@
         }
       }
     },
+    "请求失败。" : {
+
+    },
+    "请求失败（%lld）。" : {
+
+    },
     "请求过于频繁，请稍后再试。" : {
       "localizations" : {
         "de" : {
@@ -34981,6 +37141,55 @@
           }
         }
       }
+    },
+    "请至少登录%@之一以编辑资料库。" : {
+
+    },
+    "请说明（可选）" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bitte angeben (optional)"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Please specify (optional)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "具体的に（任意）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자세히 입력(선택 사항)"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Podaj szczegóły (opcjonalnie)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請說明（可選）"
+          }
+        }
+      }
+    },
+    "请选择“最近更改”的依据" : {
+
+    },
+    "请重新登录。" : {
+
     },
     "请键入搜索内容。" : {
       "localizations" : {
@@ -35182,7 +37391,49 @@
         }
       }
     },
-    "谢谢！更新的翻译已提交以供审核。" : {},
+    "谢谢！更新的翻译已提交以供审核。" : {
+
+    },
+    "豆瓣" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Douban"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Douban"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Douban"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Douban"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Douban"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "豆瓣"
+          }
+        }
+      }
+    },
     "贡献翻译" : {
       "localizations" : {
         "de" : {
@@ -35663,45 +37914,23 @@
         }
       }
     },
-    "资料库同步" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mediathek-Synchronisierung"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Library Sync"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ライブラリ同期"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "보관함 동기화"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Synchronizacja biblioteki"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "資料庫同步"
-          }
-        }
-      }
+    "资料库中的作品" : {
+
+    },
+    "资料库内容不同，需要选择导入方式。" : {
+
+    },
+    "资料库和各平台都不会被更改。下次同步时会再次检查。" : {
+
+    },
+    "资料库将显示所选的内容。其他账户中多出的作品会保留在原来的平台上，并在资料库中隐藏。你可以稍后在“同步任务”中显示这些作品。" : {
+
+    },
+    "资料库已是最新。" : {
+
+    },
+    "资料库按“最近更改”排序时，使用所选平台上的更改时间。" : {
+
     },
     "资料库请求未通过登录验证，请稍后再试。" : {
       "localizations" : {
@@ -35983,6 +38212,9 @@
         }
       }
     },
+    "轻小说" : {
+
+    },
     "轻点下方的搜索词" : {
       "localizations" : {
         "de" : {
@@ -36263,6 +38495,46 @@
         }
       }
     },
+    "过去一个月，我在PaperVN上的支出为%@。如果你愿意做出行动支持PaperVN，我将感激不尽。" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Im letzten Monat habe ich %@ für PaperVN ausgegeben. Wenn du PaperVN unterstützen möchtest, wäre ich dir sehr dankbar."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Over the past month, I spent %@ on PaperVN. If you’d like to take action to support PaperVN, I’d be truly grateful."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この1か月間で、PaperVNに%@を費やしました。PaperVNを応援していただけたら、心から感謝します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "지난 한 달 동안 PaperVN에 %@의 비용이 들었습니다. PaperVN을 응원해 주신다면 정말 감사하겠습니다."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "W ostatnim miesiącu wydatki na PaperVN wyniosły %@. Jeśli zechcesz wesprzeć PaperVN, z góry serdecznie dziękuję."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "過去一個月，我在PaperVN上的支出為%@。如果你願意做出行動支持PaperVN，我將感激不盡。"
+          }
+        }
+      }
+    },
     "过滤不安全的视觉小说封面、角色、截屏与标签。安全阈值越高对相关内容的容忍度越高。" : {
       "localizations" : {
         "de" : {
@@ -36302,6 +38574,9 @@
           }
         }
       }
+    },
+    "返回的内容无效。" : {
+
     },
     "返回的商品与PaperVN Premium不匹配。" : {
       "localizations" : {
@@ -36383,6 +38658,61 @@
         }
       }
     },
+    "还有%lld个项目未选择" : {
+
+    },
+    "这些作品在%@上找不到，已匿名发送给PaperVN以改进作品匹配。" : {
+
+    },
+    "这些作品在不同的地方被改成了不同的记录。为每部作品选择要保留的记录。" : {
+
+    },
+    "这些平台没有完成同步。" : {
+
+    },
+    "这些更改似乎不是通过PaperVN进行的。选择要保留的记录，所选的记录会同步到其他平台。" : {
+
+    },
+    "这些资料库的内容不同，选择导入方式。" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Mediatheken haben unterschiedliche Inhalte. Wähle aus, wie sie importiert werden sollen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These libraries have different contents. Choose how to import them."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "これらのライブラリの内容が異なります。読み込み方法を選択してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 보관함들의 내용이 다릅니다. 가져오기 방식을 선택하십시오."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Te biblioteki mają różną zawartość. Wybierz sposób importu."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這些資料庫的內容不同，選擇匯入方式。"
+          }
+        }
+      }
+    },
     "这是补标吗？" : {
       "localizations" : {
         "de" : {
@@ -36423,87 +38753,11 @@
         }
       }
     },
-    "这条翻译已加入开源项目。" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Diese Übersetzung wurde in das Open-Source-Projekt aufgenommen."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This translation has been added to the open source project."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "この翻訳はオープンソースプロジェクトに追加されました。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "이 번역은 오픈 소스 프로젝트에 추가되었습니다."
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "To tłumaczenie zostało dodane do projektu open source."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這則翻譯已加入開源專案。"
-          }
-        }
-      }
+    "进度" : {
+
     },
-    "这条翻译已撤回。" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Diese Übersetzung wurde zurückgezogen."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This translation has been withdrawn."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "この翻訳は取り下げられました。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "이 번역은 철회되었습니다."
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "To tłumaczenie zostało wycofane."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這則翻譯已撤回。"
-          }
-        }
-      }
+    "进度减一" : {
+
     },
     "连按两次以解除模糊" : {
       "localizations" : {
@@ -36630,6 +38884,18 @@
           }
         }
       }
+    },
+    "连载" : {
+
+    },
+    "连载中" : {
+
+    },
+    "连载开始" : {
+
+    },
+    "连载状态" : {
+
     },
     "追加内容" : {
       "localizations" : {
@@ -36871,6 +39137,9 @@
         }
       }
     },
+    "选择“最近更改”的依据" : {
+
+    },
     "选择包含作品" : {
       "localizations" : {
         "de" : {
@@ -36910,6 +39179,9 @@
           }
         }
       }
+    },
+    "选择导入方式" : {
+
     },
     "选择视觉小说" : {
       "localizations" : {
@@ -37030,6 +39302,15 @@
           }
         }
       }
+    },
+    "通过PaperVN Sync同步资料库中动画的观看状态。Annict不同步评分与进度。" : {
+
+    },
+    "通过PaperVN Sync同步资料库中的动画、漫画与轻小说。" : {
+
+    },
+    "通过PaperVN Sync同步资料库中的视觉小说、动画、漫画与轻小说。" : {
+
     },
     "通过鲲Galgame获取内容" : {
       "localizations" : {
@@ -37351,6 +39632,9 @@
         }
       }
     },
+    "重新读取" : {
+
+    },
     "重试" : {
       "localizations" : {
         "de" : {
@@ -37590,6 +39874,12 @@
           }
         }
       }
+    },
+    "阅读中" : {
+
+    },
+    "阅读日期" : {
+
     },
     "阿拉伯语" : {
       "localizations" : {
@@ -38031,45 +40321,55 @@
         }
       }
     },
-    "需要先在App配置中设置BangumiOAuthClientID和BangumiOAuthClientSecret。" : {
+    "需同时满足以上所有筛选条件。" : {
+      "extractionState" : "manual",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lege zuerst BangumiOAuthClientID und BangumiOAuthClientSecret in der App-Konfiguration fest."
+            "value" : "Alle oben genannten Filter müssen erfüllt sein."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Set BangumiOAuthClientID and BangumiOAuthClientSecret in the app configuration first."
+            "value" : "Results must match all of the filters above."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "先にApp構成でBangumiOAuthClientIDとBangumiOAuthClientSecretを設定してください。"
+            "value" : "上記のすべてのフィルタ条件を満たす必要があります。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "먼저 앱 구성에서 BangumiOAuthClientID 및 BangumiOAuthClientSecret을 설정해야 합니다."
+            "value" : "위의 모든 필터 조건을 충족해야 합니다."
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Najpierw ustaw BangumiOAuthClientID i BangumiOAuthClientSecret w konfiguracji aplikacji."
+            "value" : "Wyniki muszą spełniać wszystkie powyższe filtry."
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "需要先在App設定中設定BangumiOAuthClientID和BangumiOAuthClientSecret。"
+            "value" : "需同時符合以上所有篩選條件。"
           }
         }
       }
+    },
+    "需要先在App配置中设置%@的Client ID。" : {
+
+    },
+    "需要先在App配置中设置BangumiOAuthClientID。" : {
+
+    },
+    "需要先在App配置中设置MALClientID。" : {
+
     },
     "需要同意新增的隐私政策与服务条款" : {
       "localizations" : {
@@ -38270,6 +40570,9 @@
           }
         }
       }
+    },
+    "需要确认" : {
+
     },
     "静音" : {
       "localizations" : {
@@ -38997,366 +41300,6 @@
         }
       }
     },
-    "In a seaside town slowly sinking beneath the rising sea, Natsuki salvages a sleeping robot girl named Atri from the ocean floor..." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "In a seaside town slowly sinking beneath the rising sea, Natsuki salvages a sleeping robot girl named Atri from the ocean floor..."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "海面上昇によって沈みゆく海辺の町。夏生は海の底から、眠っている少女型ロボット・アトリを引き揚げる……"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "In a seaside town slowly sinking beneath the rising sea, Natsuki salvages a sleeping robot girl named Atri from the ocean floor..."
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "In a seaside town slowly sinking beneath the rising sea, Natsuki salvages a sleeping robot girl named Atri from the ocean floor..."
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "In a seaside town slowly sinking beneath the rising sea, Natsuki salvages a sleeping robot girl named Atri from the ocean floor..."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "In a seaside town slowly sinking beneath the rising sea, Natsuki salvages a sleeping robot girl named Atri from the ocean floor..."
-          }
-        }
-      }
-    },
-    "久岛鸥" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kushima Kamome"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kushima Kamome"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "久島鴎"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "쿠시마 카모메"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kushima Kamome"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "久島鷗"
-          }
-        }
-      }
-    },
-    "亚托莉" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Atri"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Atri"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "アトリ"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "아토리"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Atri"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "亞托莉"
-          }
-        }
-      }
-    },
-    "亚托莉 -我挚爱的时光-" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ATRI -My Dear Moments-"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ATRI -My Dear Moments-"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ATRI -My Dear Moments-"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ATRI -My Dear Moments-"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ATRI -My Dear Moments-"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "亞托莉 -我摯愛的時光-"
-          }
-        }
-      }
-    },
-    "夏日口袋：夏日绚烂之中" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Summer Pockets: Xiari Xuanlan Zhi Zhong"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Summer Pockets: Xiari Xuanlan Zhi Zhong"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "「Summer Pockets」ショートストーリー ～夏の眩しさの中で～"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Summer Pockets: Xiari Xuanlan Zhi Zhong"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Summer Pockets: Xiari Xuanlan Zhi Zhong"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "夏日口袋：夏日絢爛之中"
-          }
-        }
-      }
-    },
-    "夏日岛可梦" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "SP"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "SP"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "SP"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "SP"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "SP"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "夏日島可夢"
-          }
-        }
-      }
-    },
-    "斑鸠夏生" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ikaruga Natsuki"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ikaruga Natsuki"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "斑鳩夏生"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "이카루가 나츠키"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ikaruga Natsuki"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "斑鳩夏生"
-          }
-        }
-      }
-    },
-    "白羽" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Shiroha"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Shiroha"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "しろは"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "시로하"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Shiroha"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "白羽"
-          }
-        }
-      }
-    },
-    "空门苍" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sorakado Ao"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sorakado Ao"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "空門蒼"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "소라카도 아오"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sorakado Ao"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "空門蒼"
-          }
-        }
-      }
-    },
     "鸣濑白羽" : {
       "localizations" : {
         "de" : {
@@ -39393,286 +41336,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "鳴瀨白羽"
-          }
-        }
-      }
-    },
-    "PaperVN已开源" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "PaperVN ist Open Source"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "PaperVN Is Open Source"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "PaperVNはオープンソースになりました"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "PaperVN이 오픈 소스가 되었습니다"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "PaperVN jest open source"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "PaperVN已開源"
-          }
-        }
-      }
-    },
-    "而且永远免费" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Und für immer kostenlos"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "And Free Forever"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "これからもずっと無料"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "그리고 언제나 무료"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "I zawsze za darmo"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "而且永遠免費"
-          }
-        }
-      }
-    },
-    "过去一个月，我在PaperVN上的支出为%@。如果你愿意做出行动支持PaperVN，我将感激不尽。" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Im letzten Monat habe ich %@ für PaperVN ausgegeben. Wenn du PaperVN unterstützen möchtest, wäre ich dir sehr dankbar."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Over the past month, I spent %@ on PaperVN. If you’d like to take action to support PaperVN, I’d be truly grateful."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "この1か月間で、PaperVNに%@を費やしました。PaperVNを応援していただけたら、心から感謝します。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "지난 한 달 동안 PaperVN에 %@의 비용이 들었습니다. PaperVN을 응원해 주신다면 정말 감사하겠습니다."
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "W ostatnim miesiącu wydatki na PaperVN wyniosły %@. Jeśli zechcesz wesprzeć PaperVN, z góry serdecznie dziękuję."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "過去一個月，我在PaperVN上的支出為%@。如果你願意做出行動支持PaperVN，我將感激不盡。"
-          }
-        }
-      }
-    },
-    "在App Store中评分" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Im App Store bewerten"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Rate on the App Store"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "App Storeで評価"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "App Store에서 평가하기"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Oceń w App Store"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在App Store中評分"
-          }
-        }
-      }
-    },
-    "在GitHub中查看" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Auf GitHub ansehen"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "View on GitHub"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "GitHubで見る"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "GitHub에서 보기"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Zobacz w serwisie GitHub"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在GitHub中檢視"
-          }
-        }
-      }
-    },
-    "开始使用PaperVN" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "PaperVN jetzt verwenden"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Start Using PaperVN"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "PaperVNを使い始める"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "PaperVN 사용 시작하기"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Zacznij korzystać z PaperVN"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "開始使用PaperVN"
-          }
-        }
-      }
-    },
-    "%@元" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ CNY"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "CN¥%@"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@元"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@위안"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ CNY"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@元"
           }
         }
       }

@@ -1370,9 +1370,7 @@ private final class Today页眉滚动状态 {
 
 private nonisolated struct TodayDuo显示几何: Equatable, Sendable {
     var viewportSize = CGSize.zero
-    var safeAreaTop: CGFloat = 0
     var hasDivision = false
-    var activeDivisionFrame: CGRect?
     var hasCornerCameraOcclusion = false
 }
 
@@ -1380,22 +1378,14 @@ private nonisolated enum Today故事书架布局: Equatable, Sendable {
     case compact
     case wide
     case duoPortrait
-    case duoPortraitFolded(shelfHeight: CGFloat)
 
     var usesWideCardStyle: Bool {
         switch self {
         case .compact:
             false
-        case .wide, .duoPortrait, .duoPortraitFolded:
+        case .wide, .duoPortrait:
             true
         }
-    }
-
-    var foldedShelfHeight: CGFloat? {
-        guard case .duoPortraitFolded(let shelfHeight) = self else {
-            return nil
-        }
-        return shelfHeight
     }
 }
 
@@ -1493,7 +1483,9 @@ struct Today页面: View {
         }
     }
 
+    /// 日期预览只在Xcode Canvas中可用；真机和模拟器上即使存有旧的预览日期也忽略。
     private var activePreviewDate: String? {
+        guard Self.isRunningForPreviews else { return nil }
         let date = todayPreviewDateOverride.trimmingCharacters(
             in: .whitespacesAndNewlines
         )
@@ -1525,28 +1517,6 @@ struct Today页面: View {
                 > duoDisplayGeometry.viewportSize.width
     }
 
-    private var usesFoldedDuoInnerPortraitLayout: Bool {
-        guard usesDuoInnerPortraitLayout,
-              let division = duoDisplayGeometry.activeDivisionFrame else {
-            return false
-        }
-        return division.width > division.height
-            && division.minY > 0
-            && division.maxY < duoDisplayGeometry.viewportSize.height
-    }
-
-    private var usesFoldedDuoInnerLandscapeLayout: Bool {
-        let size = duoDisplayGeometry.viewportSize
-        guard duoDisplayGeometry.hasDivision,
-              size.width > size.height,
-              let division = duoDisplayGeometry.activeDivisionFrame else {
-            return false
-        }
-        return division.height > division.width
-            && division.minX > 0
-            && division.maxX < size.width
-    }
-
     private var usesDuoLandscapeNavigationTitle: Bool {
         let size = duoDisplayGeometry.viewportSize
         guard UIDevice.current.userInterfaceIdiom == .phone,
@@ -1575,8 +1545,6 @@ struct Today页面: View {
                 )
             }
 
-            Today推荐横幅(显示推荐页面: $显示Today推荐页面)
-
             todayStories
 
             if displayConfig.showEvents && todayHasResolved {
@@ -1589,8 +1557,6 @@ struct Today页面: View {
                     title: eventModel.isPersonalized
                         ? String(localized: "与你相关的活动")
                         : nil,
-                    usesTwoColumnFoldLayout:
-                        usesFoldedDuoInnerLandscapeLayout,
                     hidesWhenEmpty: true,
                     onRetry: {
                         Task {
@@ -1638,8 +1604,7 @@ struct Today页面: View {
                     onSelectCharacter: { quoteCharacterDestination = $0 },
                     onSelectVisualNovel: { quoteVisualNovelDestination = $0 },
                     usesTodayContainerStyle: true,
-                    usesWideLayout: usesWideTodayLayout,
-                    usesEqualWidthColumns: usesFoldedDuoInnerLandscapeLayout
+                    usesWideLayout: usesWideTodayLayout
                 )
             }
         }
@@ -1828,7 +1793,7 @@ struct Today页面: View {
         )
         .toolbar {
             #if DEBUG
-            if usesDuoLandscapeNavigationTitle {
+            if usesDuoLandscapeNavigationTitle && Self.isRunningForPreviews {
                 ToolbarItem(placement: .topBarTrailing) {
                     todayDatePreviewMenu
                 }
@@ -1863,14 +1828,15 @@ struct Today页面: View {
             Spacer(minLength: 12)
 
             #if DEBUG
-            todayDatePreviewMenu
-            .font(.title3.weight(.semibold))
-            .液态玻璃按钮(in: Circle())
-            .buttonBorderShape(.circle)
-            .controlSize(.regular)
-            .frame(width: 52, height: 52)
+            if Self.isRunningForPreviews {
+                todayDatePreviewMenu
+                .font(.title3.weight(.semibold))
+                .液态玻璃按钮(in: Circle())
+                .buttonBorderShape(.circle)
+                .controlSize(.regular)
+                .frame(width: 52, height: 52)
+            }
             #endif
-
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -1895,6 +1861,7 @@ struct Today页面: View {
                     ? "calendar.badge.clock"
                     : "calendar.badge.checkmark"
             )
+            .frame(width: 30, height: 30)
         }
         .accessibilityLabel(
             activePreviewDate == nil ? "Today日期预览" : "正在预览Today日期"
@@ -1911,20 +1878,6 @@ struct Today页面: View {
             ScrollView(.horizontal) {
                 LazyHStack(alignment: .top, spacing: 20) {
                     switch shelfLayout {
-                    case .duoPortraitFolded:
-                        ForEach(feed.stories) { story in
-                            storyUnit(
-                                story,
-                                isGrouped: false,
-                                cardAspectRatio: Today布局.iPadCardAspectRatio
-                            )
-                            .containerRelativeFrame(
-                                .horizontal,
-                                count: 2,
-                                span: 1,
-                                spacing: 20
-                            )
-                        }
                     case .duoPortrait:
                         ForEach(feed.stories) { story in
                             storyUnit(
@@ -1939,6 +1892,14 @@ struct Today页面: View {
                                 spacing: 20
                             )
                         }
+
+                        添加推荐卡片(cardAspectRatio: Today布局.iPadCardAspectRatio)
+                            .containerRelativeFrame(
+                                .horizontal,
+                                count: 4,
+                                span: 3,
+                                spacing: 20
+                            )
                     case .wide:
                         ForEach(feed.stories) { story in
                             storyUnit(
@@ -1953,6 +1914,14 @@ struct Today页面: View {
                                 spacing: 20
                             )
                         }
+
+                        添加推荐卡片(cardAspectRatio: Today布局.iPadCardAspectRatio)
+                            .containerRelativeFrame(
+                                .horizontal,
+                                count: 2,
+                                span: 1,
+                                spacing: 20
+                            )
                     case .compact:
                         ForEach(Array(groups.enumerated()), id: \.offset) { _, stories in
                             if stories.count > 1 {
@@ -1967,14 +1936,18 @@ struct Today页面: View {
                             span: 1,
                             spacing: 20
                         )
+
+                        添加推荐卡片(cardAspectRatio: Today布局.cardAspectRatio)
+                            .containerRelativeFrame(
+                                .horizontal,
+                                count: 1,
+                                span: 1,
+                                spacing: 20
+                            )
                     }
                 }
                 .scrollTargetLayout()
             }
-            .frame(
-                height: shelfLayout.foldedShelfHeight,
-                alignment: .top
-            )
             .scrollIndicators(.hidden)
             .scrollTargetBehavior(
                 .viewAligned(limitBehavior: .alwaysByOne)
@@ -2056,9 +2029,6 @@ struct Today页面: View {
     }
 
     private var storyShelfLayout: Today故事书架布局 {
-        if usesFoldedDuoInnerPortraitLayout {
-            return foldedDuoPortraitShelfLayout()
-        }
         if usesDuoInnerPortraitLayout {
             return .duoPortrait
         }
@@ -2066,29 +2036,63 @@ struct Today页面: View {
     }
 
     private var loadingStoryShelfLayout: Today故事书架布局 {
-        if usesFoldedDuoInnerPortraitLayout {
-            return foldedDuoPortraitShelfLayout()
-        }
         if usesDuoInnerPortraitLayout {
             return .duoPortrait
         }
         return usesWideTodayLayout ? .wide : .compact
     }
 
-    private func foldedDuoPortraitShelfLayout() -> Today故事书架布局 {
-        guard let division = duoDisplayGeometry.activeDivisionFrame else {
-            return .duoPortrait
+    /// 故事卡片架最后一张，打开推荐视觉小说页面；高度与只有一条相关链接的故事卡片对齐。
+    private func 添加推荐卡片(cardAspectRatio: CGFloat) -> some View {
+        let cornerRadius = usesWideTodayLayout
+            ? Today布局.iPadStoryCornerRadius
+            : Today布局.storyCornerRadius
+
+        return Button {
+            显示Today推荐页面 = true
+        } label: {
+            VStack(spacing: 0) {
+                Color.clear
+                    .aspectRatio(cardAspectRatio, contentMode: .fit)
+                Color.clear
+                    .frame(
+                        height: Today布局.relatedContentHeight(itemCount: 1)
+                            + Today布局.relatedGlassInset
+                    )
+            }
+            .overlay {
+                VStack(spacing: 14) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 48))
+                        .foregroundStyle(.tint)
+
+                    VStack(spacing: 6) {
+                        Text("推荐视觉小说")
+                            .font(.title3.weight(.bold))
+                            .foregroundStyle(.primary)
+
+                        Text("用更多的视觉小说把Today填满吧～")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .multilineTextAlignment(.center)
+                }
+                .padding(24)
+            }
+            .contentShape(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            )
         }
-        let availableHeight = max(
-            division.minY
-                - duoDisplayGeometry.safeAreaTop
-                - Today布局.duoPortraitHeaderAndContentInset
-                - Today布局.duoFoldClearance,
-            Today布局.duoMinimumFoldedShelfHeight
+        .buttonStyle(.plain)
+        .平台卡片容器(
+            background: Color.secondary.opacity(0.07),
+            stroke: Color.primary.opacity(0.08),
+            cornerRadius: cornerRadius,
+            lightModeShadowOpacity: 0,
+            shadowRadius: 18,
+            shadowY: 0
         )
-        return .duoPortraitFolded(
-            shelfHeight: availableHeight
-        )
+        .accessibilityHint("打开推荐视觉小说页面")
     }
 
     @ViewBuilder
@@ -2555,34 +2559,6 @@ private struct Today故事加载骨架列表: View {
 
     var body: some View {
         switch layout {
-        case .duoPortraitFolded(let shelfHeight):
-            ScrollView(.horizontal) {
-                LazyHStack(alignment: .top, spacing: 20) {
-                    ForEach(
-                        Array([1, 2, 1, 1].enumerated()),
-                        id: \.offset
-                    ) { _, relatedItemCount in
-                        Today故事加载骨架卡片(
-                            relatedItemCount: relatedItemCount,
-                            cardAspectRatio: Today布局.iPadCardAspectRatio,
-                            cornerRadius: Today布局.iPadStoryCornerRadius
-                        )
-                        .containerRelativeFrame(
-                            .horizontal,
-                            count: 2,
-                            span: 1,
-                            spacing: 20
-                        )
-                    }
-                }
-                .scrollTargetLayout()
-            }
-            .frame(height: shelfHeight, alignment: .top)
-            .scrollIndicators(.hidden)
-            .scrollTargetBehavior(
-                .viewAligned(limitBehavior: .alwaysByOne)
-            )
-            .Today横向书架适配()
         case .duoPortrait:
             ScrollView(.horizontal) {
                 LazyHStack(alignment: .top, spacing: 20) {
@@ -2883,6 +2859,7 @@ private struct Today介绍页面: View {
                         }
                     }
                     .coordinateSpace(name: "TodayIntroductionScroll")
+                    .仅顶部可下拉关闭()
                     .background(Color.平台系统背景)
                     .ignoresSafeArea(edges: .top)
                 } else {
@@ -2896,13 +2873,12 @@ private struct Today介绍页面: View {
             .toolbarBackground(.hidden, for: .navigationBar)
             .平台柔和滚动边缘(for: .top)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
+                ToolbarItem(placement: .平台关闭操作) {
                     Button {
                         dismiss()
                     } label: {
-                        Image(systemName: "xmark")
+                        Label("关闭", systemImage: "xmark")
                     }
-                    .accessibilityLabel("关闭")
                 }
             }
         }
@@ -2940,62 +2916,67 @@ private struct Today介绍封面: View {
                         width: proxy.size.width,
                         height: pullDistance + 64
                     )
+                    .平台背景延伸效果()
                 }
 
                 ZStack {
-                    Color.secondary.opacity(0.12)
+                    // 底图延伸到 iPhone Duo 侧边竖栏下面，文字仍留在安全区内
+                    ZStack {
+                        Color.secondary.opacity(0.12)
 
-                    if let image {
-                        let cover = Image(decorative: image, scale: 1)
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(width: proxy.size.width, height: proxy.size.height)
+                        if let image {
+                            let cover = Image(decorative: image, scale: 1)
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: proxy.size.width, height: proxy.size.height)
 
-                        ZStack {
-                            cover
+                            ZStack {
+                                cover
 
-                            cover
-                                .scaleEffect(1.10)
-                                .blur(radius: 28)
-                                .mask {
-                                    LinearGradient(
-                                        stops: [
-                                            .init(color: .clear, location: 0.32),
-                                            .init(color: .black.opacity(0.30), location: 0.58),
-                                            .init(color: .black, location: 1)
-                                        ],
-                                        startPoint: .top,
-                                        endPoint: .bottom
-                                    )
+                                cover
+                                    .scaleEffect(1.10)
+                                    .blur(radius: 28)
+                                    .mask {
+                                        LinearGradient(
+                                            stops: [
+                                                .init(color: .clear, location: 0.32),
+                                                .init(color: .black.opacity(0.30), location: 0.58),
+                                                .init(color: .black, location: 1)
+                                            ],
+                                            startPoint: .top,
+                                            endPoint: .bottom
+                                        )
+                                    }
                                 }
+                            .mask {
+                                LinearGradient(
+                                    stops: [
+                                        .init(color: .black, location: 0),
+                                        .init(color: .black, location: 0.56),
+                                        .init(color: .black.opacity(0.42), location: 0.82),
+                                        .init(color: .clear, location: 1)
+                                    ],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
                             }
-                        .mask {
-                            LinearGradient(
-                                stops: [
-                                    .init(color: .black, location: 0),
-                                    .init(color: .black, location: 0.56),
-                                    .init(color: .black.opacity(0.42), location: 0.82),
-                                    .init(color: .clear, location: 1)
-                                ],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
                         }
+
+                        LinearGradient(
+                            colors: [.black.opacity(0.22), .clear],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .allowsHitTesting(false)
+
+                        LinearGradient(
+                            colors: [.clear, .black.opacity(0.68)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .allowsHitTesting(false)
                     }
-
-                    LinearGradient(
-                        colors: [.black.opacity(0.22), .clear],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .allowsHitTesting(false)
-
-                    LinearGradient(
-                        colors: [.clear, .black.opacity(0.68)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .allowsHitTesting(false)
+                    .平台背景延伸效果()
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text(verbatim: eyebrow)
@@ -3167,9 +3148,6 @@ private nonisolated enum Today布局 {
     static let cardAspectRatio: CGFloat = 1.00
     static let iPadCardAspectRatio: CGFloat = 4.0 / 3.0
     static let videoCardAspectRatio: CGFloat = 16.0 / 9.0
-    static let duoPortraitHeaderAndContentInset: CGFloat = 86
-    static let duoFoldClearance: CGFloat = 12
-    static let duoMinimumFoldedShelfHeight: CGFloat = 220
     static let introductionCoverHeight: CGFloat = 440
     static let storyCornerRadius: CGFloat = 26
     static let iPadStoryCornerRadius: CGFloat = 28
@@ -4580,7 +4558,7 @@ private struct TodayDuoGeometryModifier: ViewModifier {
     @Binding var geometry: TodayDuo显示几何
 
     func body(content: Content) -> some View {
-        #if compiler(>=6.5)
+        #if canImport(SwiftUI, _version: 8.0.85) // iOS 27.1 SDK（iPhone Duo API）
         if #available(iOS 27.1, *) {
             content
                 .onGeometryChange(for: TodayDuo显示几何.self) { proxy in
@@ -4600,9 +4578,7 @@ private struct TodayDuoGeometryModifier: ViewModifier {
                     }
                     return TodayDuo显示几何(
                         viewportSize: size,
-                        safeAreaTop: proxy.safeAreaInsets.top,
                         hasDivision: !divisions.isEmpty,
-                        activeDivisionFrame: divisions.first(where: \.isActive)?.frame,
                         hasCornerCameraOcclusion: hasCornerCameraOcclusion
                     )
                 } action: { newGeometry in
@@ -5254,43 +5230,6 @@ fileprivate final class PaperVNToday推荐状态 {
     }
 }
 
-private struct Today推荐横幅: View {
-    @Binding var 显示推荐页面: Bool
-
-    var body: some View {
-        Button {
-            显示推荐页面 = true
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: "plus.circle.fill")
-                    .font(.system(size: 20))
-                    .foregroundStyle(.tint)
-
-                Text("用更多的视觉小说把Today填满吧～")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.primary)
-
-                Spacer()
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.secondary)
-            }
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .平台卡片容器(
-                background: Color.平台次级分组背景,
-                stroke: .clear,
-                cornerRadius: 28,
-                lightModeShadowOpacity: 0,
-                shadowRadius: 0,
-                shadowY: 0
-            )
-        }
-        .buttonStyle(.plain)
-    }
-}
-
 struct Today推荐页面: View {
     private static let 新建推荐转场ID = "today.recommendation.new"
 
@@ -5323,9 +5262,8 @@ struct Today推荐页面: View {
                     Button {
                         dismiss()
                     } label: {
-                        Image(systemName: "xmark")
+                        Label("关闭", systemImage: "xmark")
                     }
-                    .accessibilityLabel("关闭")
                 }
 
                 if vndbAccount != nil {
@@ -5342,7 +5280,7 @@ struct Today推荐页面: View {
                             if state.正在检查提交资格 {
                                 ProgressView()
                             } else {
-                                Image(systemName: "square.and.pencil")
+                                Label("新建推荐", systemImage: "square.and.pencil")
                             }
                         }
                         .disabled(!state.可以新建推荐)
@@ -5352,6 +5290,8 @@ struct Today推荐页面: View {
                             in: transitionNamespace
                         )
                     }
+                    .平台可见优先级(.高)
+                    .平台优先纵向栏()
                 }
             }
         }
@@ -5903,9 +5843,8 @@ private struct 视觉小说搜索页面: View {
                     Button {
                         dismiss()
                     } label: {
-                        Image(systemName: "xmark")
+                        Label("关闭", systemImage: "xmark")
                     }
-                    .accessibilityLabel("关闭")
                 }
             }
             .onChange(of: viewModel.搜索文本) { _, 新值 in
@@ -6177,9 +6116,8 @@ private struct Today推荐编辑页面: View {
                     Button {
                         dismiss()
                     } label: {
-                        Image(systemName: "xmark")
+                        Label("取消", systemImage: "xmark")
                     }
-                    .accessibilityLabel("取消")
                     .disabled(正在提交 || 正在检查隐私政策)
                 }
 
@@ -6436,6 +6374,7 @@ private struct Today推荐编辑页面: View {
     }
     .environmentObject(用户登录(previewing: true))
     .environmentObject(Bangumi账户(previewing: true))
+    .environmentObject(MyAnimeList账户(previewing: true))
 }
 
 struct Today显示配置: Codable, Equatable {

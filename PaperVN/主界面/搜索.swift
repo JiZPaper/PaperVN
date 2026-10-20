@@ -389,10 +389,7 @@ final class 搜索视图模型: ObservableObject {
                 guard generation == 角色请求代次 else { return }
 
                 角色延迟加载任务?.cancel()
-                角色结果 = 内容安全高级设置解锁入口.合并固定结果(
-                    response.results,
-                    query: query
-                )
+                角色结果 = response.results
                 角色当前页 = 1
                 角色还有更多 = response.more
                 角色状态 = 角色结果.isEmpty ? .empty : .loaded
@@ -407,15 +404,7 @@ final class 搜索视图模型: ObservableObject {
                 }
                 guard generation == 角色请求代次 else { return }
                 角色延迟加载任务?.cancel()
-                if 内容安全高级设置解锁入口.是触发搜索(query),
-                   let 固定角色结果 = 内容安全高级设置解锁入口.固定角色结果 {
-                    角色结果 = [固定角色结果]
-                    角色当前页 = 1
-                    角色还有更多 = false
-                    角色状态 = .loaded
-                } else {
-                    角色状态 = .failed(message)
-                }
+                角色状态 = .failed(message)
             }
         }
     }
@@ -1063,6 +1052,7 @@ struct 搜索: View {
     @EnvironmentObject private var bangumiAccount: Bangumi账户
     @EnvironmentObject private var parentalControls: 家长控制中心
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Namespace private var namespace
     @StateObject private var resultCommitGate: 搜索结果提交门
     @StateObject private var viewModel: 搜索视图模型
@@ -1080,6 +1070,7 @@ struct 搜索: View {
     @State private var producerSort = 搜索扩展排序选择(sort: .added)
     /// 没有搜索词时顶部选择器选中的分类
     @State private var browseScope: 搜索范围 = .visualNovel
+    @State private var browseScopePickerHeight: CGFloat = 44
     @State private var filters = 视觉小说搜索筛选()
     @State private var draftFilters = 视觉小说搜索筛选()
     @State private var characterFilters = 搜索扩展筛选()
@@ -1090,7 +1081,6 @@ struct 搜索: View {
     @State private var draftProducerFilters = 搜索扩展筛选()
     @State private var showsFilters = false
     @State private var revealedImageIDs: Set<String> = []
-    @State private var unlockCharacterDestination: 角色搜索结果?
     @State private var libraryItemsByID: [String: 用户列表项目] = [:]
     @State private var libraryListLoadedForUserID: String?
     @State private var libraryMutationGeneration = 0
@@ -1105,6 +1095,7 @@ struct 搜索: View {
     /// 用户点按展开或收起过的作品组；换了搜索词就清空，回到按相关性决定的默认状态
     @State private var 作品组平铺选择: [String: Int] = [:]
     @State private var 综合搜索区域尺寸: CGSize = .zero
+    @State private var 综合搜索折叠区域: CGRect?
     @State private var 作品组动画代次: [String: Int] = [:]
     @State private var keyboardSearchFieldClearance: CGFloat = 0
 
@@ -1191,7 +1182,7 @@ struct 搜索: View {
     }
 
     private var searchPrompt: String {
-        String(localized: "搜索VNDB")
+        String(localized: "视觉小说、动画、漫画与轻小说")
     }
 
     private var usesIOS27SearchLayout: Bool {
@@ -1260,20 +1251,9 @@ struct 搜索: View {
         searchRootContent
         .background(Color.平台分组背景.ignoresSafeArea())
         .navigationTitle(Text(verbatim: searchNavigationTitle))
-        .平台柔和滚动边缘(for: .top)
         .平台内联导航标题()
         .navigationDestination(item: $resultDestination) { item in
             resultDestinationView(item)
-        }
-        .navigationDestination(item: $unlockCharacterDestination) { item in
-            角色详情(
-                characterID: item.id,
-                auth: auth,
-                initialName: item.name,
-                initialOriginal: item.original,
-                initialAliases: item.aliases,
-                initialImage: item.image
-            )
         }
         .平台键盘搜索栏避让($keyboardSearchFieldClearance)
         .modifier(
@@ -1302,14 +1282,6 @@ struct 搜索: View {
         }
         .onChange(of: viewModel.角色结果) { _, results in
             smartSearch.补充所属作品(results, 筛选: filters)
-        }
-        .onChange(of: unlockCharacterDestination) { previous, current in
-            guard let 解锁角色ID = 内容安全高级设置解锁入口.角色ID,
-                  previous?.id == 解锁角色ID,
-                  current == nil else {
-                return
-            }
-            强制内容安全策略.尝试解锁(token: auth.token)
         }
         .task(id: "\(auth.userID)|\(auth.token)") {
             await loadLibraryItems()
@@ -1359,7 +1331,7 @@ struct 搜索: View {
         .toolbar {
             // iPad 的搜索框在右上角，展开时系统会把同一侧的其他按钮收进“…”，排序和筛选放到左侧
             ToolbarItemGroup(placement: usesExplicitSearchToolbarItem ? .topBarLeading : .平台主操作) {
-                if hasSearchText || 浏览范围 == .visualNovel {
+                if 使用综合搜索 || 浏览范围 == .visualNovel {
                     搜索排序菜单(
                         selection: $selectedSort,
                         hasSearchText: hasSearchText
@@ -1369,7 +1341,7 @@ struct 搜索: View {
                     搜索扩展排序菜单(
                         selection: sortBinding,
                         scope: 浏览范围,
-                        hasSearchText: false
+                        hasSearchText: hasSearchText
                     )
                     .accessibilityIdentifier("search.sort")
                 }
@@ -1377,16 +1349,19 @@ struct 搜索: View {
                 Button {
                     presentFilters()
                 } label: {
-                    Image(
-                        systemName: 当前筛选为空
+                    Label(
+                        "筛选",
+                        systemImage: 当前筛选为空
                             ? "line.3.horizontal.decrease"
                             : "line.3.horizontal.decrease.circle.fill"
                     )
                 }
-                .accessibilityLabel("筛选")
                 .accessibilityIdentifier("search.filter")
                 .matchedTransitionSource(id: "SearchFilterSheet", in: namespace)
             }
+            // 筛选按钮会显示筛选是否生效，纵向栏空间不足时保留
+            .平台可见优先级(.高)
+            .平台优先纵向栏()
 
             if usesExplicitSearchToolbarItem, #available(iOS 26.0, *) {
                 ToolbarSpacer(.fixed, placement: .平台主操作)
@@ -1405,7 +1380,8 @@ struct 搜索: View {
                     visualNovelFilters: $draftFilters,
                     characterFilters: $draftCharacterFilters,
                     staffFilters: $draftStaffFilters,
-                    producerFilters: $draftProducerFilters
+                    producerFilters: $draftProducerFilters,
+                    initialTarget: 筛选对象 ?? 浏览范围
                 ) {
                     filters = draftFilters
                     characterFilters = draftCharacterFilters
@@ -1470,7 +1446,7 @@ struct 搜索: View {
 
     private var searchRootContent: some View {
         Group {
-            if hasSearchText {
+            if 使用综合搜索 {
                 综合搜索滚动页面
             } else {
                 平台滚动页面 {
@@ -1480,15 +1456,25 @@ struct 搜索: View {
                     transaction.animation = nil
                 }
                 .平台分组列表样式()
+                .contentMargins(
+                    .top,
+                    显示浏览范围选择器 ? browseScopePickerHeight : nil,
+                    for: .scrollContent
+                )
+                .记住滚动位置(key: 浏览范围)
             }
         }
         .overlay {
             searchEmptyContentUnavailableView
         }
-        // iOS 26 用 safeAreaBar，滚动边缘的渐进模糊会延伸到选择器下方，内容不会和选择器重叠
-        .平台安全区域栏(edge: .top, spacing: 0) {
+        .overlay(alignment: .top) {
             if 显示浏览范围选择器 {
                 浏览范围选择器
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                    if height > 0, browseScopePickerHeight != height {
+                        browseScopePickerHeight = height
+                    }
+                }
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -1501,7 +1487,7 @@ struct 搜索: View {
 
     @ViewBuilder
     private var searchEmptyContentUnavailableView: some View {
-        if hasSearchText {
+        if 使用综合搜索 {
             if !综合搜索正在载入,
                viewModel.视觉小说状态 != .loading,
                综合搜索条目列表.isEmpty,
@@ -1550,18 +1536,35 @@ struct 搜索: View {
         }
     }
 
+    /// 返回是否改动了排序（排序改动会触发搜索，调用方就不用再搜索一次）。
+    /// 筛选作品以外的对象时有搜索词也是单一对象列表，那些对象的排序同样切换到相关程度。
     @discardableResult
     private func useRelevanceSortsForSearch() -> Bool {
-        let wasRelevance = selectedSort.sort == .relevance
+        var changed = selectedSort.sort != .relevance
         selectedSort = .init(sort: .relevance)
-        return !wasRelevance
+        for scope in 搜索范围.allCases {
+            guard let sort = extendedSortBinding(for: scope),
+                  sort.wrappedValue.sort != .relevance else { continue }
+            sort.wrappedValue = .init(sort: .relevance)
+            changed = true
+        }
+        return changed
     }
 
     @discardableResult
     private func resetRelevanceSortsForEmptySearch() -> Bool {
-        guard selectedSort.sort == .relevance else { return false }
-        selectedSort = .init(sort: .released)
-        return true
+        var changed = false
+        if selectedSort.sort == .relevance {
+            selectedSort = .init(sort: .released)
+            changed = true
+        }
+        for scope in 搜索范围.allCases {
+            guard let sort = extendedSortBinding(for: scope),
+                  sort.wrappedValue.sort == .relevance else { continue }
+            sort.wrappedValue = .init(sort: scope == .release ? .released : .added)
+            changed = true
+        }
+        return changed
     }
 
     private func searchLoadingSection(for scope: 搜索范围) -> some View {
@@ -1636,7 +1639,7 @@ struct 搜索: View {
                     .lineLimit(1)
                 }
 
-                HStack(spacing: 8) {
+                元数据流式布局(间距: 8) {
                     if let released = item.released {
                         metadata(icon: "calendar", text: released)
                     }
@@ -1660,6 +1663,55 @@ struct 搜索: View {
                         .foregroundStyle(.tertiary)
                         .lineLimit(1)
                 }
+            }
+        }
+        .contentShape(Rectangle())
+    }
+
+    /// 动画、漫画与轻小说的结果行。排版和字体与视觉小说的结果行一致。
+    private func 动画漫画Row(_ item: 作品搜索结果) -> some View {
+        let main = 标题工具.获取主标题(
+            titles: item.多语言标题,
+            defaultTitle: item.标题,
+            偏好: preferredTitleLang,
+            回退: fallbackTitleLang,
+            允许非官方: allowUnofficialTitles
+        )
+        let subtitle = 标题工具.获取副标题(
+            titles: item.多语言标题,
+            defaultTitle: item.标题,
+            偏好: preferredTitleLang,
+            回退: fallbackTitleLang,
+            副标题设置: subTitleLang,
+            允许非官方: allowUnofficialTitles
+        )
+
+        return HStack(spacing: 12) {
+            resultImage(id: "work-\(item.id)", url: item.封面, sexual: item.成人内容 ? 2 : nil, violence: nil)
+
+            VStack(alignment: .leading, spacing: 列表行布局.主副标题间距) {
+                多语言列表文本(
+                    main,
+                    层级: .主标题,
+                    系统字体粗细: main.languageCode
+                        == 标题语言.chinese.langCode ? .medium : nil
+                )
+                    .lineLimit(2)
+
+                if let subtitle {
+                    多语言列表文本(subtitle, 层级: .副标题)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                元数据流式布局(间距: 8) {
+                    metadata(icon: item.类型.symbolName, text: item.类型.localizedTitle)
+                    if let 年份 = item.年份 {
+                        metadata(icon: "calendar", text: String(年份))
+                    }
+                }
+                .font(.caption2)
+                .foregroundStyle(.secondary)
             }
         }
         .contentShape(Rectangle())
@@ -1977,9 +2029,7 @@ struct 搜索: View {
         _ work: 搜索资料库作品
     ) {
         Task { @MainActor in
-            if UserDefaults.standard.bool(
-                forKey: Bangumi账户.同步设置键
-            ), bangumiAccount.isLoggedIn {
+            if PaperVNSync中心.已启用, bangumiAccount.isLoggedIn {
                 do {
                     try await bangumiAccount.synchronize(
                         vndbID: work.id,
@@ -2356,10 +2406,19 @@ struct 搜索: View {
 
     // MARK: 浏览（没有搜索词）
 
-    /// 没有搜索词时顶部选择器可选的分类：设置了筛选条件时只列出有条件的分类，否则列出全部分类。
+    /// 筛选条件只作用于一种对象（见综合搜索筛选页面）；没有筛选时为 nil。
+    private var 筛选对象: 搜索范围? {
+        搜索范围.allCases.first { !浏览筛选为空(for: $0) }
+    }
+
+    /// 有搜索词、且没有筛选或筛选的是作品时，用综合搜索的卡片页；筛选其他对象时只列出那种对象。
+    private var 使用综合搜索: Bool {
+        hasSearchText && (筛选对象 == nil || 筛选对象 == .visualNovel)
+    }
+
+    /// 顶部选择器可选的分类：设置了筛选条件时只有筛选的那一种对象，否则列出全部分类。
     private var 可选浏览范围: [搜索范围] {
-        let 有条件 = 搜索范围.allCases.filter { !浏览筛选为空(for: $0) }
-        return 有条件.isEmpty ? 搜索范围.allCases : 有条件
+        筛选对象.map { [$0] } ?? 搜索范围.allCases
     }
 
     private var 浏览范围: 搜索范围 {
@@ -2381,60 +2440,29 @@ struct 搜索: View {
         }
     }
 
-    /// 浏览作品时发行版本条件单独作为“发行版本”分类，不再用来筛选作品。
+    /// 发行版本条件属于“发行版本”对象，不用来筛选作品。
     private var 浏览作品筛选: 视觉小说搜索筛选 {
         var 筛选 = filters
         筛选.发行版本规则 = .init()
         return 筛选
     }
 
-    /// 放得下时用分段选择器；字号很大或屏幕很窄、短名称也放不下时改用菜单，不截断文字。
+    /// 与资料库共用原生分段栏；放不下时可横向滚动，不压缩或截断文字。
     private var 浏览范围选择器: some View {
-        let 选择 = Binding(
-            get: { 浏览范围 },
-            set: { browseScope = $0 }
+        let 可选 = 可选浏览范围
+        return 可滚动分段控件(
+            titles: 可选.map(\.短标题),
+            selectedIndex: Binding(
+                get: { 可选.firstIndex(of: 浏览范围) ?? 0 },
+                set: { index in
+                    guard 可选.indices.contains(index) else { return }
+                    browseScope = 可选[index]
+                }
+            )
         )
-        return ViewThatFits(in: .horizontal) {
-            Picker("搜索范围", selection: 选择) {
-                ForEach(可选浏览范围) { scope in
-                    Text(verbatim: scope.短标题)
-                        .accessibilityLabel(Text(verbatim: scope.localizedTitle))
-                        .tag(scope)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-
-            Picker("搜索范围", selection: 选择) {
-                ForEach(可选浏览范围) { scope in
-                    Label(scope.localizedTitle, systemImage: scope.systemImage)
-                        .tag(scope)
-                }
-            }
-            .pickerStyle(.menu)
-            .labelsHidden()
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .frame(maxWidth: 560)
-        .padding(.horizontal, 16)
-        .padding(.top, 4)
-        .padding(.bottom, 8)
         .frame(maxWidth: .infinity)
-        .background {
-            浏览范围选择器背景
-        }
+        .accessibilityLabel("搜索范围")
         .accessibilityIdentifier("search.scope")
-    }
-
-    @ViewBuilder
-    private var 浏览范围选择器背景: some View {
-        if #available(iOS 26.0, *) {
-            // iOS 26 起选择器放在 safeAreaBar 里，由滚动边缘效果模糊下方的内容
-            Color.clear
-        } else {
-            Color.平台分组背景
-                .ignoresSafeArea(edges: .top)
-        }
     }
 
     private func extendedSortBinding(for scope: 搜索范围) -> Binding<搜索扩展排序选择>? {
@@ -2671,20 +2699,10 @@ struct 搜索: View {
 
     @ViewBuilder
     private func characterResultLink(_ item: 角色搜索结果) -> some View {
-        if item.id == 内容安全高级设置解锁入口.角色ID,
-           内容安全高级设置解锁入口.是触发搜索(searchText) {
-            Button {
-                unlockCharacterDestination = item
-            } label: {
-                characterRow(item)
-            }
-            .buttonStyle(.plain)
-        } else {
-            NavigationLink {
-                resultDestinationView(.角色(item))
-            } label: {
-                characterRow(item)
-            }
+        NavigationLink {
+            resultDestinationView(.角色(item))
+        } label: {
+            characterRow(item)
         }
     }
 
@@ -2796,8 +2814,21 @@ struct 搜索: View {
             if 输入.会社[item.id] == nil { 输入.会社[item.id] = item }
             输入.VNDB会社顺序.append(item.id)
         }
+        // 动画、漫画与轻小说：Hiro智能找到的，以及各平台搜到的。平台标明的成人作品和视觉小说一样处理：
+        // 限制方式为“隐藏”时不显示，否则模糊封面
+        for (编号, 作品) in smartSearch.动画漫画
+        where !(contentFilterEnabled && contentRestrictionMethod == .hidden && 作品.成人内容) {
+            输入.动画漫画[编号] = 作品
+        }
+        输入.在线作品顺序 = smartSearch.在线作品顺序
         输入.作品系列 = smartSearch.作品系列
-        return 综合搜索合并.合并(输入)
+        let 条目 = 综合搜索合并.合并(输入)
+        // 筛选作品时只显示作品（挂在作品下的角色保留），不显示单独的角色、会社和制作人员
+        guard 筛选对象 == .visualNovel else { return 条目 }
+        return 条目.filter {
+            if case .作品 = $0 { return true }
+            return false
+        }
     }
 
     /// 智能搜索、VNDB 各分类的首页和角色所属作品都取回后才显示结果，避免结果出来后又重新排列。
@@ -2807,6 +2838,7 @@ struct 搜索: View {
             || staffSearchViewModel.当前状态 == .loading
             || producerSearchViewModel.当前状态 == .loading
             || smartSearch.正在搜索
+            || smartSearch.正在搜索作品
             || smartSearch.所属作品待补充(viewModel.角色结果)
             || smartSearch.系列待补充(viewModel.视觉小说结果.map(\.id))
     }
@@ -2873,23 +2905,22 @@ struct 搜索: View {
                 } else {
                     let 条目 = Array(综合搜索条目列表.enumerated())
                     VStack(spacing: 12) {
-                        HStack(alignment: .top, spacing: 16) {
-                            ForEach(0..<列数, id: \.self) { 列 in
-                                LazyVStack(spacing: 12) {
-                                    ForEach(条目.filter { $0.offset % 列数 == 列 }, id: \.element.id) { 序号, item in
-                                        综合搜索条目视图(item)
-                                            // 前面的结果盖在后面的上面：卡片收回时下面的结果往上移，不会挡住正在收回的卡片
-                                            .zIndex(Double(条目.count - 序号))
-                                            // 卡片收回时原本在屏幕外的结果被懒加载出来，不要淡入，直接垫在正在收回的卡片下面
-                                            .transition(.identity)
-                                            .onAppear {
-                                                if 序号 >= 条目.count - 平台列表分页.预取余量 * 列数 {
-                                                    加载更多()
-                                                }
-                                            }
-                                    }
+                        if 列数 == 2 {
+                            // iPhone Duo 横向半折叠时两列分到折叠线两侧，没有折叠时与平分两列相同
+                            沉浸详情等高双栏布局(
+                                spacing: 16,
+                                divisionFrame: 综合搜索折叠区域
+                            ) {
+                                ForEach(0..<列数, id: \.self) { 列 in
+                                    综合搜索结果列(列, 列数: 列数, 条目: 条目)
                                 }
-                                .frame(maxWidth: .infinity, alignment: .top)
+                            }
+                            .沉浸详情折叠区域(读取到: $综合搜索折叠区域)
+                        } else {
+                            HStack(alignment: .top, spacing: 16) {
+                                ForEach(0..<列数, id: \.self) { 列 in
+                                    综合搜索结果列(列, 列数: 列数, 条目: 条目)
+                                }
                             }
                         }
                         if 综合搜索正在加载下一页 {
@@ -2907,6 +2938,28 @@ struct 搜索: View {
         .onGeometryChange(for: CGSize.self) { $0.size } action: { 综合搜索区域尺寸 = $0 }
         .scrollDismissesKeyboard(.immediately)
         .平台柔和滚动边缘(for: .top)
+    }
+
+    private func 综合搜索结果列(
+        _ 列: Int,
+        列数: Int,
+        条目: [(offset: Int, element: 综合搜索条目)]
+    ) -> some View {
+        LazyVStack(spacing: 12) {
+            ForEach(条目.filter { $0.offset % 列数 == 列 }, id: \.element.id) { 序号, item in
+                综合搜索条目视图(item)
+                    // 前面的结果盖在后面的上面：卡片收回时下面的结果往上移，不会挡住正在收回的卡片
+                    .zIndex(Double(条目.count - 序号))
+                    // 卡片收回时原本在屏幕外的结果被懒加载出来，不要淡入，直接垫在正在收回的卡片下面
+                    .transition(.identity)
+                    .onAppear {
+                        if 序号 >= 条目.count - 平台列表分页.预取余量 * 列数 {
+                            加载更多()
+                        }
+                    }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .top)
     }
 
     @ViewBuilder
@@ -2934,6 +2987,14 @@ struct 搜索: View {
             }
             .contextMenu {
                 shareContextMenu(for: .producer, id: 会社.id)
+            }
+        case let .动画漫画(组):
+            if 组.同系列.isEmpty {
+                综合搜索卡片(action: { resultDestination = .动画漫画(组.作品) }) {
+                    动画漫画Row(组.作品)
+                }
+            } else {
+                动画漫画组卡片堆(组)
             }
         }
     }
@@ -2977,7 +3038,7 @@ struct 搜索: View {
     }
 
     /// 一张接一张地弹出或收回：展开时从第一张往后，收起时从最后一张往前，每张错开一点时间。
-    private func 切换作品组(_ 组: 综合作品组, 当前: Int, 总数: Int) {
+    private func 切换作品组(_ 组: some Identifiable<String>, 当前: Int, 总数: Int) {
         let 目标 = 当前 > 0 ? 0 : 总数
         let 代次 = (作品组动画代次[组.id] ?? 0) + 1
         作品组动画代次[组.id] = 代次
@@ -2998,11 +3059,13 @@ struct 搜索: View {
     private enum 作品组下属: Identifiable {
         case 角色(角色搜索结果)
         case 作品(视觉小说搜索结果)
+        case 动画漫画(作品搜索结果)
 
         var id: String {
             switch self {
             case let .角色(item): return item.id
             case let .作品(item): return item.id
+            case let .动画漫画(item): return item.id
             }
         }
     }
@@ -3043,6 +3106,11 @@ struct 搜索: View {
         return 卡片堆叠布局(平铺数量: 平铺数量, 露出: 9, 内缩: 0, 胶囊间距: 22) {
             综合搜索卡片(action: { resultDestination = .作品(组.作品) }) {
                 visualNovelRow(组.作品)
+                    // 更大字体时卡片内容更高，下面的胶囊会压住最后一行，留出胶囊的位置
+                    .padding(.bottom, !分类.isEmpty && dynamicTypeSize.isAccessibilitySize ? 22 : 0)
+                    // 展开时外面多一圈灰框，卡片窄了两侧的框内边距；收起时先把这段宽度留在文字右侧，
+                    // 展开动画里文字区域的宽度始终不变，长标题不会在动画中重新换行
+                    .padding(.trailing, !分类.isEmpty && !已展开 ? 框内边距 * 2 : 0)
             }
             .contextMenu {
                 visualNovelContextMenu(for: 组.作品)
@@ -3085,6 +3153,8 @@ struct 搜索: View {
             HStack(spacing: 4) {
                 Image(systemName: "square.stack")
                 Text(verbatim: 作品组摘要(组))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
                 Image(systemName: "chevron.down")
                     .font(.caption2.weight(.semibold))
                     .rotationEffect(.degrees(已展开 ? 180 : 0))
@@ -3129,6 +3199,9 @@ struct 搜索: View {
             }
         }
         .padding(4)
+        // 内容始终按完整高度排版：叠着时只是被裁成作品卡片的高度。否则叠着时各行被挤在一起（长标题的最后一个字会落到下一行），
+        // 展开时各行再从挤压的位置各自移开，看起来像标题突然出现、没有跟着卡片一起移动
+        .fixedSize(horizontal: false, vertical: true)
         .opacity(已展开 ? 1 : 0)
         .allowsHitTesting(已展开)
         // 叠着时高度跟随布局给的作品卡片高度，展开时恢复内容高度
@@ -3159,6 +3232,7 @@ struct 搜索: View {
             switch 条目 {
             case let .角色(角色): openCharacter(角色)
             case let .作品(作品): resultDestination = .作品(作品)
+            case let .动画漫画(作品): resultDestination = .动画漫画(作品)
             }
         } label: {
             HStack(spacing: 8) {
@@ -3181,6 +3255,8 @@ struct 搜索: View {
                 行.contextMenu { shareContextMenu(for: .character, id: 角色.id) }
             case let .作品(作品):
                 行.contextMenu { visualNovelContextMenu(for: 作品) }
+            case .动画漫画:
+                行
             }
         }
     }
@@ -3188,26 +3264,32 @@ struct 搜索: View {
     @ViewBuilder
     private func 作品组下属内容(_ 条目: 作品组下属) -> some View {
         switch 条目 {
+        case let .动画漫画(作品):
+            动画漫画下属内容(作品)
         case let .角色(角色):
             HStack(spacing: 10) {
                 作品组下属封面(编号: "character-\(角色.id)", 图片: 角色.image?.url, sexual: 角色.image?.sexual, violence: 角色.image?.violence)
-                Text(
-                    verbatim: 人物名称工具.显示名称(
+                // 和角色结果行相同的字体规则，只是层级小一号
+                多语言列表文本(
+                    文本: 人物名称工具.显示名称(
                         name: 角色.name,
                         original: 角色.original,
                         偏好: staffNameLang
-                    )
+                    ),
+                    isJapanese: staffNameLang == .original,
+                    层级: .下属标题,
+                    语言来源已知: false,
+                    空格视为日语: true
                 )
-                .font(.subheadline.weight(.medium))
                 .lineLimit(1)
             }
         case let .作品(作品):
             HStack(spacing: 10) {
                 作品组下属封面(编号: "vn-\(作品.id)", 图片: 作品.image?.thumbnail ?? 作品.image?.url, sexual: 作品.image?.sexual, violence: 作品.image?.violence)
                 VStack(alignment: .leading, spacing: 3) {
-                    多语言列表文本(visualNovelDisplayTitle(for: 作品), 层级: .副标题)
-                        .lineLimit(1)
-                    HStack(spacing: 8) {
+                    多语言列表文本(visualNovelDisplayTitle(for: 作品), 层级: .下属标题)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
+                    元数据流式布局(间距: 8) {
                         if let released = 作品.released {
                             metadata(icon: "calendar", text: released)
                         }
@@ -3222,6 +3304,98 @@ struct 搜索: View {
                 }
             }
         }
+    }
+
+    /// 系列卡片里的一部动画：封面、标题、类型与年份，字体规则同结果行。
+    private func 动画漫画下属内容(_ 作品: 作品搜索结果) -> some View {
+        HStack(spacing: 10) {
+            作品组下属封面(编号: "work-\(作品.id)", 图片: 作品.封面, sexual: 作品.成人内容 ? 2 : nil, violence: nil)
+            VStack(alignment: .leading, spacing: 3) {
+                多语言列表文本(
+                    标题工具.获取主标题(
+                        titles: 作品.多语言标题,
+                        defaultTitle: 作品.标题,
+                        偏好: preferredTitleLang,
+                        回退: fallbackTitleLang,
+                        允许非官方: allowUnofficialTitles
+                    ),
+                    层级: .下属标题
+                )
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
+                元数据流式布局(间距: 8) {
+                    if let 格式 = 作品.格式 {
+                        metadata(icon: 作品.类型.symbolName, text: 格式)
+                    }
+                    if let 年份 = 作品.年份 {
+                        metadata(icon: "calendar", text: String(年份))
+                    }
+                }
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    /// 一部动画和同系列的其他各季，叠法、展开方式与视觉小说的作品组相同。
+    private func 动画漫画组卡片堆(_ 组: 动画漫画组) -> some View {
+        let 分类 = [作品组分类(id: "series", 条目: 组.同系列.map(作品组下属.动画漫画))]
+        let 平铺数量 = min(作品组平铺选择[组.id] ?? 0, 分类.count)
+        let 已展开 = 平铺数量 > 0
+        let 切换 = { 切换作品组(组, 当前: 平铺数量, 总数: 分类.count) }
+        let 框内边距: CGFloat = 8
+
+        return 卡片堆叠布局(平铺数量: 平铺数量, 露出: 9, 内缩: 0, 胶囊间距: 22) {
+            综合搜索卡片(action: { resultDestination = .动画漫画(组.作品) }) {
+                动画漫画Row(组.作品)
+                    .padding(.bottom, dynamicTypeSize.isAccessibilitySize ? 22 : 0)
+                    // 同视觉小说的作品组：展开时文字区域宽度不变，长标题不会重新换行
+                    .padding(.trailing, 已展开 ? 0 : 框内边距 * 2)
+            }
+            .overlay(alignment: .bottom) {
+                系列摘要胶囊(数量: 组.同系列.count, 已展开: 已展开, 切换: 切换)
+                    .offset(y: 11)
+            }
+            .shadow(color: .black.opacity(已展开 ? 0 : 0.1), radius: 3, y: 1)
+            .zIndex(2)
+
+            ForEach(Array(分类.enumerated()), id: \.element.id) { 序号, 类 in
+                作品组分类卡片(类, 已展开: 序号 < 平铺数量, 深度: 序号 - 平铺数量 + 1, 展开: 切换)
+                    .zIndex(Double(分类.count - 序号))
+            }
+        }
+        .padding(已展开 ? 框内边距 : 0)
+        .background {
+            if 已展开 {
+                RoundedRectangle(
+                    cornerRadius: 综合卡片形状(下属: false).cornerSize.width + 框内边距,
+                    style: .continuous
+                )
+                .fill(Color(uiColor: .systemGray5))
+                .transition(.opacity)
+            }
+        }
+    }
+
+    private func 系列摘要胶囊(数量: Int, 已展开: Bool, 切换: @escaping () -> Void) -> some View {
+        Button(action: 切换) {
+            HStack(spacing: 4) {
+                Image(systemName: "square.stack")
+                Text(verbatim: String(localized: "系列 \(数量)"))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                Image(systemName: "chevron.down")
+                    .font(.caption2.weight(.semibold))
+                    .rotationEffect(.degrees(已展开 ? 180 : 0))
+            }
+            .font(.caption2.weight(.medium))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(Color(uiColor: 已展开 ? .systemGray5 : .systemGroupedBackground), in: Capsule())
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityValue(Text(已展开 ? "已展开" : "已收起"))
     }
 
     private func 作品组下属封面(编号: String, 图片: String?, sexual: Double?, violence: Double?) -> some View {
@@ -3287,12 +3461,7 @@ struct 搜索: View {
     }
 
     private func openCharacter(_ item: 角色搜索结果) {
-        if item.id == 内容安全高级设置解锁入口.角色ID,
-           内容安全高级设置解锁入口.是触发搜索(searchText) {
-            unlockCharacterDestination = item
-        } else {
-            resultDestination = .角色(item)
-        }
+        resultDestination = .角色(item)
     }
 
     @ViewBuilder
@@ -3322,6 +3491,8 @@ struct 搜索: View {
             探索制作人员详情(item: staff)
         case let .会社(producer):
             探索会社详情(item: producer)
+        case let .动画漫画(work):
+            作品详情(目标: work.详情目标)
         case let .发行版本(release):
             探索发行版本详情(item: release, auth: auth)
         }
@@ -3342,18 +3513,18 @@ struct 搜索: View {
     }
 
     private func submitSearch(immediately: Bool = false) {
-        if hasSearchText {
-            // 有搜索词：所有分类一起搜索，结果合并显示
+        if 使用综合搜索 {
+            // 有搜索词：所有分类一起搜索，结果合并显示（筛选作品时只显示作品）
             viewModel.更新搜索(
-                关键词: searchText, 范围: .visualNovel, 筛选: filters,
+                关键词: searchText, 范围: .visualNovel, 筛选: 浏览作品筛选,
                 排序: selectedSort.sort, 降序: selectedSort.isDescending,
                 允许空搜索: true, 立即: immediately
             )
             viewModel.更新搜索(
-                关键词: searchText, 范围: .character, 筛选: filters,
+                关键词: searchText, 范围: .character, 筛选: 浏览作品筛选,
                 排序: selectedSort.sort, 扩展筛选: characterFilters,
                 扩展排序: .relevance,
-                允许空搜索: !characterFilters.isEmpty, 立即: immediately
+                允许空搜索: false, 立即: immediately
             )
             staffSearchViewModel.更新搜索(
                 关键词: searchText, 范围: .staff,
@@ -3364,34 +3535,35 @@ struct 搜索: View {
                 筛选: producerFilters, 排序: .relevance, 立即: immediately
             )
         } else {
-            // 没有搜索词：只载入顶部选择器选中的分类
+            // 没有搜索词，或筛选的是作品以外的对象：只载入这一种对象
+            let 关键词 = hasSearchText ? searchText : ""
             switch 浏览范围 {
             case .visualNovel:
                 viewModel.更新搜索(
-                    关键词: "", 范围: .visualNovel, 筛选: 浏览作品筛选,
+                    关键词: 关键词, 范围: .visualNovel, 筛选: 浏览作品筛选,
                     排序: selectedSort.sort, 降序: selectedSort.isDescending,
                     允许空搜索: true, 立即: immediately
                 )
             case .character:
                 viewModel.更新搜索(
-                    关键词: "", 范围: .character, 筛选: filters,
+                    关键词: 关键词, 范围: .character, 筛选: 浏览作品筛选,
                     扩展筛选: characterFilters,
                     扩展排序: characterSort.sort, 扩展降序: characterSort.isDescending,
                     允许空搜索: true, 立即: immediately
                 )
             case .release:
                 releaseSearchViewModel.更新搜索(
-                    关键词: "", 范围: .release, 筛选: filters.发行版本规则,
+                    关键词: 关键词, 范围: .release, 筛选: filters.发行版本规则,
                     排序: releaseSort.sort, 降序: releaseSort.isDescending, 立即: immediately
                 )
             case .staff:
                 staffSearchViewModel.更新搜索(
-                    关键词: "", 范围: .staff, 筛选: staffFilters,
+                    关键词: 关键词, 范围: .staff, 筛选: staffFilters,
                     排序: staffSort.sort, 降序: staffSort.isDescending, 立即: immediately
                 )
             case .producer:
                 producerSearchViewModel.更新搜索(
-                    关键词: "", 范围: .producer, 筛选: producerFilters,
+                    关键词: 关键词, 范围: .producer, 筛选: producerFilters,
                     排序: producerSort.sort, 降序: producerSort.isDescending, 立即: immediately
                 )
             }
@@ -3827,6 +3999,7 @@ private struct 搜索扩展加载占位行: View {
     }
     .environmentObject(用户登录(previewing: true))
     .environmentObject(Bangumi账户(previewing: true))
+    .environmentObject(MyAnimeList账户(previewing: true))
     .environmentObject(家长控制中心.shared)
 }
 
@@ -3836,9 +4009,11 @@ enum 综合搜索导航目标: Hashable, Identifiable {
     case 制作人员(探索制作人员)
     case 会社(探索会社)
     case 发行版本(探索发行版本)
+    case 动画漫画(作品搜索结果)
 
     var id: String {
         switch self {
+        case let .动画漫画(item): return item.id
         case let .作品(item): return item.id
         case let .角色(item): return item.id
         case let .制作人员(item): return item.id

@@ -141,9 +141,8 @@ struct 新功能介绍页面: View {
                         Button {
                             翻页(到: 序号 - 1)
                         } label: {
-                            Image(systemName: "chevron.backward")
+                            Label("上一页", systemImage: "chevron.backward")
                         }
-                        .accessibilityLabel("上一页")
                     }
                 }
             }
@@ -403,7 +402,7 @@ private struct 演示封面: View {
     }
 }
 
-private extension Color {
+extension Color {
     /// 弹窗在深色模式下是抬升的背景，分组背景会和它混在一起；
     /// 演示区域固定使用基础层级的分组背景，里面的卡片仍与真实页面一致。
     static let 演示区域背景 = Color(uiColor: UIColor { traits in
@@ -587,7 +586,7 @@ private struct 搜索演示: View {
         HStack(spacing: 6) {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(.secondary)
-            Text(verbatim: 输入.isEmpty ? String(localized: "搜索VNDB") : 输入)
+            Text(verbatim: 输入.isEmpty ? String(localized: "视觉小说、动画、漫画与轻小说") : 输入)
                 .foregroundStyle(输入.isEmpty ? .tertiary : .primary)
                 .lineLimit(1)
             Spacer(minLength: 0)
@@ -1928,9 +1927,8 @@ private struct 支持PaperVN选项: View {
                             Button {
                                 显示Premium = false
                             } label: {
-                                Image(systemName: "xmark")
+                                Label("关闭", systemImage: "xmark")
                             }
-                            .accessibilityLabel("关闭")
                         }
                     }
             }

@@ -687,7 +687,7 @@ struct 反馈页面: View {
                         ProgressView()
                             .controlSize(.small)
                     } else {
-                        Image(systemName: "bubble.and.pencil")
+                        Label("新建反馈", systemImage: "bubble.and.pencil")
                     }
                 }
                 .matchedTransitionSource(
@@ -697,13 +697,14 @@ struct 反馈页面: View {
                 .accessibilityLabel("新建反馈")
                 .disabled(isCheckingEligibility)
             }
+            .平台可见优先级(.高)
+            .平台优先纵向栏()
 
             if showsCloseButton {
-                ToolbarItem(placement: .平台前导操作) {
+                ToolbarItem(placement: .cancellationAction) {
                     Button(action: closeAction) {
-                        Image(systemName: "xmark")
+                        Label("关闭", systemImage: "xmark")
                     }
-                    .accessibilityLabel("关闭")
                 }
             }
         }
@@ -1002,9 +1003,8 @@ struct 快速反馈页面: View {
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button { dismiss() } label: {
-                            Image(systemName: "xmark")
+                            Label("取消", systemImage: "xmark")
                         }
-                        .accessibilityLabel("取消")
                     }
                 }
             }
@@ -1089,21 +1089,19 @@ private struct 新建反馈页面: View {
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button { dismiss() } label: {
-                    Image(systemName: "xmark")
+                    Label("取消", systemImage: "xmark")
                 }
-                .accessibilityLabel("取消")
             }
             ToolbarItem(placement: .confirmationAction) {
                 if isSubmitting {
                     ProgressView()
                 } else {
                     Button(action: submit) {
-                        Image(systemName: "arrow.up")
+                        Label("提交", systemImage: "arrow.up")
                     }
                     .液态玻璃醒目按钮(in: Circle())
                     .buttonBorderShape(.circle)
                     .tint(.blue)
-                    .accessibilityLabel("提交")
                     .disabled(
                         title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                             || description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -1206,6 +1204,21 @@ private struct 反馈详情页面: View {
         isOwnedByCurrentUser && (!feedback.isPublished || feedback.isIgnored)
     }
 
+    @ViewBuilder
+    private var feedbackActions: some View {
+        Button {
+            isReplyPresented = true
+        } label: {
+            Label("添加更多信息", systemImage: "text.bubble")
+        }
+
+        Button {
+            isCloseConfirmationPresented = true
+        } label: {
+            Label("关闭反馈", systemImage: "checkmark.bubble")
+        }
+    }
+
     var body: some View {
         平台滚动页面 {
             if showsSubmissionNotice {
@@ -1255,24 +1268,21 @@ private struct 反馈详情页面: View {
         .平台内联导航标题()
         .toolbar {
             if isOwnedByCurrentUser, !feedback.status.isClosed {
-                ToolbarItem(placement: .平台主操作) {
-                    Menu {
-                        Button {
-                            isReplyPresented = true
-                        } label: {
-                            Label("添加更多信息", systemImage: "text.bubble")
-                        }
-
-                        Button {
-                            isCloseConfirmationPresented = true
-                        } label: {
-                            Label("关闭反馈", systemImage: "checkmark.bubble")
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis")
+                // iOS 27 起放进系统溢出菜单，iPhone Duo 纵向栏与其他页面的“…”保持一致
+                if #available(iOS 27.0, *) {
+                    ToolbarOverflowMenu {
+                        feedbackActions
                     }
-                    .tint(.primary)
-                    .accessibilityLabel("更多操作")
+                } else {
+                    ToolbarItem(placement: .平台主操作) {
+                        Menu {
+                            feedbackActions
+                        } label: {
+                            Image(systemName: "ellipsis")
+                        }
+                        .tint(.primary)
+                        .accessibilityLabel("更多操作")
+                    }
                 }
             }
         }
@@ -1588,18 +1598,16 @@ private struct 添加反馈信息页面: View {
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button { dismiss() } label: {
-                    Image(systemName: "xmark")
+                    Label("取消", systemImage: "xmark")
                 }
-                .accessibilityLabel("取消")
             }
             ToolbarItem(placement: .confirmationAction) {
                 if isSubmitting {
                     ProgressView()
                 } else {
                     Button(action: submit) {
-                        Image(systemName: "arrow.up")
+                        Label("提交", systemImage: "arrow.up")
                     }
-                    .accessibilityLabel("提交")
                     .disabled(
                         description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                     )

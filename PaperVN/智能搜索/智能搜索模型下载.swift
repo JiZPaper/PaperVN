@@ -103,7 +103,9 @@ final class 智能搜索模型下载状态 {
               let remote = try? 智能搜索模型文件.读取头(head).modelIdentifier else {
             return
         }
-        if remote == Self.本地模型标识() {
+        // 只提示比正在用的更新的模型：App 内置的模型可能比服务器上的新（标识开头是构建日期）
+        let local = Self.本地模型标识()
+        if remote == local || (local.map { remote.prefix { $0 != "-" } <= $0.prefix { $0 != "-" } } ?? false) {
             if let validator = info.validator {
                 UserDefaults.standard.set(validator, forKey: Self.服务器文件校验值键)
             }

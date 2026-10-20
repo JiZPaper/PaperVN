@@ -73,7 +73,7 @@ private struct 视觉小说详情警报修饰器: ViewModifier {
     }
 }
 
-private struct 视觉小说详情沉浸背景: View, Equatable {
+struct 视觉小说详情沉浸背景: View, Equatable {
     let imageURLs: [URL]
     let loadedImage: Image?
     let loadedImageURL: URL?
@@ -168,7 +168,7 @@ private struct 视觉小说详情沉浸背景: View, Equatable {
     }
 }
 
-private enum 视觉小说沉浸取样框PreferenceKey: PreferenceKey {
+enum 视觉小说沉浸取样框PreferenceKey: PreferenceKey {
     static var defaultValue: [String: CGRect] { [:] }
 
     static func reduce(
@@ -179,7 +179,7 @@ private enum 视觉小说沉浸取样框PreferenceKey: PreferenceKey {
     }
 }
 
-private extension View {
+extension View {
     func 视觉小说沉浸取样框(_ keys: [String]) -> some View {
         background {
             GeometryReader { proxy in
@@ -214,7 +214,7 @@ private extension View {
     }
 }
 
-private func 视觉小说沉浸取样框有效(_ frame: CGRect) -> Bool {
+func 视觉小说沉浸取样框有效(_ frame: CGRect) -> Bool {
     frame.minX.isFinite
         && frame.minY.isFinite
         && frame.width.isFinite
@@ -336,7 +336,7 @@ private struct 截屏水平拖动手势: UIGestureRecognizerRepresentable {
 /// 使阈值与拖动视觉保持以手指位移计。
 /// `onEnded` 返回 true 时，等回弹归位后再调用 `onSettled`：
 /// 回弹途中推入新页面会打断回弹，页面会瞬间跳回底部。
-private struct 详情底部继续上划修饰器: ViewModifier {
+struct 详情底部继续上划修饰器: ViewModifier {
     let isEnabled: Bool
     let onBegan: () -> Void
     let onChanged: (CGFloat) -> Void
@@ -412,13 +412,66 @@ private struct 详情底部继续上划修饰器: ViewModifier {
     }
 }
 
-private enum 视觉小说评论入口拖动参数 {
+enum 视觉小说评论入口拖动参数 {
     static let 阈值: CGFloat = 144
     static let 最大视觉距离: CGFloat = 204
     static let 进度条宽度: CGFloat = 160
 }
 
-private struct 沉浸标签两行布局: Layout {
+/// 详情页评论末尾的“上拉查看剩余评论”提示，进度条随越界上拉的手指位移填满。
+struct 上拉查看全部评论提示: View {
+    let 剩余条数: Int
+    let 拖动距离: CGFloat
+    let 已到阈值: Bool
+    let 反馈次数: Int
+    let 打开: () -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        let progress = min(max(拖动距离 / 视觉小说评论入口拖动参数.阈值, 0), 1)
+
+        VStack(spacing: 10) {
+            Label {
+                Text(
+                    已到阈值
+                        ? "松手查看所有评论"
+                        : "上拉查看剩余\(剩余条数)条评论"
+                )
+            } icon: {
+                Image(systemName: 已到阈值 ? "checkmark.circle.fill" : "chevron.up")
+                    .symbolEffect(
+                        .bounce.up,
+                        options: .repeat(.periodic(delay: 1.6)),
+                        isActive: !已到阈值 && progress == 0 && !reduceMotion
+                    )
+            }
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(已到阈值 ? Color.blue : Color.secondary)
+            .contentTransition(.symbolEffect(.replace))
+            .animation(.snappy(duration: 0.2), value: 已到阈值)
+
+            Capsule()
+                .fill(Color.primary.opacity(0.12))
+                .frame(width: 视觉小说评论入口拖动参数.进度条宽度, height: 6)
+                .overlay(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.blue)
+                        .frame(width: 视觉小说评论入口拖动参数.进度条宽度 * progress)
+                }
+        }
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity)
+        .sensoryFeedback(.impact, trigger: 反馈次数)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("查看剩余\(剩余条数)条评论")
+        .accessibilityHint("继续向上轻扫以查看所有评论")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { 打开() }
+    }
+}
+
+struct 沉浸标签两行布局: Layout {
     var spacing: CGFloat = 8
     var forcePlaceMoreButton = false
 
@@ -638,6 +691,7 @@ struct 视觉小说详情: View {
     @State private var revealAverageRating = false
     @State private var revealHeroImage = false
     @State private var immersiveHeroGestureIsActive = false
+    @State private var immersiveHeroIsExpanded = false
     @State private var immersiveViewportSize: CGSize = .zero
     @State private var immersiveDivisionFrame: CGRect?
     @State private var revealDescription = false
@@ -958,9 +1012,12 @@ struct 视觉小说详情: View {
 
     @ToolbarContentBuilder
     private var detailToolbar: some ToolbarContent {
+        // 加入/编辑资料库是详情页最常用的操作，纵向栏空间不足时最后收起
         ToolbarItem(placement: .平台主操作) {
             editButton
         }
+        .平台可见优先级(.高)
+        .平台优先纵向栏()
 
         if #available(iOS 26.0, *) {
             ToolbarSpacer(.fixed, placement: .平台主操作)
@@ -971,12 +1028,13 @@ struct 视觉小说详情: View {
                 guard self.detail != nil else { return }
                 showInfoSheet = true
             } label: {
-                Image(systemName: "info.circle")
+                工具栏圆形图标标签("更多信息", systemImage: "info.circle")
             }
             .disabled(self.detail == nil)
             .matchedTransitionSource(id: "InfoSheet", in: infoNamespace)
-            .accessibilityLabel("更多信息")
         }
+        .平台可见优先级(.低)
+        .平台优先纵向栏()
     }
 
     private var editButton: some View {
@@ -992,8 +1050,9 @@ struct 视觉小说详情: View {
             if isAddingToLibrary {
                 ProgressView()
             } else {
-                Image(
-                    systemName: shouldShowAddButton
+                工具栏圆形图标标签(
+                    shouldShowAddButton ? "加入计划游玩" : "编辑资料库",
+                    systemImage: shouldShowAddButton
                         ? "plus"
                         : "square.and.pencil"
                 )
@@ -1145,6 +1204,9 @@ struct 视觉小说详情: View {
                         dragContext: dragContext,
                         primaryInformation: primaryInformation
                     )
+                    .onChange(of: dragContext.isExpanded) { _, isExpanded in
+                        updateImmersiveHeroExpansion(isExpanded)
+                    }
                 } content: {
                     if let screenshots = detail.screenshots,
                        !screenshots.isEmpty {
@@ -1190,7 +1252,7 @@ struct 视觉小说详情: View {
         } action: { size in
             immersiveViewportSize = size
         }
-        .modifier(DivisionFrameModifier(divisionFrame: $immersiveDivisionFrame))
+        .沉浸详情折叠区域(读取到: $immersiveDivisionFrame)
         .scrollIndicators(.hidden)
         .coordinateSpace(name: "ImmersiveDetailScroll")
         .onPreferenceChange(视觉小说沉浸取样框PreferenceKey.self) { frames in
@@ -2027,7 +2089,8 @@ struct 视觉小说详情: View {
             imageSize: CGSize(width: imageFrame.width, height: imageFrame.height),
             regions: regions,
             viewportSize: immersiveViewportSize,
-            contentOffsetY: horizontalSizeClass == .regular ? -60 : 0
+            contentOffsetY: horizontalSizeClass == .regular ? -60 : 0,
+            封面已展开: immersiveHeroIsExpanded
         )
         guard immersiveTextSamplingCoordinator.latestGeometry != geometry else {
             return
@@ -2035,6 +2098,27 @@ struct 视觉小说详情: View {
         immersiveTextSamplingCoordinator.remember(geometry)
         guard !immersiveHeroGestureIsActive else { return }
         guard let url = currentImmersiveImageURL else { return }
+        scheduleImmersiveTextSamples(
+            for: url,
+            geometry: geometry,
+            revealsImmediately: true
+        )
+    }
+
+    /// 下拉展开或收起封面时，信息卡片背后的背景整个换掉，需要按新的状态重新取样。
+    private func updateImmersiveHeroExpansion(_ isExpanded: Bool) {
+        guard immersiveHeroIsExpanded != isExpanded else { return }
+        immersiveHeroIsExpanded = isExpanded
+        guard var geometry = immersiveTextSamplingCoordinator.latestGeometry
+                ?? immersiveTextSampleGeometry else {
+            return
+        }
+        geometry.封面已展开 = isExpanded
+        immersiveTextSamplingCoordinator.remember(geometry)
+        guard !immersiveHeroGestureIsActive,
+              let url = currentImmersiveImageURL else {
+            return
+        }
         scheduleImmersiveTextSamples(
             for: url,
             geometry: geometry,
@@ -2416,7 +2500,7 @@ struct 视觉小说详情: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(
                     showTranslatedTags
-                        ? .blue
+                        ? Color.blue
                         : textStyle.capsule
                 )
                 .沉浸详情文字阴影(textStyle)
@@ -2743,67 +2827,12 @@ struct 视觉小说详情: View {
     }
 
     private var moreCommentsPullControl: some View {
-        let remainingCount = max(
-            externalComments.count - 评论卡片布局.预览条数,
-            0
-        )
-        let progress = min(
-            max(
-                moreCommentsPullDistance
-                    / 视觉小说评论入口拖动参数.阈值,
-                0
-            ),
-            1
-        )
-        let isArmed = moreCommentsPullIsArmed
-
-        return VStack(spacing: 10) {
-            Label {
-                Text(
-                    isArmed
-                        ? "松手查看所有评论"
-                        : "上拉查看剩余\(remainingCount)条评论"
-                )
-            } icon: {
-                Image(
-                    systemName: isArmed
-                        ? "checkmark.circle.fill"
-                        : "chevron.up"
-                )
-                .symbolEffect(
-                    .bounce.up,
-                    options: .repeat(.periodic(delay: 1.6)),
-                    isActive: !isArmed && progress == 0 && !reduceMotion
-                )
-            }
-            .font(.footnote.weight(.semibold))
-            .foregroundStyle(isArmed ? Color.blue : Color.secondary)
-            .contentTransition(.symbolEffect(.replace))
-            .animation(.snappy(duration: 0.2), value: isArmed)
-
-            Capsule()
-                .fill(Color.primary.opacity(0.12))
-                .frame(
-                    width: 视觉小说评论入口拖动参数.进度条宽度,
-                    height: 6
-                )
-                .overlay(alignment: .leading) {
-                    Capsule()
-                        .fill(Color.blue)
-                        .frame(
-                            width: 视觉小说评论入口拖动参数.进度条宽度
-                                * progress
-                        )
-                }
-        }
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity)
-        .sensoryFeedback(.impact, trigger: moreCommentsPullFeedback)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("查看剩余\(remainingCount)条评论")
-        .accessibilityHint("继续向上轻扫以查看所有评论")
-        .accessibilityAddTraits(.isButton)
-        .accessibilityAction {
+        上拉查看全部评论提示(
+            剩余条数: max(externalComments.count - 评论卡片布局.预览条数, 0),
+            拖动距离: moreCommentsPullDistance,
+            已到阈值: moreCommentsPullIsArmed,
+            反馈次数: moreCommentsPullFeedback
+        ) {
             showAllComments = true
         }
     }
@@ -3590,7 +3619,7 @@ struct 视觉小说详情: View {
                             .buttonStyle(.plain)
                             .foregroundStyle(
                                 showTranslatedDescription
-                                    ? .blue
+                                    ? Color.blue
                                     : textStyle.secondary
                             )
                             .accessibilityLabel(
@@ -3668,16 +3697,16 @@ struct 视觉小说详情: View {
             }
             .平台分组列表样式()
             .navigationTitle("更多信息")
+            .仅顶部可下拉关闭()
             .平台柔和滚动边缘(for: .top)
             .平台内联导航标题()
             .toolbar {
-                ToolbarItem(placement: .平台主操作) {
+                ToolbarItem(placement: .平台关闭操作) {
                     Button {
                         showInfoSheet = false
                     } label: {
-                        Image(systemName: "xmark")
+                        Label("关闭", systemImage: "xmark")
                     }
-                    .accessibilityLabel("关闭")
                 }
             }
         }
@@ -4013,9 +4042,7 @@ struct 视觉小说详情: View {
                     )
                 }
                 资料库加入时间记录.record(userID: auth.userID, vnID: vnID)
-                if UserDefaults.standard.bool(
-                    forKey: Bangumi账户.同步设置键
-                ), bangumiAccount.isLoggedIn {
+                if PaperVNSync中心.已启用, bangumiAccount.isLoggedIn {
                     try await bangumiAccount.synchronize(
                         vndbID: vnID,
                         status: .planning,
@@ -4620,16 +4647,16 @@ struct 视觉小说详情: View {
                     .padding()
             }
             .navigationTitle("视觉小说简介")
+            .仅顶部可下拉关闭()
             .平台柔和滚动边缘(for: .top)
             .平台内联导航标题()
             .toolbar {
-                ToolbarItem(placement: .平台前导操作) {
+                ToolbarItem(placement: .cancellationAction) {
                     Button {
                         showDescriptionSheet = false
                     } label: {
-                        Image(systemName: "xmark")
+                        Label("关闭", systemImage: "xmark")
                     }
-                    .accessibilityLabel("关闭")
                 }
 
                 ToolbarItem(placement: .平台主操作) {
@@ -5017,11 +5044,11 @@ struct 视觉小说详情: View {
                         } label: {
                             HStack(spacing: 12) {
                                 Image(systemName: "safari")
-                                    .foregroundStyle(.blue)
+                                    .foregroundStyle(Color.blue)
                                     .frame(width: 22)
 
                                 Text(verbatim: link.displayName)
-                                    .foregroundStyle(.blue)
+                                    .foregroundStyle(Color.blue)
 
                                 Spacer(minLength: 8)
 
@@ -5063,25 +5090,3 @@ struct 视觉小说详情: View {
     }
 }
 
-private struct DivisionFrameModifier: ViewModifier {
-    @Binding var divisionFrame: CGRect?
-
-    func body(content: Content) -> some View {
-        #if compiler(>=6.5)
-        if #available(iOS 27.1, *) {
-            content
-                .onGeometryChange(for: CGRect?.self) { proxy in
-                    proxy.reservedRegions(kind: .division)
-                        .first(where: \.isActive)?
-                        .frame
-                } action: { frame in
-                    divisionFrame = frame
-                }
-        } else {
-            content
-        }
-        #else
-        content
-        #endif
-    }
-}

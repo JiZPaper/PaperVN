@@ -10,12 +10,17 @@ struct PaperVNApp: App {
     @StateObject private var auth = 用户登录()
     @StateObject private var kunAccount = 鲲Galgame账户()
     @StateObject private var bangumiAccount = Bangumi账户()
+    @StateObject private var myAnimeListAccount = MyAnimeList账户()
+    @StateObject private var aniListAccount = AniList账户()
+    @StateObject private var annictAccount = Annict账户()
+    @StateObject private var tmdbAccount = TMDB账户()
     @StateObject private var parentalControls = 家长控制中心.shared
     @StateObject private var emergencyAvoidance = 紧急回避中心.shared
     @StateObject private var feedbackUpdateNotifier = 反馈更新提醒中心()
     @StateObject private var urlRouter = PaperVNURLRouter()
     @State private var showsRecommendationModelPrompt = false
     @State private var showsWhatsNew = false
+    @State private var showsSurvey = false
     @State private var recommendationModelDownloadState = 推荐模型下载状态.shared
 
     init() {
@@ -37,17 +42,31 @@ struct PaperVNApp: App {
     }
 
     var body: some Scene {
+        // 在任何页面出现之前把平台账户交给 PaperVN Sync。放在 onAppear 里太晚：
+        // 资料库页面会先发起第一次同步，那时 PaperVN Sync 还不知道哪些平台已登录，这次同步就什么都不做。
+        let _ = PaperVNSync中心.shared.连接账户(
+            myAnimeList: myAnimeListAccount,
+            aniList: aniListAccount,
+            annict: annictAccount,
+            tmdb: tmdbAccount,
+            bangumi: bangumiAccount
+        )
         let rootContent = TabBar()
         .environmentObject(premiumStore)
         .environmentObject(auth)
         .environmentObject(kunAccount)
         .environmentObject(bangumiAccount)
+        .environmentObject(myAnimeListAccount)
+        .environmentObject(aniListAccount)
+        .environmentObject(annictAccount)
+            .environmentObject(tmdbAccount)
         .environmentObject(parentalControls)
         .environmentObject(urlRouter)
         .平台柔和滚动边缘(for: .top)
+        .modifier(同步待处理弹出())
         .sheet(isPresented: $showsWhatsNew, onDismiss: {
             新功能介绍.标记已读()
-            presentRecommendationModelPromptIfNeeded()
+            presentSurveyOrRecommendationModelPrompt()
         }) {
             // 弹窗挂在 environmentObject 外层，需要再注入一次
             新功能介绍页面 {
@@ -57,8 +76,20 @@ struct PaperVNApp: App {
             .environmentObject(auth)
             .environmentObject(kunAccount)
             .environmentObject(bangumiAccount)
+            .environmentObject(myAnimeListAccount)
+            .environmentObject(aniListAccount)
+            .environmentObject(annictAccount)
+            .environmentObject(tmdbAccount)
             .environmentObject(parentalControls)
             .environmentObject(urlRouter)
+        }
+        .sheet(isPresented: $showsSurvey, onDismiss: {
+            进路调查.标记已完成()
+            presentRecommendationModelPromptIfNeeded()
+        }) {
+            进路调查页面 {
+                showsSurvey = false
+            }
         }
         .alert(item: $feedbackUpdateNotifier.alert) { alert in
             Alert(
@@ -116,8 +147,9 @@ struct PaperVNApp: App {
                     showsWhatsNew = true
                 }
             } else {
-                presentRecommendationModelPromptIfNeeded()
+                presentSurveyOrRecommendationModelPrompt()
             }
+            进路调查.发送待提交答案()
         }
         .onOpenURL { url in
             _ = urlRouter.handle(url)
@@ -142,6 +174,9 @@ struct PaperVNApp: App {
             await 智能搜索模型下载状态.shared.checkForUpdate()
         }
         .task(id: auth.token + "|" + auth.userID) {
+            if !auth.isLoggedIn && !auth.isRestoringSession {
+                PaperVNSync中心.shared.重置()
+            }
             推荐后台分析中心.shared.启动需要的分析()
             await feedbackUpdateNotifier.refresh(
                 token: auth.isLoggedIn ? auth.token : nil,
@@ -160,6 +195,7 @@ struct PaperVNApp: App {
             }
             guard phase == .active else { return }
             推荐后台分析中心.shared.启动需要的分析()
+            Task { await 敏感内容网页设置.同步() }
             Task {
                 await premiumStore.refreshForActiveScene()
                 await feedbackUpdateNotifier.refresh(
@@ -192,6 +228,19 @@ struct PaperVNApp: App {
         for case let scene as UIWindowScene in UIApplication.shared.connectedScenes {
             scene.sizeRestrictions?.minimumSize =
                 PaperVN窗口布局.iPad最小尺寸
+        }
+    }
+
+    /// 进路调查排在新功能介绍之后、模型下载提示之前，一次只弹一个。
+    private func presentSurveyOrRecommendationModelPrompt() {
+        guard 进路调查.应显示 else {
+            presentRecommendationModelPromptIfNeeded()
+            return
+        }
+        // 刚关掉上一个弹窗或刚启动时立即呈现会被系统忽略
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(600))
+            showsSurvey = true
         }
     }
 

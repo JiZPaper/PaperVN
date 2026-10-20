@@ -927,6 +927,27 @@ nonisolated enum VNDB本地推荐算法V2 {
         minimumExplorationCount: Int = 8,
         collaborativeScores: [String: Double] = [:]
     ) -> [探索推荐] {
+        排序候选(
+            candidates,
+            characterEvidence: { charactersByVisualNovel[$0] ?? [] },
+            profile: profile,
+            excludedIDs: excludedIDs,
+            limit: limit,
+            minimumExplorationCount: minimumExplorationCount,
+            collaborativeScores: collaborativeScores
+        )
+    }
+
+    /// 角色证据按作品现取现用，不必先把所有作品的证据都建好。
+    static func 排序候选(
+        _ candidates: [探索视觉小说],
+        characterEvidence: (String) -> [VNDB候选角色证据],
+        profile: VNDB本地推荐画像V2,
+        excludedIDs: Set<String>,
+        limit: Int,
+        minimumExplorationCount: Int = 8,
+        collaborativeScores: [String: Double] = [:]
+    ) -> [探索推荐] {
         guard limit > 0, profile.hasPositiveSignal else { return [] }
         let unique = Dictionary(
             candidates.map { ($0.id, $0) },
@@ -937,7 +958,7 @@ nonisolated enum VNDB本地推荐算法V2 {
                   !profile.seedIDs.contains(candidate.id) else { return nil }
             return evaluate(
                 candidate,
-                characterEvidence: charactersByVisualNovel[candidate.id] ?? [],
+                characterEvidence: characterEvidence(candidate.id),
                 profile: profile,
                 collaborativeScore: collaborativeScores[candidate.id] ?? 0
             )

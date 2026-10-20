@@ -434,9 +434,8 @@ private struct Steam评论语言选择页面: View {
                     Button {
                         isPresented = false
                     } label: {
-                        Image(systemName: "xmark")
+                        Label("关闭", systemImage: "xmark")
                     }
-                    .accessibilityLabel("关闭")
                 }
             }
         }
@@ -867,7 +866,7 @@ struct 语言与地区: View {
             } header: {
                 Text("标题")
             } footer: {
-                Text("PaperVN按照“偏好语言＞备用语言＞VNDB默认标题”的顺序获取标题。")
+                Text("PaperVN按照“偏好语言＞备用语言＞默认标题”的顺序获取标题。")
             }
 
             Section {
@@ -954,9 +953,8 @@ struct 语言与地区: View {
                     Button {
                         isPresented = false
                     } label: {
-                        Image(systemName: "xmark")
+                        Label("关闭", systemImage: "xmark")
                     }
-                    .accessibilityLabel("关闭")
                 }
             }
         }
@@ -1293,9 +1291,8 @@ struct 通用设置: View {
                     Button {
                         isPresented = false
                     } label: {
-                        Image(systemName: "xmark")
+                        Label("关闭", systemImage: "xmark")
                     }
-                    .accessibilityLabel("关闭")
                 }
             }
         }
@@ -1345,9 +1342,8 @@ private struct LiquidGlass设置: View {
             Button {
                 isPresented = false
             } label: {
-                Image(systemName: "xmark")
+                Label("关闭", systemImage: "xmark")
             }
-            .accessibilityLabel("关闭")
         }
     }
 }
@@ -1411,9 +1407,8 @@ private struct LiquidGlass外观选择页面: View {
                     Button {
                         isPresented = false
                     } label: {
-                        Image(systemName: "xmark")
+                        Label("关闭", systemImage: "xmark")
                     }
-                    .accessibilityLabel("关闭")
                 }
             }
         }
@@ -1729,9 +1724,8 @@ struct 网络设置: View {
                     Button {
                         isPresented = false
                     } label: {
-                        Image(systemName: "xmark")
+                        Label("关闭", systemImage: "xmark")
                     }
-                    .accessibilityLabel("关闭")
                 }
             }
         }
@@ -1845,9 +1839,8 @@ struct Today设置: View {
                     Button {
                         isPresented = false
                     } label: {
-                        Image(systemName: "xmark")
+                        Label("关闭", systemImage: "xmark")
                     }
-                    .accessibilityLabel("关闭")
                 }
             }
         }
@@ -1866,6 +1859,10 @@ struct 资料库设置: View {
     private var combinedRatingVNDBWeight = 0.5
     @AppStorage(评论数据来源.设置键)
     private var commentSource = 评论数据来源.combined.rawValue
+    @AppStorage(PaperVNSync中心.启用设置键)
+    private var paperVNSyncEnabled = PaperVNSync中心.默认启用
+    @EnvironmentObject private var auth: 用户登录
+    @EnvironmentObject private var bangumiAccount: Bangumi账户
 
     var body: some View {
         平台滚动页面 {
@@ -1876,6 +1873,24 @@ struct 资料库设置: View {
                     systemImage: "books.vertical.fill",
                     color: .gray
                 )
+            }
+
+            Section {
+                Toggle("PaperVN Sync", isOn: $paperVNSyncEnabled)
+                    .onChange(of: paperVNSyncEnabled) { _, enabled in
+                        if enabled, auth.isLoggedIn {
+                            bangumiAccount.startLibrarySynchronization(
+                                vndbToken: auth.token,
+                                userID: auth.userID
+                            )
+                        } else if !enabled {
+                            bangumiAccount.cancelLibrarySynchronization()
+                        }
+                    }
+            } header: {
+                Text("同步")
+            } footer: {
+                Text("同步资料库。")
             }
 
             Section {
@@ -1940,9 +1955,8 @@ struct 资料库设置: View {
                     Button {
                         isPresented = false
                     } label: {
-                        Image(systemName: "xmark")
+                        Label("关闭", systemImage: "xmark")
                     }
-                    .accessibilityLabel("关闭")
                 }
             }
         }
@@ -2018,9 +2032,8 @@ struct 搜索设置: View {
                     Button {
                         isPresented = false
                     } label: {
-                        Image(systemName: "xmark")
+                        Label("关闭", systemImage: "xmark")
                     }
-                    .accessibilityLabel("关闭")
                 }
             }
         }
@@ -2101,9 +2114,8 @@ struct 储存空间设置: View {
                     Button {
                         isPresented = false
                     } label: {
-                        Image(systemName: "xmark")
+                        Label("关闭", systemImage: "xmark")
                     }
-                    .accessibilityLabel("关闭")
                 }
             }
         }
@@ -2399,8 +2411,9 @@ struct 内容与安全限制: View {
     @EnvironmentObject private var auth: 用户登录
     @EnvironmentObject private var parentalControls: 家长控制中心
     @StateObject private var emergencyAvoidance = 紧急回避中心.shared
-    @AppStorage(强制内容安全策略.高级设置解锁键)
-    private var advancedControlsUnlocked = false
+    /// 设备特例只能在PaperVN网站上登记，见`敏感内容网页设置`。
+    @AppStorage(敏感内容网页设置.已开启键)
+    private var deviceExceptionEnabled = false
     @AppStorage("contentFilterEnabled") private var contentFilterEnabled = false
     @AppStorage("sexualThreshold") private var sexualThreshold: Double = 0.8
     @AppStorage("violenceThreshold") private var violenceThreshold: Double = 1
@@ -2438,8 +2451,7 @@ struct 内容与安全限制: View {
     }
 
     private var allowsAdvancedControls: Bool {
-        advancedControlsUnlocked
-            && 强制内容安全策略.可使用高级设置(token: auth.token)
+        deviceExceptionEnabled
     }
 
     private var sexualThresholdLimit: Double {
@@ -2682,7 +2694,8 @@ struct 内容与安全限制: View {
         .平台柔和滚动边缘(for: .top)
         .平台内联导航标题()
         .task {
-            强制内容安全策略.应用到用户设置(token: auth.token)
+            强制内容安全策略.应用到用户设置()
+            await 敏感内容网页设置.同步()
         }
         .toolbar {
             if showsDismissButton {
@@ -2690,9 +2703,8 @@ struct 内容与安全限制: View {
                     Button {
                         isPresented = false
                     } label: {
-                        Image(systemName: "xmark")
+                        Label("关闭", systemImage: "xmark")
                     }
-                    .accessibilityLabel("关闭")
                 }
             }
         }

@@ -138,6 +138,20 @@ Tools/更新推荐模型.sh --votes-only  # 只用最新评分重训协同部分
 
 数据来源：VNDB 数据库导出；Bangumi 数据库导出（中文名、别名，以及只出现在极少数条目上、又有足够多人打的标签，往往就是这部作品的简称或梗）；`智能搜索模型/社区别名.json` 手工维护两边都没有的叫法（作品、角色、会社、制作人员都可以加）。合成查询包括完整名称、开头几个字、中间片段、错拼和别名，另有 `智能搜索模型/评估查询-名称.json` 中的人工评估查询。
 
+## 动画、漫画与轻小说（格式 3）
+
+`--works-data <数据目录>` 把动画、漫画、轻小说也放进索引（`智能搜索模型/作品.py`），数据目录与 `构建作品映射.py` 相同，另需：
+
+- `anilist-popularity.json`：AniList 热度前 5000 部动画、漫画；
+- `wikidata-names-P4086.json` / `wikidata-names-P4087.json`：Wikidata 上动画、漫画的各语言名称与别名；
+- `wikipedia-redirects.json`：中、日、英 Wikipedia 重定向到作品条目的名称（按 Wikidata 的 MAL/VNDB ID 归到作品）。
+
+作品的划分与资料库一致：动画全部收录（映射里的每部作品，以及 Bangumi 上没对应、收藏 ≥ 5 的条目），漫画、轻小说收录 Bangumi 收藏或 AniList 热度 ≥ 5 的。编号是 MAL ID，没有 MAL ID 时最高位标出来源（0x8000_0000 | AniList ID、0x4000_0000 | Bangumi ID），App 的 `作品搜索结果.解析` 用同样的规则。
+
+别名来源：AniList、MAL（anime-offline-database）、Bangumi（中文名、infobox 别名、少见又多人打的标签）、Annict、Wikidata、Wikipedia 重定向、同名视觉小说的别名，以及手工整理的 `智能搜索模型/社区叫法.json`（按名称指定作品或角色，构建时报告对不上的名称）。
+
+`--extra-aliases <文件>` 加入另外提供的别名（`{"结果": {条目键: [别名, …]}}`），这份文件不放在仓库里。
+
 ## 环境
 
 ```sh

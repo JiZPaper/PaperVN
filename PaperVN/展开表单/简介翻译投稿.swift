@@ -478,12 +478,11 @@ struct 简介翻译投稿页面: View {
                             ProgressView()
                         } else {
                             Button(action: submit) {
-                                Image(systemName: "arrow.up")
+                                Label("提交", systemImage: "arrow.up")
                             }
                             .液态玻璃醒目按钮(in: Circle())
                             .buttonBorderShape(.circle)
                             .tint(.blue)
-                            .accessibilityLabel("提交")
                             .disabled(!canSubmit)
                         }
                     }
@@ -724,9 +723,8 @@ struct 简介翻译贡献页面: View {
                     Button {
                         dismiss()
                     } label: {
-                        Image(systemName: "xmark")
+                        Label("关闭", systemImage: "xmark")
                     }
-                    .accessibilityLabel("关闭")
                 }
             }
         }

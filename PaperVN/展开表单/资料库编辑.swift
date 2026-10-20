@@ -112,13 +112,12 @@ struct 资料库编辑页面: View {
                         .lineLimit(1)
                 }
 
-                ToolbarItem(placement: .平台前导操作) {
+                ToolbarItem(placement: .cancellationAction) {
                     Button {
                         requestDismiss()
                     } label: {
-                        Image(systemName: "xmark")
+                        Label("关闭", systemImage: "xmark")
                     }
-                    .accessibilityLabel("关闭")
                     .disabled(isSaving)
                     .confirmationDialog(
                         "要放弃更改吗？",
@@ -139,7 +138,7 @@ struct 资料库编辑页面: View {
                     }
                 }
 
-                ToolbarItem(placement: .平台主操作) {
+                ToolbarItem(placement: .confirmationAction) {
                     Button {
                         Task {
                             await save()
@@ -151,7 +150,7 @@ struct 资料库编辑页面: View {
                                 .tint(.gray)
                                 .frame(width: 22, height: 22)
                         } else {
-                            Image(systemName: "checkmark")
+                            Label("存储更改", systemImage: "checkmark")
                         }
                     }
                     .液态玻璃醒目按钮(in: Circle())
@@ -467,7 +466,7 @@ struct 资料库编辑页面: View {
                     date.wrappedValue = Calendar.current.startOfDay(for: Date())
                 }
                 .buttonStyle(.borderless)
-                .foregroundStyle(.blue)
+                .foregroundStyle(Color.blue)
             }
         }
         .frame(height: 34)
@@ -631,7 +630,7 @@ struct 资料库编辑页面: View {
                 }
             }
 
-            if UserDefaults.standard.bool(forKey: Bangumi账户.同步设置键),
+            if PaperVNSync中心.已启用,
                bangumiAccount.isLoggedIn {
                 try await bangumiAccount.synchronize(
                     vndbID: vnID,

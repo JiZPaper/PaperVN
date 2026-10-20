@@ -721,6 +721,8 @@ struct 用户多语言标题: Codable, Hashable, Sendable {
 struct 用户列表项目: Codable, Identifiable, Hashable {
     let id: String
     let added: Int?
+    /// 最近更改时间（Unix 时间戳），资料库索引条按它分月份；旧缓存里没有。
+    var lastmod: Int? = nil
     let vote: Int?
     let started: String?
     let finished: String?

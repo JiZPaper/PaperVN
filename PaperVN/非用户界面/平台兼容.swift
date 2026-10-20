@@ -355,8 +355,48 @@ extension ToolbarItemPlacement {
         .topBarLeading
     }
 
+    /// iOS 27 起固定在尾部：横向栏位置不变，iPhone Duo 纵向栏中紧随导航控件排在顶部。
     static var 平台关闭操作: ToolbarItemPlacement {
-        .topBarTrailing
+        if #available(iOS 27.0, *) {
+            return .topBarPinnedTrailing
+        }
+        return .topBarTrailing
+    }
+}
+
+nonisolated enum 平台工具栏优先级 {
+    case 高
+    case 低
+}
+
+extension ToolbarContent {
+    /// iPhone Duo 纵向栏空间不足时，低优先级项目先收进溢出菜单；更早系统保持默认。
+    @ToolbarContentBuilder
+    func 平台可见优先级(_ priority: 平台工具栏优先级) -> some ToolbarContent {
+        if #available(iOS 27.0, *) {
+            switch priority {
+            case .高:
+                self.visibilityPriority(.high)
+            case .低:
+                self.visibilityPriority(.low)
+            }
+        } else {
+            self
+        }
+    }
+
+    /// iPhone Duo 同时有横栏和竖栏时，优先放进侧边竖栏；更早系统保持默认。
+    @ToolbarContentBuilder
+    func 平台优先纵向栏() -> some ToolbarContent {
+        #if canImport(SwiftUI, _version: 8.0.85) // iOS 27.1 SDK（iPhone Duo API）
+        if #available(iOS 27.1, *) {
+            self.axisBehavior(.verticalPreferred)
+        } else {
+            self
+        }
+        #else
+        self
+        #endif
     }
 }
 
@@ -429,6 +469,12 @@ extension View {
             .presentationDragIndicator(dragIndicator)
     }
 
+    /// 挂在弹窗内的滚动视图上：只有从顶部开始的下拉才会关闭弹窗，
+    /// 浏览中途的滑动（包括一路滑回顶部）不会触发关闭。
+    func 仅顶部可下拉关闭() -> some View {
+        modifier(仅顶部可下拉关闭修饰器())
+    }
+
     @ViewBuilder
     func 平台隐藏导航标题占位(
         _ title: String,
@@ -484,6 +530,16 @@ extension View {
         }
     }
 
+    /// iOS 26 及以上隐藏滚动边缘效果；更早系统没有该效果。
+    @ViewBuilder
+    func 平台隐藏滚动边缘(_ hidden: Bool, for edges: Edge.Set) -> some View {
+        if #available(iOS 26.0, *) {
+            self.scrollEdgeEffectHidden(hidden, for: edges)
+        } else {
+            self
+        }
+    }
+
     /// iOS 26 及以上将内容延伸到安全区域外；更早系统保持默认。
     @ViewBuilder
     func 平台背景延伸效果() -> some View {
@@ -492,6 +548,11 @@ extension View {
         } else {
             self
         }
+    }
+
+    /// 读取 iPhone Duo 半折叠时把内屏分开的折叠区域；完全展开、合上或其他设备上为 nil。
+    func 沉浸详情折叠区域(读取到 divisionFrame: Binding<CGRect?>) -> some View {
+        modifier(沉浸详情折叠区域读取器(divisionFrame: divisionFrame))
     }
 
     /// iOS 26 及以上使用 `safeAreaBar`；更早系统退回 `safeAreaInset`。
@@ -638,6 +699,29 @@ extension View {
     }
 }
 
+private struct 仅顶部可下拉关闭修饰器: ViewModifier {
+    @State private var 在顶部 = true
+    /// 本次滑动开始时是否在顶部；滑动停止后复位
+    @State private var 起始在顶部 = true
+
+    func body(content: Content) -> some View {
+        content
+            .onScrollGeometryChange(for: Bool.self) { geometry in
+                geometry.contentOffset.y + geometry.contentInsets.top <= 1
+            } action: { _, isAtTop in
+                在顶部 = isAtTop
+            }
+            .onScrollPhaseChange { oldPhase, newPhase in
+                if newPhase == .interacting, oldPhase != .interacting {
+                    起始在顶部 = 在顶部
+                } else if newPhase == .idle {
+                    起始在顶部 = true
+                }
+            }
+            .interactiveDismissDisabled(!(在顶部 && 起始在顶部))
+    }
+}
+
 private struct iPad横向内容可溢出修饰器: ViewModifier {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
@@ -713,3 +797,54 @@ private struct Safari浏览器控制器: UIViewControllerRepresentable {
     ) {}
 }
 
+private struct 沉浸详情折叠区域读取器: ViewModifier {
+    @Binding var divisionFrame: CGRect?
+
+    func body(content: Content) -> some View {
+        #if canImport(SwiftUI, _version: 8.0.85) // iOS 27.1 SDK（iPhone Duo API）
+        if #available(iOS 27.1, *) {
+            content
+                .onGeometryChange(for: CGRect?.self) { proxy in
+                    proxy.reservedRegions(kind: .division)
+                        .first(where: \.isActive)?
+                        .frame
+                } action: { frame in
+                    divisionFrame = frame
+                }
+        } else {
+            content
+        }
+        #else
+        content
+        #endif
+    }
+}
+
+/// 工具栏里独占一个玻璃按钮的图标标签。
+/// SwiftUI 按图标的实际宽度再加左右各 6pt 排版，square.and.pencil、info.circle 这类偏宽的符号会把玻璃按钮撑成 47×44 的椭圆；
+/// 图标宽度限制成和高度一样的 24pt，按钮就是 44×44 的正圆。
+struct 工具栏圆形图标标签: View {
+    private let title: Text
+    private let systemImage: String
+
+    init(_ title: LocalizedStringKey, systemImage: String) {
+        self.title = Text(title)
+        self.systemImage = systemImage
+    }
+
+    /// 已经本地化好的文字；和系统 Label 一样让字面量优先走本地化的版本
+    @_disfavoredOverload
+    init(_ title: String, systemImage: String) {
+        self.title = Text(verbatim: title)
+        self.systemImage = systemImage
+    }
+
+    var body: some View {
+        Label {
+            title
+        } icon: {
+            Image(systemName: systemImage)
+                .frame(width: 24)
+        }
+    }
+}

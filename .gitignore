@@ -37,7 +37,6 @@ Temporary Items
 
 # Private configuration kept out of the open-source repository
 Config/PaperVN.private.xcconfig
-PaperVN/Private/
 
 # Files unrelated to the app
 Others/

@@ -125,6 +125,7 @@ struct 角色详情: View {
     @State private var immersiveTextSamplingCoordinator =
         沉浸封面文字取样任务协调器(校准名称: "角色")
     @State private var immersiveHeroGestureIsActive = false
+    @State private var immersiveHeroIsExpanded = false
     @State private var immersiveAutomaticAppearance: 沉浸详情外观?
     @State private var immersiveAutomaticAppearanceURL: URL?
     @State private var immersiveLoadedHeroImage: Image?
@@ -428,6 +429,9 @@ struct 角色详情: View {
                         dragContext: dragContext,
                         primaryInformation: primaryInformation
                     )
+                    .onChange(of: dragContext.isExpanded) { _, isExpanded in
+                        updateImmersiveHeroExpansion(isExpanded)
+                    }
                 } content: {
                     if !uniqueVoiceRelationships.isEmpty
                         || isShowingInitialSkeleton
@@ -487,7 +491,7 @@ struct 角色详情: View {
         } action: { size in
             immersiveViewportSize = size
         }
-        .modifier(DivisionFrameModifier(divisionFrame: $immersiveDivisionFrame))
+        .沉浸详情折叠区域(读取到: $immersiveDivisionFrame)
         .scrollIndicators(.hidden)
         .coordinateSpace(name: "ImmersiveCharacterScroll")
         .onPreferenceChange(角色沉浸取样框PreferenceKey.self) { frames in
@@ -1464,7 +1468,8 @@ struct 角色详情: View {
             imageSize: CGSize(width: imageFrame.width, height: imageFrame.height),
             regions: regions,
             viewportSize: immersiveViewportSize,
-            contentOffsetY: horizontalSizeClass == .regular ? -60 : 0
+            contentOffsetY: horizontalSizeClass == .regular ? -60 : 0,
+            封面已展开: immersiveHeroIsExpanded
         )
         guard immersiveTextSamplingCoordinator.latestGeometry != geometry else {
             return
@@ -1472,6 +1477,27 @@ struct 角色详情: View {
         immersiveTextSamplingCoordinator.remember(geometry)
         guard !immersiveHeroGestureIsActive else { return }
         guard let url = currentImmersiveImageURL else { return }
+        scheduleImmersiveTextSamples(
+            for: url,
+            geometry: geometry,
+            revealsImmediately: true
+        )
+    }
+
+    /// 下拉展开或收起封面时，信息卡片背后的背景整个换掉，需要按新的状态重新取样。
+    private func updateImmersiveHeroExpansion(_ isExpanded: Bool) {
+        guard immersiveHeroIsExpanded != isExpanded else { return }
+        immersiveHeroIsExpanded = isExpanded
+        guard var geometry = immersiveTextSamplingCoordinator.latestGeometry
+                ?? immersiveTextSampleGeometry else {
+            return
+        }
+        geometry.封面已展开 = isExpanded
+        immersiveTextSamplingCoordinator.remember(geometry)
+        guard !immersiveHeroGestureIsActive,
+              let url = currentImmersiveImageURL else {
+            return
+        }
         scheduleImmersiveTextSamples(
             for: url,
             geometry: geometry,
@@ -1901,7 +1927,7 @@ struct 角色详情: View {
                             .buttonStyle(.plain)
                             .foregroundStyle(
                                 showTranslatedDescription
-                                    ? .blue
+                                    ? Color.blue
                                     : textStyle.secondary
                             )
                             .accessibilityLabel(
@@ -1987,7 +2013,7 @@ struct 角色详情: View {
                         .buttonStyle(.plain)
                         .foregroundStyle(
                             showTranslatedTraits
-                                ? .blue
+                                ? Color.blue
                                 : textStyle.capsule
                         )
                         .沉浸详情文字阴影(textStyle)
@@ -2344,16 +2370,16 @@ struct 角色详情: View {
                     .padding()
             }
             .navigationTitle("简介")
+            .仅顶部可下拉关闭()
             .平台柔和滚动边缘(for: .top)
             .平台内联导航标题()
             .toolbar {
-                ToolbarItem(placement: .平台前导操作) {
+                ToolbarItem(placement: .cancellationAction) {
                     Button {
                         showDescriptionSheet = false
                     } label: {
-                        Image(systemName: "xmark")
+                        Label("关闭", systemImage: "xmark")
                     }
-                    .accessibilityLabel("关闭")
                 }
 
                 ToolbarItem(placement: .平台主操作) {
@@ -3138,25 +3164,3 @@ struct 角色详情: View {
 
 }
 
-private struct DivisionFrameModifier: ViewModifier {
-    @Binding var divisionFrame: CGRect?
-
-    func body(content: Content) -> some View {
-        #if compiler(>=6.5)
-        if #available(iOS 27.1, *) {
-            content
-                .onGeometryChange(for: CGRect?.self) { proxy in
-                    proxy.reservedRegions(kind: .division)
-                        .first(where: \.isActive)?
-                        .frame
-                } action: { frame in
-                    divisionFrame = frame
-                }
-        } else {
-            content
-        }
-        #else
-        content
-        #endif
-    }
-}
