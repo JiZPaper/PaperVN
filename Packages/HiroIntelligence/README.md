@@ -1,4 +1,4 @@
-# PaperVNSmartSearch
+# HiroIntelligence
 
 PaperVN 搜索页 Hiro智能 的设备端名称模糊匹配，抽成独立的 Swift Package。读取 `.pvss` 模型文件，按名称搜索视觉小说、角色、会社、制作人员、动画、漫画和轻小说；查询文本不会离开设备。
 
@@ -17,7 +17,7 @@ App 安装包里预装的一份在 `PaperVN/Resources/PaperVNSmartSearch.pvss`�
 ## 使用
 
 ```swift
-import PaperVNSmartSearch
+import HiroIntelligence
 
 let 引擎 = 智能搜索引擎(模型URL: 模型文件URL)
 let 结果 = try await 引擎.搜索("Ever17")
@@ -42,7 +42,7 @@ for 命中 in 结果.命中 {
 swift test
 ```
 
-默认使用 App 里预装的模型，也可以用环境变量 `PAPERVN_SMART_SEARCH_MODEL` 指定模型文件；找不到模型时跳过测试。
+默认使用 App 里预装的模型，也可以用环境变量 `HIRO_INTELLIGENCE_MODEL` 指定模型文件；找不到模型时跳过测试。
 
 ## 许可
 

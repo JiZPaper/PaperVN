@@ -1,10 +1,10 @@
 import Foundation
 import Testing
-@testable import PaperVNSmartSearch
+@testable import HiroIntelligence
 
-/// 用 App 里预装的模型测试；也可以用环境变量 PAPERVN_SMART_SEARCH_MODEL 指定其他模型文件。
+/// 用 App 里预装的模型测试；也可以用环境变量 HIRO_INTELLIGENCE_MODEL 指定其他模型文件。
 private let 模型URL: URL? = {
-    if let 路径 = ProcessInfo.processInfo.environment["PAPERVN_SMART_SEARCH_MODEL"] {
+    if let 路径 = ProcessInfo.processInfo.environment["HIRO_INTELLIGENCE_MODEL"] {
         return URL(fileURLWithPath: 路径)
     }
     let 预装 = URL(fileURLWithPath: #filePath)
