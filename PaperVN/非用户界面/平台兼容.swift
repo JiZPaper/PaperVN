@@ -848,3 +848,37 @@ struct 工具栏圆形图标标签: View {
         }
     }
 }
+
+#if DEBUG
+#Preview("仅在顶部可下拉关闭") {
+    // 滚动到中间后下拉只会滚回顶部，不会关闭页面；在顶部时下拉才关闭
+    @Previewable @State var 显示 = true
+    Button("显示页面") { 显示 = true }
+        .sheet(isPresented: $显示) {
+            NavigationStack {
+                List(1...40, id: \.self) { index in
+                    Text(verbatim: "第\(index)行")
+                }
+                .仅顶部可下拉关闭()
+                .navigationTitle("更多信息")
+                .navigationBarTitleDisplayMode(.inline)
+            }
+        }
+}
+
+#Preview("工具栏圆形图标按钮") {
+    NavigationStack {
+        Text("宽图标的工具栏按钮也是正圆")
+            .foregroundStyle(.secondary)
+            .navigationTitle("作品详情")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {} label: { 工具栏圆形图标标签("编辑", systemImage: "square.and.pencil") }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {} label: { 工具栏圆形图标标签("更多信息", systemImage: "info.circle") }
+                }
+            }
+    }
+}
+#endif

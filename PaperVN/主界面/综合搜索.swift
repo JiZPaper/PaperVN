@@ -83,6 +83,8 @@ nonisolated enum 综合搜索合并 {
         /// 角色编号 → 所属作品编号
         var 角色所属: [String: String] = [:]
         var 按相关程度 = true
+        /// 搜索词。只输入了系列名（“lovelive”“fate”）时，这个系列的各部正作按播出顺序排
+        var 查询 = ""
     }
 
     private enum 类型 {
@@ -188,6 +190,13 @@ nonisolated enum 综合搜索合并 {
                 }
             }
         }
+        // 叠在下面的同系列动画按播出顺序排（年份，同年按编号），不按搜索的可能性
+        for (位置, 项) in 条目.enumerated() {
+            guard case var .动画漫画(组) = 项, 组.同系列.count > 1 else { continue }
+            组.同系列.sort { ($0.年份 ?? .max, $0.malID) < ($1.年份 ?? .max, $1.malID) }
+            条目[位置] = .动画漫画(组)
+        }
+        if 输入.按相关程度 { 按播出顺序排同名系列(&条目, 查询: 输入.查询) }
         if !待定角色.isEmpty {
             // 非相关程度排序：角色紧跟在作品之后，再是会社和制作人员
             let 首个非作品 = 条目.firstIndex {
@@ -197,6 +206,64 @@ nonisolated enum 综合搜索合并 {
             条目.insert(contentsOf: 待定角色.map { .角色($0) }, at: 首个非作品)
         }
         return 条目
+    }
+}
+
+nonisolated extension 综合搜索合并 {
+    /// 搜索词只是一个系列名、没有指明哪一部时（只看动画）（“lovelive”能对上 LoveLive! School idol project、Sunshine!!、虹咲、Superstar!! 的开头），
+    /// 这些动画占用的位置不变：各部正作排在前面，彼此之间按播出顺序（每组取最早的年份，同年按编号），不按搜索的可能性。
+    /// 搜索词要对上标题开头的完整词（后面是空格、标点或结尾），“sp”不会对上“SPY×FAMILY”。
+    static func 按播出顺序排同名系列(_ 条目: inout [综合搜索条目], 查询: String) {
+        let 查询键 = 名称键(查询)
+        guard 查询键.count >= 3 else { return }
+        var 位置: [Int] = []
+        var 正作: [动画漫画组] = []
+        var 其他: [动画漫画组] = []
+        for (序号, 项) in 条目.enumerated() {
+            // 只排动画：漫画、轻小说和改编动画混在一起按年份排会把动画挤到后面
+            guard case let .动画漫画(组) = 项, 组.作品.类型 == .anime,
+                  ([组.作品] + 组.同系列).contains(where: { 标题开头是(查询键, $0) }) else { continue }
+            位置.append(序号)
+            if 是正作(组) { 正作.append(组) } else { 其他.append(组) }
+        }
+        guard 正作.count >= 2 else { return }
+        func 顺序(_ 组: 动画漫画组) -> (Int, Int) {
+            ([组.作品] + 组.同系列).map { ($0.年份 ?? .max, $0.malID) }.min { $0 < $1 } ?? (.max, .max)
+        }
+        let 排好 = 正作.enumerated().sorted {
+            let (a, b) = (顺序($0.element), 顺序($1.element))
+            return (a.0, a.1, $0.offset) < (b.0, b.1, $1.offset)
+        }.map(\.element)
+        // 正作按播出顺序占前面的位置，同名的 OVA、剧场版、特别篇等接在后面（保持原来的先后）
+        for (序号, 组) in zip(位置, 排好 + 其他) { 条目[序号] = .动画漫画(组) }
+    }
+
+    /// 系列的正作：叠着好几季的，或者单独一部 TV、网络动画。单独的 OVA、剧场版、特别篇、演唱会不算
+    static func 是正作(_ 组: 动画漫画组) -> Bool {
+        if !组.同系列.isEmpty { return true }
+        guard let 格式 = 组.作品.格式?.uppercased() else { return true }
+        return 格式.hasPrefix("TV") || 格式 == "ONA" || 格式 == "WEB"
+    }
+
+    /// 某个标题以搜索词为开头的完整词：标题在空格或标点处切开的各个开头部分，规范化后和搜索词相同。
+    static func 标题开头是(_ 查询键: String, _ 作品: 作品搜索结果) -> Bool {
+        let 标题们 = [作品.标题] + 作品.多语言标题.flatMap { [$0.title, $0.latin].compactMap { $0 } }
+        return 标题们.contains { 标题 in
+            let 文本 = 作品多语言标题.校正(标题)
+            var 开头 = ""
+            for 字 in 文本 {
+                if !字.isLetter && !字.isNumber, 名称键(开头) == 查询键 { return true }
+                开头.append(字)
+            }
+            return 名称键(文本) == 查询键
+        }
+    }
+
+    /// 和Hiro智能相同的规范化（不含变音映射）：小写、片假名转平假名、只留字母和数字。
+    private static func 名称键(_ 文本: String) -> String {
+        var 结果 = String.UnicodeScalarView()
+        结果.append(contentsOf: 智能搜索名称索引.规范化(文本, 变音映射: [:]))
+        return String(结果)
     }
 }
 
@@ -262,6 +329,11 @@ final class 智能搜索视图模型: ObservableObject {
             return
         }
         guard 查询 != 当前查询 || 筛选 != 当前筛选 else { return }
+        搜索(查询, 筛选: 筛选, 重试: true)
+    }
+
+    /// `重试`：读取模型失败时是否过一会儿自动再搜一次（只重试一次）。
+    private func 搜索(_ 查询: String, 筛选: 筛选条件, 重试: Bool) {
         if 筛选 != 当前筛选 {
             角色所属作品 = [:]
             已请求所属作品 = []
@@ -298,6 +370,13 @@ final class 智能搜索视图模型: ObservableObject {
                 guard let self, 查询 == self.当前查询 else { return }
                 self.清空()
                 self.正在搜索 = false
+                // 读取模型失败（例如模型文件刚被更新替换）：不记住这个查询，再次提交或输入时会重新搜索；
+                // 另外过一秒自动重试一次。否则这次的结果只剩各平台的搜索结果，而且不会再变
+                self.当前查询 = ""
+                guard 重试 else { return }
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                guard self.当前查询.isEmpty, !Task.isCancelled else { return }
+                self.搜索(查询, 筛选: 筛选, 重试: false)
             }
         }
     }

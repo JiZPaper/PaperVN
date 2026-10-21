@@ -2653,3 +2653,34 @@ private enum 部分真值: nonisolated Equatable {
         return .no
     }
 }
+
+#if DEBUG
+// MARK: - 预览
+
+private struct 综合搜索筛选预览: View {
+    let 筛选对象: 搜索范围
+    @State private var filters = 视觉小说搜索筛选()
+    @State private var characterFilters = 搜索扩展筛选()
+    @State private var staffFilters = 搜索扩展筛选()
+    @State private var producerFilters = 搜索扩展筛选()
+
+    var body: some View {
+        // 与搜索页弹出时一样放在导航栈里
+        NavigationStack {
+            综合搜索筛选页面(
+                visualNovelFilters: $filters,
+                characterFilters: $characterFilters,
+                staffFilters: $staffFilters,
+                producerFilters: $producerFilters,
+                initialTarget: 筛选对象
+            ) {}
+        }
+    }
+}
+
+#Preview("综合搜索筛选") {
+    预览状态切换(搜索范围.allCases.map { scope in
+        .init(scope.localizedTitle) { 综合搜索筛选预览(筛选对象: scope) }
+    })
+}
+#endif

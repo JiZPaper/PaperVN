@@ -396,17 +396,6 @@ struct 用户页面: View {
                             color: .blue
                         )
                     }
-
-                    NavigationLink {
-                        同步任务页面()
-                            .environmentObject(auth)
-                    } label: {
-                        设置项目标签(
-                            "同步任务",
-                            systemImage: "arrow.triangle.2.circlepath",
-                            color: .gray
-                        )
-                    }
                 }
 
                 if showsSettings {
@@ -423,7 +412,7 @@ struct 用户页面: View {
                 action: dismissPage
             )
         }
-        // 挂在 NavigationStack 外层：推入子页面时它不会消失，“同步任务”页面里也能弹出处理页面
+        // 挂在 NavigationStack 外层：推入子页面时它不会消失，“资料库”设置里的“同步任务”页面也能弹出处理页面
         .modifier(同步待处理弹出())
         .interactiveDismissDisabled(!isEmbedded)
     }
@@ -454,6 +443,19 @@ struct 用户页面: View {
                     "内容与安全限制",
                     systemImage: "hand.raised.fill",
                     color: .blue
+                )
+            }
+
+            NavigationLink {
+                作品类型设置(
+                    isPresented: $isPresented,
+                    showsDismissButton: true
+                )
+            } label: {
+                设置项目标签(
+                    "作品类型",
+                    systemImage: "square.stack.fill",
+                    color: .indigo
                 )
             }
 
@@ -876,6 +878,8 @@ private struct 账户页面: View {
                 Text("通过PaperVN Sync同步资料库中的动画、漫画与轻小说。")
             }
 
+            账户同步方式设置区(平台: .myAnimeList)
+
             Section {
                 Button("退出登录", role: .destructive) {
                     activeAlert = .malLogout
@@ -926,6 +930,8 @@ private struct 账户页面: View {
                 }
             }
 
+            账户同步方式设置区(平台: .tmdb)
+
             Section {
                 Button("退出登录", role: .destructive) {
                     activeAlert = .tmdbLogout
@@ -962,6 +968,8 @@ private struct 账户页面: View {
             } footer: {
                 Text("通过PaperVN Sync同步资料库中的动画、漫画与轻小说。")
             }
+            账户同步方式设置区(平台: .aniList)
+
             Section {
                 Button("退出登录", role: .destructive) {
                     activeAlert = .aniListLogout
@@ -1003,6 +1011,8 @@ private struct 账户页面: View {
             } footer: {
                 Text("通过PaperVN Sync同步资料库中动画的观看状态。Annict不同步评分与进度。")
             }
+            账户同步方式设置区(平台: .annict)
+
             Section {
                 Button("退出登录", role: .destructive) {
                     activeAlert = .annictLogout
@@ -1209,6 +1219,8 @@ private struct 账户页面: View {
             } footer: {
                 Text("通过PaperVN Sync同步资料库中的视觉小说、动画、漫画与轻小说。")
             }
+
+            账户同步方式设置区(平台: .bangumi)
 
             Section {
                 Button("退出登录", role: .destructive) {
@@ -1787,3 +1799,73 @@ private struct TMDB令牌输入行: View {
         account.login(令牌: token, using: webAuthenticationSession)
     }
 }
+
+#if DEBUG
+// MARK: - PaperVN 2 预览
+
+private struct 账户页面预览: View {
+    let 已登录: Bool
+    @StateObject private var vndb: 用户登录
+    @StateObject private var kun = 鲲Galgame账户(previewing: true)
+    @StateObject private var bangumi: Bangumi账户
+
+    init(已登录: Bool) {
+        self.已登录 = 已登录
+        _vndb = StateObject(wrappedValue: 预览数据.vndb(已登录: 已登录))
+        _bangumi = StateObject(wrappedValue: 预览数据.bangumi(已登录: 已登录))
+    }
+
+    var body: some View {
+        NavigationStack {
+            账户页面(
+                vndbAccount: vndb,
+                kunAccount: kun,
+                bangumiAccount: bangumi,
+                showsCloseButton: true,
+                closeAction: {}
+            )
+        }
+        // 离视图更近的环境对象优先，覆盖预览环境里的同类账户
+        .environmentObject(vndb)
+        .environmentObject(bangumi)
+        .预览环境(已登录: 已登录)
+    }
+}
+
+private struct TMDB令牌输入预览: View {
+    @State private var token = ""
+    @StateObject private var account = TMDB账户(previewing: true)
+
+    var body: some View {
+        Form {
+            Section {
+                TMDB令牌输入行(token: $token, account: account)
+            } header: {
+                Text("使用TMDB账户登录")
+            } footer: {
+                Text("你需要使用API读取访问令牌来登录TMDB。如果你还没有，可以在TMDB网站的Settings > API中申请。")
+            }
+        }
+    }
+}
+
+#Preview("账户") {
+    预览状态切换([
+        .init("全部未登录") { 账户页面预览(已登录: false) },
+        .init("MyAnimeList、AniList、Annict、TMDB与Bangumi已登录") { 账户页面预览(已登录: true) },
+        .init("网页登录按钮") {
+            Form {
+                Section {
+                    网页登录按钮(title: "登录MyAnimeList", isBusy: false) { _ in }
+                    网页登录按钮(title: "正在登录…", isBusy: true) { _ in }
+                } header: {
+                    Text("使用MyAnimeList账户登录")
+                } footer: {
+                    Text("通过PaperVN Sync同步资料库中的动画、漫画与轻小说。")
+                }
+            }
+        },
+        .init("TMDB令牌输入") { TMDB令牌输入预览() },
+    ])
+}
+#endif

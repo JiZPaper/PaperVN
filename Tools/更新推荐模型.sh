@@ -6,7 +6,8 @@
 set -eu
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-WORK="$ROOT/.build/vndb-recommendation-model"
+# 下载的数据和训练结果放在项目文件夹的 训练数据/ 里，不进仓库
+WORK="${PAPERVN_TRAINING_DATA:-$ROOT/../训练数据}/视觉小说推荐"
 MODEL="$WORK/VNDBRecommendationModel.json.gz"
 cd "$ROOT"
 

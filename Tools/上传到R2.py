@@ -8,7 +8,7 @@
   R2_BUCKET             存储桶名称
 
 用法：
-  .build/smart-search-venv/bin/python Tools/上传到R2.py .build/smart-search-model/PaperVNSmartSearch.pvss Resources/PaperVNSmartSearch.pvss
+  .build/smart-search-venv/bin/python Tools/上传到R2.py ../训练数据/Hiro智能/构建目录/PaperVNSmartSearch.pvss Resources/PaperVNSmartSearch.pvss
 """
 
 from __future__ import annotations

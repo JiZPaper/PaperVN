@@ -23,7 +23,7 @@ private final class VNDBURLProtocolStub: URLProtocol {
             guard let handler = Self.handler else {
                 throw 测试错误.缺少处理器
             }
-            let result = try handler(request)
+            let result = try handler(Self.request(withReadableBody: request))
             guard let url = request.url,
                   let response = HTTPURLResponse(
                     url: url,
@@ -48,6 +48,28 @@ private final class VNDBURLProtocolStub: URLProtocol {
     }
 
     override func stopLoading() { }
+
+    /// URLSession交给URLProtocol的请求会把httpBody转成httpBodyStream，
+    /// 这里读回httpBody，方便处理器检查请求体。
+    private static func request(withReadableBody request: URLRequest) -> URLRequest {
+        guard request.httpBody == nil,
+              let stream = request.httpBodyStream else {
+            return request
+        }
+        var body = Data()
+        var buffer = [UInt8](repeating: 0, count: 4096)
+        stream.open()
+        defer { stream.close() }
+        while stream.hasBytesAvailable {
+            let count = stream.read(&buffer, maxLength: buffer.count)
+            guard count > 0 else { break }
+            body.append(buffer, count: count)
+        }
+        var readable = request
+        readable.httpBodyStream = nil
+        readable.httpBody = body
+        return readable
+    }
 }
 
 @MainActor
@@ -282,11 +304,21 @@ struct PaperVNTests {
                 mode: .both
             )
         )
+        // 色情标签只受开关与限制范围影响，与图片色情阈值无关
+        #expect(
+            内容安全限制判定.视觉小说需要限制(
+                item,
+                enabled: true,
+                sexualThreshold: 强制内容安全策略.最大色情阈值,
+                violenceThreshold: 1,
+                mode: .both
+            )
+        )
         #expect(
             !内容安全限制判定.视觉小说需要限制(
                 item,
-                enabled: true,
-                sexualThreshold: 2,
+                enabled: false,
+                sexualThreshold: 1,
                 violenceThreshold: 1,
                 mode: .both
             )

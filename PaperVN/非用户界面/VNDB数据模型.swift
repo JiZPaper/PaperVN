@@ -60,7 +60,7 @@ enum 搜索范围: String, CaseIterable, Identifiable, Hashable {
 
     var systemImage: String {
         switch self {
-        case .visualNovel: return "books.vertical"
+        case .visualNovel: return "zipper.page"
         case .character: return "person.crop.rectangle.stack"
         case .release: return "shippingbox"
         case .staff: return "person.text.rectangle"

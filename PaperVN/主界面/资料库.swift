@@ -170,8 +170,11 @@ struct 资料库: View {
     /// 不直接观察 PaperVN Sync：同步进度变化很频繁，资料库只需要知道 VNDB 是否正在导入（见 `vndb导入中`）。
     private let sync = PaperVNSync中心.shared
     @State private var vndb导入中 = false
-    /// 有等待确认的同步时，资料库顶部显示的说明。
-    @State private var 待确认说明: String?
+    /// 资料库顶部的同步状态：需要确认、正在同步、失败或有缺失的作品。
+    @State private var 同步提示: 同步状态提示?
+    @State private var 显示同步任务 = false
+    /// 已经自动载入过的账户与设置。从详情页等推入的页面返回时 `.task` 会重新执行，同一账户不再重复载入与同步。
+    @State private var 已自动载入: 资料库自动加载标识?
     @AppStorage(PaperVNSync中心.启用设置键)
     private var paperVNSyncEnabled = PaperVNSync中心.默认启用
     @StateObject private var blurRevealConfirmation = 模糊解除确认器()
@@ -218,6 +221,12 @@ struct 资料库: View {
     @State private var 索引段缓存: [资料库索引段] = []
     @State private var 索引作品数 = 0
 
+    /// 缺失的作品可以忽略，直到发现更多或其他缺失的作品；其他提示不能忽略。
+    private func 忽略操作(_ 提示: 同步状态提示) -> (() -> Void)? {
+        guard case .缺失作品 = 提示 else { return nil }
+        return { withAnimation { sync.忽略缺失作品() } }
+    }
+
     var body: some View {
         NavigationStack {
             Group {
@@ -235,16 +244,24 @@ struct 资料库: View {
                     )
                 } else {
                     平台滚动页面 {
-                        // 有等待确认的同步时，在状态选择器下方提示，点按后打开确认页面
-                        if let 待确认说明, sidebarFilter == nil {
+                        // 同步状态显示在状态选择器下方：需要确认时点按打开确认页面，其他情况打开同步任务页面
+                        if let 同步提示, sidebarFilter == nil {
                             Section {
                                 Button {
-                                    sync.显示待处理 = true
+                                    if case .需要确认 = 同步提示 {
+                                        sync.显示待处理 = true
+                                    } else {
+                                        显示同步任务 = true
+                                    }
                                 } label: {
-                                    同步待确认提示(说明: 待确认说明)
+                                    同步状态提示行(
+                                        提示: 同步提示,
+                                        忽略: 忽略操作(同步提示)
+                                    )
                                 }
                                 .buttonStyle(.plain)
                             }
+                            .transition(.opacity)
                         }
                         if isShowingListPlaceholders {
                             Section {
@@ -395,10 +412,10 @@ struct 资料库: View {
                         }
                     }
                     .平台分组列表样式()
-                    // 有“检查更改”提示时，它和下面列表的间距与它上方的间距（分段控件下方的留白）一致。
+                    // 有同步状态提示时，它和下面列表的间距与它上方的间距（分段控件下方的留白）一致。
                     // 分组间距取相邻两个分组中较大的值，只设在提示所在的分组上不起作用，所以设在整个列表上；
                     // 视觉小说和动画等的分组同一时间只有一个有内容，不影响列表本身。
-                    .listSectionSpacing(待确认说明 != nil ? .custom(可滚动分段控件.下边距) : .default)
+                    .listSectionSpacing(同步提示 != nil ? .custom(可滚动分段控件.下边距) : .default)
                     // 固定预留Picker的位置，不让它参与大标题的安全区计算。
                     .contentMargins(.top, sidebarFilter == nil ? statusPickerHeight : nil, for: .scrollContent)
                     // 顶部和下拉期间不绘制边缘效果；由SwiftUI决定，否则它会在更新时把UIKit里设的隐藏改回去。
@@ -450,8 +467,22 @@ struct 资料库: View {
                             }
                             .removeDuplicates()
                     ) { vndb导入中 = $0 }
-                    .onReceive(sync.$待处理.map(PaperVNSync中心.待处理说明).removeDuplicates()) {
-                        待确认说明 = $0
+                    .onReceive(
+                        sync.$待处理
+                            .combineLatest(sync.$任务, sync.$未匹配作品, sync.$已忽略缺失)
+                            .map { 同步状态提示.当前(待处理: $0, 任务: $1, 未匹配作品: $2, 已忽略缺失: $3) }
+                            .removeDuplicates()
+                    ) { value in
+                        withAnimation(.smooth(duration: 0.3)) { 同步提示 = value }
+                    }
+                    // 用弹出页面打开：推入页面再返回时资料库会重新出现，不应该因此重新载入
+                    .sheet(isPresented: $显示同步任务) {
+                        NavigationStack {
+                            同步任务页面(showsCloseButton: true)
+                        }
+                        // 在同步任务里点“检查更改”时，处理页面要从这个弹出页面上弹出
+                        .modifier(同步待处理弹出())
+                        .平台近全屏弹窗(dragIndicator: .visible)
                     }
                     .searchable(
                         text: $searchText,
@@ -475,6 +506,8 @@ struct 资料库: View {
                         await loadList(forceRefresh: true)
                     }
                     .task(id: automaticListLoadID) {
+                        guard 已自动载入 != automaticListLoadID else { return }
+                        已自动载入 = automaticListLoadID
                         resetRevealedRatings()
                         await loadList()
                     }
@@ -1990,32 +2023,91 @@ struct 资料库作品行: View {
 }
 
 /// 资料库顶部的同步提示行。
-private struct 同步待确认提示: View {
-    let 说明: String
+#if DEBUG
+// MARK: - PaperVN 2 预览
 
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "exclamationmark.arrow.trianglehead.2.clockwise.rotate.90")
-                .font(.title3)
-                .foregroundStyle(.orange)
-                .frame(width: 28)
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("检查更改")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(.primary)
-                Text(verbatim: 说明)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+#Preview("资料库：PaperVN 2组件") {
+    预览状态切换([
+        .init("同步状态提示") {
+            // 需要确认的四种情况，以及正在同步、失败、缺失的作品
+            let sessions = [
+                预览数据.资料库减少会话,
+                预览数据.导入方式会话(),
+                预览数据.检查更改会话(),
+                预览数据.确认会话(),
+            ]
+            let others: [同步状态提示] = [
+                .正在同步(已完成: 37, 总数: 52, 平台: [.myAnimeList, .aniList]),
+                .正在同步(已完成: 0, 总数: nil, 平台: [.annict]),
+                .失败([.annict, .tmdb]),
+                .缺失作品(4),
+            ]
+            List {
+                ForEach(sessions.indices, id: \.self) { index in
+                    if let text = PaperVNSync中心.待处理说明(sessions[index]) {
+                        Section {
+                            同步状态提示行(提示: .需要确认(text))
+                        }
+                    }
+                }
+                ForEach(others.indices, id: \.self) { index in
+                    Section {
+                        同步状态提示行(提示: others[index], 忽略: others[index] == .缺失作品(4) ? {} : nil)
+                    }
+                }
             }
-            Spacer(minLength: 8)
-            Image(systemName: "chevron.forward")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(.tertiary)
-                .accessibilityHidden(true)
-        }
-        .contentShape(Rectangle())
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isButton)
-    }
+        },
+        .init("动画、漫画与轻小说的行") {
+            NavigationStack {
+                List(预览数据.资料库条目) { entry in
+                    NavigationLink(value: entry.id) {
+                        资料库作品行(entry: entry)
+                    }
+                }
+                .navigationTitle("资料库")
+            }
+        },
+        .init("状态标签") {
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(作品类型.allCases) { type in
+                    HStack {
+                        ForEach(资料库状态.allCases) { status in
+                            资料库状态标签(symbolName: status.用户列表筛选.symbolName, title: status.localizedTitle(for: type))
+                        }
+                    }
+                }
+            }
+            .padding()
+        },
+    ])
 }
+
+#Preview("资料库：PaperVN 2页面") {
+    预览状态切换([
+        .init("动画（有待确认的同步）", 准备: {
+            本地资料库.shared.预览载入(预览数据.资料库条目)
+            PaperVNSync中心.shared.预览设置(待处理: 预览数据.检查更改会话())
+        }) {
+            资料库()
+                .defaultAppStorage(预览数据.设置("资料库动画", ["libraryWorkType": 作品类型.anime.rawValue]))
+        },
+        .init("漫画", 准备: {
+            本地资料库.shared.预览载入(预览数据.资料库条目)
+            PaperVNSync中心.shared.预览设置()
+        }) {
+            资料库()
+                .defaultAppStorage(预览数据.设置("资料库漫画", ["libraryWorkType": 作品类型.manga.rawValue]))
+        },
+        .init("PaperVN Sync已关闭") {
+            资料库()
+                .defaultAppStorage(预览数据.设置("资料库同步关闭", [PaperVNSync中心.启用设置键: false]))
+        },
+        .init("需要登录") {
+            资料库()
+                .预览环境(已登录: false)
+                .defaultAppStorage(预览数据.设置("资料库未登录"))
+        },
+    ])
+    .预览环境()
+}
+#endif

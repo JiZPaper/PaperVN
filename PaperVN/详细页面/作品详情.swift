@@ -1587,8 +1587,9 @@ struct 作品详情: View {
     private static func 篇幅(_ detail: 作品详细信息) -> String? {
         if detail.kind == .anime {
             switch (detail.集数, detail.单集分钟) {
-            case let (episodes?, minutes?): return String(localized: "\(episodes)集 × \(minutes)分钟")
-            case let (episodes?, nil): return String(localized: "\(episodes)集")
+            case let (episodes?, minutes?): return String(localized: "\(episodes)话 × \(minutes)分钟")
+            // 和漫画的“%lld话”中文相同，但其他语言是“集”，用单独的键
+            case let (episodes?, nil): return String(localized: "动画话数", defaultValue: "\(episodes)话")
             default: return nil
             }
         }
@@ -1793,3 +1794,55 @@ private struct 作品更多信息: View {
         }
     }
 }
+
+#if DEBUG
+// MARK: - 预览
+
+// 详情页从 MyAnimeList、AniList 与 Bangumi 实时读取，预览需要联网；子页面使用示例数据。
+
+#Preview("作品详情") {
+    let 载入资料库 = { 本地资料库.shared.预览载入(预览数据.资料库条目) }
+    预览状态切换([
+        .init("动画", 准备: 载入资料库) {
+            NavigationStack { 作品详情(目标: 预览数据.芙莉莲.详情目标) }
+        },
+        .init("动画（不在资料库中）", 准备: 载入资料库) {
+            NavigationStack { 作品详情(目标: 预览数据.芙莉莲第二季.详情目标) }
+        },
+        .init("漫画", 准备: 载入资料库) {
+            NavigationStack { 作品详情(目标: 预览数据.剑风传奇.详情目标) }
+        },
+        .init("轻小说", 准备: 载入资料库) {
+            NavigationStack { 作品详情(目标: 预览数据.狼与香辛料.详情目标) }
+        },
+        .init("无法获取", 准备: 载入资料库) {
+            NavigationStack { 作品详情(目标: 作品详情目标(kind: .anime, malID: 0, 标题: "不存在的作品", 封面: nil)) }
+        },
+    ])
+    .预览环境()
+}
+
+#Preview("作品详情：子页面") {
+    let detail = 预览数据.芙莉莲详情
+    预览状态切换([
+        .init("简介") {
+            作品简介页面(简介: detail.简介 ?? "") {}
+        },
+        .init("全部标签") {
+            NavigationStack {
+                作品全部标签页面(
+                    标签: detail.类型标签 + detail.标签.filter { !$0.是剧透 }.map(\.名称),
+                    剧透标签: detail.标签.filter(\.是剧透).map(\.名称)
+                )
+            }
+        },
+        .init("评论") {
+            NavigationStack { 作品评论列表页面(评论: 预览数据.评论) }
+        },
+        .init("更多信息") {
+            作品更多信息(detail: detail) {}
+        },
+    ])
+    .预览环境()
+}
+#endif

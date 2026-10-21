@@ -1,6 +1,6 @@
 import Foundation
 
-/// 作品标题、别名和角色名的模糊匹配，与 `Tools/智能搜索模型/名称.py` 逐条对应。
+/// 作品标题、别名和角色名的模糊匹配。规范化和片段规则必须和生成模型时的完全一致，否则模型在 App 里会失效。
 nonisolated struct 智能搜索名称索引: @unchecked Sendable {
     nonisolated struct 匹配特征: Sendable {
         var f: Float = 0

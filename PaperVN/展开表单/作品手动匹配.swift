@@ -213,3 +213,39 @@ private struct 匹配候选行: View {
         .contentShape(Rectangle())
     }
 }
+
+#if DEBUG
+extension 作品手动匹配页面 {
+    /// 预览用：直接显示搜索结果或错误，不发起搜索。
+    init(作品: 未匹配作品, 平台: 资料库平台, 预览结果: [匹配候选], 预览错误: String? = nil) {
+        self.init(作品: 作品, 平台: 平台)
+        _results = State(initialValue: 预览结果)
+        _errorMessage = State(initialValue: 预览错误)
+    }
+}
+
+// MARK: - 预览
+
+#Preview("缺失的作品与手动匹配") {
+    let 作品 = 预览数据.未匹配[.aniList]![0]
+    预览状态切换([
+        .init("缺失的作品：AniList", 准备: {
+            本地资料库.shared.预览载入(预览数据.资料库条目)
+            PaperVNSync中心.shared.预览设置(未匹配作品: 预览数据.未匹配)
+        }) {
+            NavigationStack { 未匹配作品页面(平台: .aniList) }
+        },
+        .init("缺失的作品：没有缺失的作品", 准备: { PaperVNSync中心.shared.预览设置() }) {
+            NavigationStack { 未匹配作品页面(平台: .myAnimeList) }
+        },
+        .init("手动匹配：搜索结果", 准备: { 本地资料库.shared.预览载入(预览数据.资料库条目) }) {
+            NavigationStack { 作品手动匹配页面(作品: 作品, 平台: .aniList, 预览结果: 预览数据.匹配候选列表) }
+        },
+        .init("手动匹配：请求失败", 准备: { 本地资料库.shared.预览载入(预览数据.资料库条目) }) {
+            NavigationStack {
+                作品手动匹配页面(作品: 作品, 平台: .aniList, 预览结果: [], 预览错误: String(localized: "请求失败。"))
+            }
+        },
+    ])
+}
+#endif

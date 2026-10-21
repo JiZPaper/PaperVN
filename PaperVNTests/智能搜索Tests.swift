@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import PaperVN
 
-/// 期望值来自 `Tools/智能搜索模型/名称.py`（`名称.规范化`）；两侧规则不一致时模型会在 App 里失效。
+/// 期望值来自生成模型时的规范化规则；两侧规则不一致时模型会在 App 里失效。
 struct 智能搜索名称规范化Tests {
     private let 变音映射: [Unicode.Scalar: [Unicode.Scalar]] = [
         "é": ["e"], "ō": ["o"], "ß": ["s", "s"], "ς": ["σ"],

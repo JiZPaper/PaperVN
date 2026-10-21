@@ -1204,7 +1204,7 @@ private struct 探索内联视觉小说列表: View {
                 }
             } else if visibleItems.isEmpty, !viewModel.hasMore {
                 Section {
-                    平台内容不可用视图(emptyTitle, systemImage: "books.vertical")
+                    平台内容不可用视图(emptyTitle, systemImage: "zipper.page")
                 }
             } else {
                 if let error = viewModel.errorMessage {
@@ -3434,7 +3434,7 @@ struct Today语录栏目: View {
                 } label: {
                     let title = displayedTitle(for: vn)
                     quoteSourceLabel(
-                        icon: "books.vertical",
+                        icon: "zipper.page",
                         text: quoteVisualNovelSourceText(title)
                     )
                 }
@@ -3555,15 +3555,65 @@ struct Today语录栏目: View {
     }
 }
 
+/// Today“为你推荐”里的一条：视觉小说来自 VNDB 公开评分训练的协同模型，动画、漫画与轻小说来自作品推荐模型。
+enum 为你推荐条目: Identifiable, Hashable {
+    case 视觉小说(探索推荐)
+    case 作品(作品推荐项)
+
+    var id: String {
+        switch self {
+        case let .视觉小说(item): item.visualNovel.id
+        case let .作品(item): item.id
+        }
+    }
+
+    var 类型: 作品类型 {
+        switch self {
+        case .视觉小说: .visualNovel
+        case let .作品(item): item.作品.类型
+        }
+    }
+
+    /// 几种类型混在一起显示：按平滑加权轮询交替，资料库里某类作品越多、这一类出现得越多
+    /// （权重取数量的平方根，少的类型也不会被挤掉）。每一类内部保持原来的顺序。
+    static func 交替(
+        _ lists: [作品类型: [为你推荐条目]],
+        资料库数量 counts: [作品类型: Int]
+    ) -> [为你推荐条目] {
+        let order = 作品类型.allCases.filter { !(lists[$0] ?? []).isEmpty }
+        guard order.count > 1 else { return order.first.flatMap { lists[$0] } ?? [] }
+        let weights = Dictionary(uniqueKeysWithValues: order.map {
+            ($0, max(1, Double(counts[$0] ?? 0)).squareRoot())
+        })
+        let total = weights.values.reduce(0, +)
+        var credits = Dictionary(uniqueKeysWithValues: order.map { ($0, 0.0) })
+        var positions = Dictionary(uniqueKeysWithValues: order.map { ($0, 0) })
+        var result: [为你推荐条目] = []
+        while true {
+            let remaining = order.filter { positions[$0]! < lists[$0]!.count }
+            guard !remaining.isEmpty else { break }
+            for type in remaining { credits[type]! += weights[type]! }
+            let pick = remaining.max { credits[$0]! < credits[$1]! }!
+            credits[pick]! -= total
+            result.append(lists[pick]![positions[pick]!])
+            positions[pick]! += 1
+        }
+        return result
+    }
+}
+
 @MainActor
 final class Today推荐视图模型: ObservableObject {
-    @Published private(set) var recommendations: [探索推荐] = []
+    @Published private(set) var recommendations: [为你推荐条目] = []
     @Published private(set) var isLoading = false
     @Published private(set) var hasLoaded = false
     @Published private(set) var errorMessage: String?
 
     private let service: any VNDB探索服务协议
     private let feedback: 推荐反馈中心
+    private var visualNovels: [探索推荐] = []
+    private var works: [作品推荐项] = []
+    private var enabledTypes = 作品类型显示设置.已启用类型()
 
     init(
         service: (any VNDB探索服务协议)? = nil,
@@ -3573,37 +3623,92 @@ final class Today推荐视图模型: ObservableObject {
         self.feedback = feedback ?? .shared
     }
 
+    /// 后台分析算出新的视觉小说推荐后调用。
     func reloadCachedRecommendations(userID: String) async {
         guard !userID.isEmpty,
               let cached = await service.已缓存推荐(
                 userID: userID,
                 排除ID: []
               ), !cached.isEmpty else { return }
-        recommendations = feedback.展示排序(cached, userID: userID)
+        visualNovels = feedback.展示排序(cached, userID: userID)
+        组合()
         hasLoaded = true
         errorMessage = nil
     }
 
-    func 记录展示(_ ids: [String], userID: String) {
-        feedback.记录展示(ids, userID: userID)
+    func 记录展示(_ items: [为你推荐条目], userID: String) {
+        let visualNovelIDs = items.filter { $0.类型 == .visualNovel }.map(\.id)
+        let workIDs = items.filter { $0.类型 != .visualNovel }.map(\.id)
+        feedback.记录展示(visualNovelIDs, userID: userID)
+        if let owner = 本地资料库.shared.所有者 {
+            feedback.记录展示(workIDs, userID: 推荐反馈中心.作品曝光用户(owner))
+        }
     }
 
-    func loadCachedRecommendations(userID: String) async {
-        guard !userID.isEmpty else {
-            recommendations = []
-            hasLoaded = true
-            errorMessage = nil
-            return
+    func 记录打开(_ item: 为你推荐条目, userID: String) {
+        switch item {
+        case .视觉小说:
+            feedback.记录打开(item.id, userID: userID)
+        case .作品:
+            if let owner = 本地资料库.shared.所有者 {
+                feedback.记录打开(item.id, userID: 推荐反馈中心.作品曝光用户(owner))
+            }
         }
+    }
 
+    /// 视觉小说读后台分析的缓存（需要登录 VNDB），动画、漫画与轻小说在设备上直接计算。
+    func loadCachedRecommendations(
+        userID: String,
+        类型 types: Set<作品类型>,
+        包含成人内容: Bool
+    ) async {
+        enabledTypes = types
         isLoading = true
         errorMessage = nil
-        recommendations = feedback.展示排序(
-            await service.已缓存推荐(userID: userID, 排除ID: []) ?? [],
-            userID: userID
-        )
+        if types.contains(.visualNovel), !userID.isEmpty {
+            visualNovels = feedback.展示排序(
+                await service.已缓存推荐(userID: userID, 排除ID: []) ?? [],
+                userID: userID
+            )
+        } else {
+            visualNovels = []
+        }
+        let owner = 本地资料库.shared.所有者 ?? ""
+        let workTypes = types.subtracting([.visualNovel])
+        if !workTypes.isEmpty {
+            // 先显示上一次的结果，算完再替换
+            if works.isEmpty {
+                works = feedback.展示排序(作品推荐中心.shared.已缓存推荐(), owner: owner)
+                组合()
+            }
+            let computed = await 作品推荐中心.shared.推荐(类型: workTypes, 包含成人内容: 包含成人内容)
+            works = feedback.展示排序(computed, owner: owner)
+        } else {
+            works = []
+        }
+        组合()
         hasLoaded = true
         isLoading = false
+    }
+
+    /// 关闭的作品类型不显示。
+    func 更新显示类型(_ types: Set<作品类型>) {
+        enabledTypes = types
+        组合()
+    }
+
+    private func 组合() {
+        var lists: [作品类型: [为你推荐条目]] = [:]
+        if enabledTypes.contains(.visualNovel) {
+            lists[.visualNovel] = visualNovels.map(为你推荐条目.视觉小说)
+        }
+        for item in works where enabledTypes.contains(item.作品.类型) {
+            lists[item.作品.类型, default: []].append(.作品(item))
+        }
+        var counts: [作品类型: Int] = [:]
+        for entry in 本地资料库.shared.条目 { counts[entry.类型, default: 0] += 1 }
+        if counts[.visualNovel] == nil, !visualNovels.isEmpty { counts[.visualNovel] = 20 }
+        recommendations = 为你推荐条目.交替(lists, 资料库数量: counts)
     }
 }
 

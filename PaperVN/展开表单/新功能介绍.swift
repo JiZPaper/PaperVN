@@ -1788,7 +1788,7 @@ private struct 推荐视觉小说演示: View {
 
     private var 相关作品行: some View {
         HStack(spacing: 12) {
-            Image(systemName: "books.vertical")
+            Image(systemName: "zipper.page")
                 .font(.headline)
                 .foregroundStyle(玻璃文字颜色.opacity(0.9))
                 .frame(width: 24)
@@ -1963,10 +1963,28 @@ private struct 支持PaperVN选项: View {
     }
 }
 
-#Preview {
+#if DEBUG
+#Preview("新功能介绍") {
     Color.clear
         .sheet(isPresented: .constant(true)) {
             新功能介绍页面 {}
+                .预览环境()
         }
-        .environmentObject(用户登录(previewing: true))
 }
+
+extension 新功能介绍页面 {
+    /// 预览用：从指定的一页开始显示。
+    init(起始页面: 新功能页面, onFinish: @escaping () -> Void) {
+        self.init(onFinish: onFinish)
+        _序号 = State(initialValue: 新功能页面.当前系统页面.firstIndex(of: 起始页面) ?? 0)
+    }
+}
+
+#Preview("新功能介绍：各页") {
+    // “独立搜索Tab”只在iOS 27中提供，其他系统上不出现在列表里
+    预览状态切换(新功能页面.当前系统页面.map { 页面 in
+        .init(名称: Text(页面.标题)) { 新功能介绍页面(起始页面: 页面) {} }
+    })
+    .预览环境()
+}
+#endif

@@ -56,3 +56,19 @@ struct 反馈与参与菜单: View {
         }
     }
 }
+
+#if DEBUG
+#Preview("反馈与参与菜单") {
+    NavigationStack {
+        Text("轻点左上角的按钮")
+            .foregroundStyle(.secondary)
+            .navigationTitle("资料库")
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    反馈与参与菜单()
+                }
+            }
+    }
+    .预览环境()
+}
+#endif

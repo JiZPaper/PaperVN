@@ -90,20 +90,19 @@ def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Build the offline PaperVN recommendation model."
     )
+    # 下载的数据和训练结果放在项目文件夹的 训练数据/ 里，不进仓库
+    work_directory = Path(
+        os.environ.get("PAPERVN_TRAINING_DATA", root.parent / "训练数据")
+    ) / "视觉小说推荐"
     parser.add_argument(
         "--work-directory",
         type=Path,
-        default=root / ".build" / "vndb-recommendation-model",
+        default=work_directory,
     )
     parser.add_argument(
         "--output",
         type=Path,
-        default=(
-            root
-            / ".build"
-            / "vndb-recommendation-model"
-            / "VNDBRecommendationModel.json.gz"
-        ),
+        default=work_directory / "VNDBRecommendationModel.json.gz",
     )
     parser.add_argument("--request-delay", type=float, default=3.2)
     parser.add_argument("--factors", type=int, default=48)

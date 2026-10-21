@@ -204,3 +204,14 @@ final class 智能搜索模型下载状态 {
         try 文件管理.moveItem(at: 下载文件, to: 智能搜索模型存储.下载URL)
     }
 }
+
+#if DEBUG
+extension 智能搜索模型下载状态 {
+    /// 预览用：显示下载或安装中的状态，不发起下载。
+    func 预览下载(进度 value: Double?, 正在安装 installing: Bool = false) {
+        isDownloading = value != nil || installing
+        isInstalling = installing
+        progress = value ?? 0
+    }
+}
+#endif

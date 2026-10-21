@@ -19,8 +19,8 @@ nonisolated enum 作品多语言标题 {
         中文为官方: Bool = false
     ) -> [用户多语言标题] {
         var titles: [用户多语言标题] = []
-        let native = 有效(原名)
-        let latin = 有效(罗马字)
+        let native = 有效(原名).map(校正)
+        let latin = 有效(罗马字).map(校正)
         if let native {
             titles.append(用户多语言标题(
                 lang: 原名语言 ?? "und",
@@ -33,7 +33,7 @@ nonisolated enum 作品多语言标题 {
             // 只有罗马字时也作为原语言标题，但不当作日文
             titles.append(用户多语言标题(lang: "ja-Latn", title: latin, latin: latin, official: true, main: true))
         }
-        if let english = 有效(英文) {
+        if let english = 有效(英文).map(校正) {
             titles.append(用户多语言标题(lang: "en", title: english, latin: nil, official: true, main: false))
         }
         if let chinese = 有效(中文) {
@@ -59,6 +59,11 @@ nonisolated enum 作品多语言标题 {
             result.append(title)
         }
         return result
+    }
+
+    /// 平台上写错的标题改成官方写法。目前只有 LoveLive!：MAL、AniList 等写成“Love Live!”，官方写法没有空格。
+    static func 校正(_ title: String) -> String {
+        title.replacing(/(?i)\bLove Live!/, with: "LoveLive!")
     }
 
     /// AniList 的出品国家换成语言代码。

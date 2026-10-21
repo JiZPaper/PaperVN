@@ -36,7 +36,21 @@ private nonisolated struct Today缓存记录: Codable, Sendable {
 nonisolated struct Today内容: Decodable, Sendable {
     let schemaVersion: Int
     let date: String
+    /// 视觉小说的故事在 `stories` 里；动画、漫画与轻小说的故事在 `workStories` 里，排在后面。
+    /// 分开放是因为旧版 App 要求每个故事都有视觉小说 ID，读到别的故事会整份放弃。
     let stories: [Today故事]
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion, date, stories, workStories
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
+        date = try container.decode(String.self, forKey: .date)
+        stories = try container.decode([Today故事].self, forKey: .stories)
+            + (try container.decodeIfPresent([Today故事].self, forKey: .workStories) ?? [])
+    }
 
     var contentFingerprint: String {
         stories.map { story in
@@ -53,6 +67,7 @@ nonisolated struct Today内容: Decodable, Sendable {
                 story.id,
                 story.groupID ?? "",
                 story.visualNovelID,
+                story.workID ?? "",
                 story.accessibilityTitle,
                 story.eyebrow,
                 story.description,
@@ -210,7 +225,10 @@ nonisolated enum Today内容解码器 {
 nonisolated struct Today故事: Decodable, Identifiable, Sendable {
     let id: String
     let groupID: String?
+    /// 动画、漫画与轻小说的故事为空，作品在 `workID` 里。
     let visualNovelID: String
+    /// 动画、漫画或轻小说，编号与 Hiro智能一致（例如“a5114”）。
+    let workID: String?
     let accessibilityTitle: String
     let eyebrow: String
     let description: String
@@ -224,6 +242,7 @@ nonisolated struct Today故事: Decodable, Identifiable, Sendable {
         case id
         case groupID
         case visualNovelID
+        case workID
         case accessibilityTitle
         case eyebrow
         case description
@@ -238,7 +257,9 @@ nonisolated struct Today故事: Decodable, Identifiable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
         groupID = try container.decodeIfPresent(String.self, forKey: .groupID)
-        visualNovelID = try container.decode(String.self, forKey: .visualNovelID)
+        workID = try container.decodeIfPresent(String.self, forKey: .workID)
+            .flatMap { 作品搜索结果.解析($0) == nil ? nil : $0 }
+        visualNovelID = try container.decodeIfPresent(String.self, forKey: .visualNovelID) ?? ""
         accessibilityTitle = try container
             .decode(Today本地化文本.self, forKey: .accessibilityTitle)
             .resolved
@@ -260,10 +281,23 @@ nonisolated struct Today故事: Decodable, Identifiable, Sendable {
         ) ?? []
     }
 
+    var 作品类型: 作品类型 {
+        workID.flatMap(作品搜索结果.解析)?.类型 ?? .visualNovel
+    }
+
+    /// 卡片下方第一条关联内容：故事介绍的作品本身。
+    var 主关联类型: Today关联类型 {
+        Today关联类型(作品类型)
+    }
+
+    var 主作品ID: String {
+        workID ?? visualNovelID
+    }
+
     var displayedRelatedItemCount: Int {
         related.count + (
             related.contains {
-                $0.type == .visualNovel && $0.id == visualNovelID
+                $0.type == 主关联类型 && $0.id == 主作品ID
             } ? 0 : 1
         )
     }
@@ -412,6 +446,29 @@ nonisolated struct Today视频: Decodable, Sendable {
 nonisolated enum Today关联类型: String, Decodable, Sendable {
     case visualNovel
     case character
+    /// 动画、漫画与轻小说只出现在 `workStories` 里（旧版 App 不认识）。编号与 Hiro智能一致。
+    case anime
+    case manga
+    case lightNovel
+
+    init(_ type: 作品类型) {
+        switch type {
+        case .anime: self = .anime
+        case .manga: self = .manga
+        case .lightNovel: self = .lightNovel
+        case .visualNovel: self = .visualNovel
+        }
+    }
+
+    var 作品类型: 作品类型? {
+        switch self {
+        case .anime: .anime
+        case .manga: .manga
+        case .lightNovel: .lightNovel
+        case .visualNovel: .visualNovel
+        case .character: nil
+        }
+    }
 }
 
 nonisolated struct Today关联内容: Decodable, Identifiable, Sendable {
@@ -1111,7 +1168,7 @@ actor Today服务 {
         guard !feed.stories.isEmpty,
               feed.stories.allSatisfy({ story in
                   !story.id.isEmpty
-                      && !story.visualNovelID.isEmpty
+                      && (!story.visualNovelID.isEmpty || story.workID != nil)
                       && !story.accessibilityTitle.isEmpty
                       && (story.image == nil || (
                           !story.image!.path.isEmpty
@@ -1283,6 +1340,8 @@ private final class Today关联名称视图模型: ObservableObject {
     @Published private(set) var characterNames: [
         String: Today角色名称
     ] = [:]
+    /// 动画、漫画与轻小说的标题和封面。
+    @Published private(set) var workNames: [String: 作品搜索结果] = [:]
 
     private var loadingVisualNovelIDs: Set<String> = []
     private var loadingCharacterIDs: Set<String> = []
@@ -1295,7 +1354,23 @@ private final class Today关联名称视图模型: ObservableObject {
                         item.type == .visualNovel ? item.id : nil
                     }
             }
+            .filter { !$0.isEmpty }
         )
+        let workIDs = Set(
+            stories.flatMap { story in
+                [story.workID].compactMap { $0 }
+                    + story.related.compactMap { item in
+                        item.type.作品类型 == nil || item.type == .visualNovel ? nil : item.id
+                    }
+            }
+        )
+        .subtracting(workNames.keys)
+        if !workIDs.isEmpty {
+            let loaded = await 作品聚合搜索.shared.详情(Array(workIDs))
+            if !loaded.isEmpty {
+                workNames.merge(loaded) { _, new in new }
+            }
+        }
         let characterIDs = Set(
             stories.flatMap { story in
                 story.related.compactMap { item in
@@ -1435,6 +1510,12 @@ struct Today页面: View {
 
     @AppStorage(为你推荐偏好分析设置.启用键)
     private var recommendationPreferenceAnalysisEnabled = true
+    @AppStorage(作品类型显示设置.键(.anime)) private var animeEnabled = true
+    @AppStorage(作品类型显示设置.键(.manga)) private var mangaEnabled = true
+    @AppStorage(作品类型显示设置.键(.lightNovel)) private var lightNovelEnabled = true
+    @AppStorage(作品类型显示设置.键(.visualNovel)) private var visualNovelEnabled = true
+    @AppStorage("contentFilterEnabled") private var contentFilterEnabled = false
+    @ObservedObject private var library = 本地资料库.shared
     @AppStorage(PaperVNConnect自动策略.自动转发状态键)
     private var connectEnabled = false
     @AppStorage(活动地区偏好.设置键)
@@ -1587,13 +1668,17 @@ struct Today页面: View {
                             await loadCachedRecommendations()
                         }
                     },
-                    onShow: { ids in
-                        recommendationModel.记录展示(ids, userID: auth.userID)
+                    onShow: { items in
+                        recommendationModel.记录展示(items, userID: auth.userID)
+                    },
+                    onOpen: { item in
+                        recommendationModel.记录打开(item, userID: auth.userID)
                     }
                 )
             }
 
-            if todayHasResolved && displayConfig.showQuotes {
+            // 随机语录来自视觉小说的角色
+            if todayHasResolved && displayConfig.showQuotes && visualNovelEnabled {
                 Today语录栏目(
                     quote: quoteModel.quote,
                     isLoading: quoteModel.isLoading,
@@ -1616,8 +1701,12 @@ struct Today页面: View {
 
     var body: some View {
         ScrollView(.vertical) {
+            // 内容宽度固定为屏幕宽度：哪个子视图算出来比屏幕宽（例如异步载入后变长的文字），
+            // 整页也不会变得可以左右拖动。故事和活动书架自己会画到边缘外，不受影响
             todayScrollContent
+                .containerRelativeFrame(.horizontal)
         }
+        .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
         .background(Color.平台分组背景.ignoresSafeArea())
         .scrollIndicators(.automatic)
         .平台柔和滚动边缘(for: .top)
@@ -1727,7 +1816,7 @@ struct Today页面: View {
             if 缓存策略.当前 == .more,
                let feed = todayModel.feed {
                 VNDB服务.shared.prefetchVisualNovelGraph(
-                    vnIDs: feed.stories.map(\.visualNovelID)
+                    vnIDs: feed.stories.map(\.visualNovelID).filter { !$0.isEmpty }
                 )
             }
             guard loadedAuxiliaryContentIdentity != contentIdentity else {
@@ -1746,9 +1835,11 @@ struct Today页面: View {
                 _ = await (quoteLoad, recommendationLoad, eventLoad)
             }
             if 缓存策略.当前 == .more {
-                let storyIDs = todayModel.feed?.stories.map(\.visualNovelID) ?? []
+                let storyIDs = todayModel.feed?.stories.map(\.visualNovelID).filter { !$0.isEmpty } ?? []
                 VNDB服务.shared.prefetchVisualNovelGraph(
-                vnIDs: storyIDs + recommendationModel.recommendations.map(\.id)
+                vnIDs: storyIDs + recommendationModel.recommendations
+                    .filter { $0.类型 == .visualNovel }
+                    .map(\.id)
                 )
             }
             loadedAuxiliaryContentIdentity = contentIdentity
@@ -1764,6 +1855,14 @@ struct Today页面: View {
             if !enabled {
                 推荐后台分析中心.shared.停止分析()
             }
+        }
+        .onChange(of: enabledContentTypes) { _, types in
+            recommendationModel.更新显示类型(types)
+            Task { await loadCachedRecommendations() }
+        }
+        .onChange(of: library.已载入) { _, loaded in
+            guard loaded else { return }
+            Task { await loadCachedRecommendations() }
         }
         .onChange(of: scenePhase) { _, phase in
             let shouldReloadToday = phase == ScenePhase.active && isTodayVisible
@@ -1872,14 +1971,15 @@ struct Today页面: View {
     @ViewBuilder
     private var todayStories: some View {
         if let feed = todayModel.feed {
-            let groups = storyGroups(from: feed.stories)
+            let stories = visibleStories(feed)
+            let groups = storyGroups(from: stories)
             let shelfLayout = storyShelfLayout
 
             ScrollView(.horizontal) {
                 LazyHStack(alignment: .top, spacing: 20) {
                     switch shelfLayout {
                     case .duoPortrait:
-                        ForEach(feed.stories) { story in
+                        ForEach(stories) { story in
                             storyUnit(
                                 story,
                                 isGrouped: false,
@@ -1901,7 +2001,7 @@ struct Today页面: View {
                                 spacing: 20
                             )
                     case .wide:
-                        ForEach(feed.stories) { story in
+                        ForEach(stories) { story in
                             storyUnit(
                                 story,
                                 isGrouped: false,
@@ -2042,57 +2142,11 @@ struct Today页面: View {
         return usesWideTodayLayout ? .wide : .compact
     }
 
-    /// 故事卡片架最后一张，打开推荐视觉小说页面；高度与只有一条相关链接的故事卡片对齐。
+    /// 故事卡片架最后一张，打开推荐视觉小说页面。
     private func 添加推荐卡片(cardAspectRatio: CGFloat) -> some View {
-        let cornerRadius = usesWideTodayLayout
-            ? Today布局.iPadStoryCornerRadius
-            : Today布局.storyCornerRadius
-
-        return Button {
+        Today添加推荐卡片(cardAspectRatio: cardAspectRatio, usesWideLayout: usesWideTodayLayout) {
             显示Today推荐页面 = true
-        } label: {
-            VStack(spacing: 0) {
-                Color.clear
-                    .aspectRatio(cardAspectRatio, contentMode: .fit)
-                Color.clear
-                    .frame(
-                        height: Today布局.relatedContentHeight(itemCount: 1)
-                            + Today布局.relatedGlassInset
-                    )
-            }
-            .overlay {
-                VStack(spacing: 14) {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 48))
-                        .foregroundStyle(.tint)
-
-                    VStack(spacing: 6) {
-                        Text("推荐视觉小说")
-                            .font(.title3.weight(.bold))
-                            .foregroundStyle(.primary)
-
-                        Text("用更多的视觉小说把Today填满吧～")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    .multilineTextAlignment(.center)
-                }
-                .padding(24)
-            }
-            .contentShape(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            )
         }
-        .buttonStyle(.plain)
-        .平台卡片容器(
-            background: Color.secondary.opacity(0.07),
-            stroke: Color.primary.opacity(0.08),
-            cornerRadius: cornerRadius,
-            lightModeShadowOpacity: 0,
-            shadowRadius: 18,
-            shadowY: 0
-        )
-        .accessibilityHint("打开推荐视觉小说页面")
     }
 
     @ViewBuilder
@@ -2258,11 +2312,24 @@ struct Today页面: View {
         )
     }
 
+    /// 视觉小说的推荐需要登录 VNDB；动画、漫画与轻小说按本地资料库推荐，不需要。
     private var showsRecommendations: Bool {
-        recommendationPreferenceAnalysisEnabled
-            && 为你推荐偏好分析设置.此设备支持
-            && !auth.token.isEmpty
-            && !auth.userID.isEmpty
+        guard recommendationPreferenceAnalysisEnabled,
+              为你推荐偏好分析设置.此设备支持 else { return false }
+        let types = enabledContentTypes
+        let hasVisualNovels = types.contains(.visualNovel) && !auth.token.isEmpty && !auth.userID.isEmpty
+        // 资料库里的视觉小说也能用来推荐动画、漫画与轻小说
+        let hasWorks = !types.subtracting([.visualNovel]).isEmpty && !library.条目.isEmpty
+        return hasVisualNovels || hasWorks
+    }
+
+    private var enabledContentTypes: Set<作品类型> {
+        var types: Set<作品类型> = []
+        if animeEnabled { types.insert(.anime) }
+        if mangaEnabled { types.insert(.manga) }
+        if lightNovelEnabled { types.insert(.lightNovel) }
+        if visualNovelEnabled { types.insert(.visualNovel) }
+        return types
     }
 
     private var todayHasResolved: Bool {
@@ -2278,7 +2345,9 @@ struct Today页面: View {
             return
         }
         await recommendationModel.loadCachedRecommendations(
-            userID: auth.userID
+            userID: auth.userID,
+            类型: enabledContentTypes,
+            包含成人内容: !contentFilterEnabled
         )
     }
 
@@ -2298,8 +2367,16 @@ struct Today页面: View {
     }
 
     private func storyImageURL(for story: Today故事) -> URL? {
-        story.image?.url
+        if let workID = story.workID {
+            return story.image?.url ?? relatedNameModel.workNames[workID]?.封面.flatMap(URL.init(string:))
+        }
+        return story.image?.url
             ?? relatedNameModel.visualNovelNames[story.visualNovelID]?.imageURL
+    }
+
+    /// 关闭的作品类型的故事不显示。
+    private func visibleStories(_ feed: Today内容) -> [Today故事] {
+        feed.stories.filter { enabledContentTypes.contains($0.作品类型) }
     }
 
     private func introductionTransitionID(for story: Today故事) -> String {
@@ -2439,20 +2516,24 @@ struct Today页面: View {
     }
 
     private func relatedItems(for story: Today故事) -> [Today关联内容] {
-        if story.related.contains(where: {
-            $0.type == .visualNovel && $0.id == story.visualNovelID
+        let items = story.related.filter { item in
+            // 关闭的作品类型不显示（角色属于视觉小说）
+            作品类型显示设置.已启用(item.type.作品类型 ?? .visualNovel)
+        }
+        if items.contains(where: {
+            $0.type == story.主关联类型 && $0.id == story.主作品ID
         }) {
-            return story.related
+            return items
         }
 
         return [
             Today关联内容(
-                type: .visualNovel,
-                id: story.visualNovelID,
+                type: story.主关联类型,
+                id: story.主作品ID,
                 title: story.accessibilityTitle,
                 original: nil
             )
-        ] + story.related
+        ] + items
     }
 
     @ViewBuilder
@@ -2490,6 +2571,41 @@ struct Today页面: View {
                 语言来源已知: false,
                 空格视为日语: true
             )
+        case .anime, .manga, .lightNovel:
+            let metadata = relatedNameModel.workNames[item.id]
+            let title = 标题工具.获取主标题(
+                titles: metadata?.多语言标题,
+                defaultTitle: metadata?.标题 ?? item.title,
+                偏好: preferredTitleLang,
+                回退: fallbackTitleLang,
+                允许非官方: allowUnofficialTitles
+            )
+            多语言列表文本(
+                title,
+                层级: .主标题,
+                日文字体名称: "HiraginoSans-W6",
+                系统字体粗细: .bold,
+                语言来源已知: title.languageCode != nil
+            )
+        }
+    }
+
+    /// 动画、漫画与轻小说的详情页。
+    @ViewBuilder
+    private func workDestination(id: String, title: String) -> some View {
+        if let metadata = relatedNameModel.workNames[id] {
+            作品详情(目标: metadata.详情目标)
+        } else if let parsed = 作品搜索结果.解析(id) {
+            作品详情(目标: 作品详情目标(
+                kind: parsed.类型 == .anime ? .anime : .manga,
+                malID: parsed.malID,
+                标题: title,
+                封面: nil,
+                aniListID: parsed.aniListID,
+                bangumiID: parsed.bangumiID
+            ))
+        } else {
+            平台内容不可用视图("Today不可用", systemImage: "doc.text.image")
         }
     }
 
@@ -2519,13 +2635,15 @@ struct Today页面: View {
                 initialOriginal: metadata?.original ?? item.original,
                 initialImage: nil
             )
+        case .anime, .manga, .lightNovel:
+            workDestination(id: item.id, title: item.title)
         }
     }
 
     private func relatedIcon(for type: Today关联类型) -> String {
         switch type {
-        case .visualNovel: "books.vertical"
         case .character: "person.crop.rectangle.stack"
+        default: type.作品类型?.symbolName ?? 作品类型.visualNovel.symbolName
         }
     }
 
@@ -2533,12 +2651,23 @@ struct Today页面: View {
         for type: Today关联类型
     ) -> LocalizedStringKey {
         switch type {
-        case .visualNovel: "相关作品"
         case .character: "相关角色"
+        default: "相关作品"
         }
     }
 
+    @ViewBuilder
     private func storyVisualNovelDestination(
+        _ story: Today故事
+    ) -> some View {
+        if let workID = story.workID {
+            workDestination(id: workID, title: story.accessibilityTitle)
+        } else {
+            storyVisualNovelDetail(story)
+        }
+    }
+
+    private func storyVisualNovelDetail(
         _ story: Today故事
     ) -> some View {
         let metadata = relatedNameModel.visualNovelNames[story.visualNovelID]
@@ -2551,6 +2680,63 @@ struct Today页面: View {
                 ?? storyImageURL(for: story)?.absoluteString,
             initialImageDimensions: metadata?.imageDimensions
         )
+    }
+}
+
+/// Today故事卡片架最后一张，打开推荐视觉小说页面；高度与只有一条相关链接的故事卡片对齐。
+private struct Today添加推荐卡片: View {
+    let cardAspectRatio: CGFloat
+    let usesWideLayout: Bool
+    let action: () -> Void
+
+    var body: some View {
+        let cornerRadius = usesWideLayout
+            ? Today布局.iPadStoryCornerRadius
+            : Today布局.storyCornerRadius
+
+        Button(action: action) {
+            VStack(spacing: 0) {
+                Color.clear
+                    .aspectRatio(cardAspectRatio, contentMode: .fit)
+                Color.clear
+                    .frame(
+                        height: Today布局.relatedContentHeight(itemCount: 1)
+                            + Today布局.relatedGlassInset
+                    )
+            }
+            .overlay {
+                VStack(spacing: 14) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 48))
+                        .foregroundStyle(.tint)
+
+                    VStack(spacing: 6) {
+                        Text("推荐作品")
+                            .font(.title3.weight(.bold))
+                            .foregroundStyle(.primary)
+
+                        Text("用更多的视觉小说把Today填满吧～")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .multilineTextAlignment(.center)
+                }
+                .padding(24)
+            }
+            .contentShape(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            )
+        }
+        .buttonStyle(.plain)
+        .平台卡片容器(
+            background: Color.secondary.opacity(0.07),
+            stroke: Color.primary.opacity(0.08),
+            cornerRadius: cornerRadius,
+            lightModeShadowOpacity: 0,
+            shadowRadius: 18,
+            shadowY: 0
+        )
+        .accessibilityHint("打开推荐作品页面")
     }
 }
 
@@ -2888,7 +3074,7 @@ private struct Today介绍页面: View {
             let date = String(story.id.prefix(10))
             guard date.range(of: #"^\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) != nil else { return }
             投稿作者 = try? await PaperVNToday推荐服务()
-                .获取公开推荐(vnID: story.visualNovelID, displayDate: date)?.nickname
+                .获取公开推荐(vnID: story.主作品ID, displayDate: date)?.nickname
         }
     }
 }
@@ -3018,7 +3204,7 @@ private struct Today介绍封面: View {
         .task(id: "\(url?.absoluteString ?? "")#\(visualNovelID)") {
             image = nil
             var imageURL = url
-            if imageURL == nil {
+            if imageURL == nil, !visualNovelID.isEmpty {
                 imageURL = try? await Today名称服务.shared
                     .fetchVisualNovelName(id: visualNovelID)
                     .imageURL
@@ -3779,13 +3965,14 @@ private struct Today故事图片: View {
 }
 
 private struct Today推荐列表: View {
-    let items: [探索推荐]
+    let items: [为你推荐条目]
     let isLoading: Bool
     let hasLoaded: Bool
     let errorMessage: String?
     let usesWideLayout: Bool
     let onRetry: () -> Void
-    let onShow: ([String]) -> Void
+    let onShow: ([为你推荐条目]) -> Void
+    let onOpen: (为你推荐条目) -> Void
 
     @EnvironmentObject private var auth: 用户登录
     @AppStorage("contentFilterEnabled")
@@ -3798,11 +3985,28 @@ private struct Today推荐列表: View {
     private var filterMode: 内容过滤模式 = .both
     @AppStorage("contentRestrictionMethod")
     private var contentRestrictionMethod: 内容限制方式 = .blurred
+    /// 只看某一类时的类型；空字符串是全部。
+    @AppStorage("todayRecommendationType")
+    private var selectedTypeRawValue = ""
     @StateObject private var blurRevealConfirmation = 模糊解除确认器()
     @State private var revealedCoverIDs: Set<String> = []
 
-    private var visibleItems: [探索推荐] {
-        Array(items.prefix(12))
+    private var availableTypes: [作品类型] {
+        let present = Set(items.map(\.类型))
+        return [作品类型.anime, .manga, .lightNovel, .visualNovel].filter(present.contains)
+    }
+
+    private var selectedType: 作品类型? {
+        作品类型(rawValue: selectedTypeRawValue).flatMap { availableTypes.contains($0) ? $0 : nil }
+    }
+
+    private var visibleItems: [为你推荐条目] {
+        Array(items.filter { selectedType == nil || $0.类型 == selectedType }.prefix(12))
+    }
+
+    /// 几种类型混在一起时，每行标出类型。
+    private var showsTypeLabel: Bool {
+        selectedType == nil && availableTypes.count > 1
     }
 
     private let containerCornerRadius: CGFloat = 28
@@ -3820,6 +4024,12 @@ private struct Today推荐列表: View {
                 if isLoading && !items.isEmpty {
                     ProgressView()
                         .controlSize(.small)
+                }
+
+                Spacer(minLength: 0)
+
+                if availableTypes.count > 1 {
+                    typeMenu
                 }
             }
 
@@ -3860,7 +4070,7 @@ private struct Today推荐列表: View {
         }
         .accessibilityIdentifier("today.recommendations")
         .task(id: visibleItems.map(\.id)) {
-            onShow(visibleItems.map(\.id))
+            onShow(visibleItems)
         }
         .overlay(alignment: .bottom) {
             模糊解除提示(
@@ -3874,10 +4084,44 @@ private struct Today推荐列表: View {
         }
     }
 
+    private var typeMenu: some View {
+        Menu {
+            Picker("类型", selection: $selectedTypeRawValue) {
+                Text("全部").tag("")
+                ForEach(availableTypes) { type in
+                    Label(type.localizedTitle, systemImage: type.symbolName)
+                        .tag(type.rawValue)
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Text(selectedType?.localizedTitle ?? String(localized: "全部"))
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption2.weight(.semibold))
+            }
+            .font(.subheadline.weight(.semibold))
+        }
+        .accessibilityLabel("推荐类型")
+    }
+
+    @ViewBuilder
     private func recommendationLink(
-        _ recommendation: 探索推荐,
+        _ recommendation: 为你推荐条目,
         isCoverRevealed: Bool,
         usesCompactDisclosure: Bool = false
+    ) -> some View {
+        switch recommendation {
+        case let .视觉小说(item):
+            visualNovelLink(item, isCoverRevealed: isCoverRevealed, usesCompactDisclosure: usesCompactDisclosure)
+        case let .作品(item):
+            workLink(item, isCoverRevealed: isCoverRevealed, usesCompactDisclosure: usesCompactDisclosure)
+        }
+    }
+
+    private func visualNovelLink(
+        _ recommendation: 探索推荐,
+        isCoverRevealed: Bool,
+        usesCompactDisclosure: Bool
     ) -> some View {
         let item = recommendation.visualNovel
 
@@ -3907,11 +4151,60 @@ private struct Today推荐列表: View {
                     }
                 },
                 canRevealCover: imageCanBeRevealed(for: item),
-                usesCompactDisclosure: usesCompactDisclosure
+                usesCompactDisclosure: usesCompactDisclosure,
+                showsTypeLabel: showsTypeLabel
             )
             .padding(rowContentInset)
         }
         .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func workLink(
+        _ recommendation: 作品推荐项,
+        isCoverRevealed: Bool,
+        usesCompactDisclosure: Bool
+    ) -> some View {
+        let item = recommendation.作品
+        // 动画、漫画与轻小说只有“成人内容”标记，按最高的色情等级处理，与搜索页一致
+        let sexual: Double? = item.成人内容 ? 2 : nil
+
+        return NavigationLink {
+            作品详情(目标: item.详情目标)
+        } label: {
+            Today作品推荐行(
+                item: item,
+                isRestricted: 内容安全限制判定.图片需要限制(
+                    sexual: sexual,
+                    violence: nil,
+                    enabled: contentFilterEnabled,
+                    sexualThreshold: sexualThreshold,
+                    violenceThreshold: violenceThreshold,
+                    mode: filterMode
+                ) && !isCoverRevealed,
+                restrictionMethod: contentRestrictionMethod,
+                revealCover: {
+                    blurRevealConfirmation.request(id: "today-cover-\(item.id)") {
+                        withAnimation(.easeInOut(duration: 0.22)) {
+                            let _ = revealedCoverIDs.insert(item.id)
+                        }
+                    }
+                },
+                canRevealCover: 内容安全限制判定.图片允许手动解除模糊(
+                    sexual: sexual,
+                    enabled: contentFilterEnabled,
+                    sexualThreshold: sexualThreshold,
+                    mode: filterMode
+                ),
+                usesCompactDisclosure: usesCompactDisclosure,
+                showsTypeLabel: showsTypeLabel
+            )
+            .padding(rowContentInset)
+        }
+        .buttonStyle(.plain)
+        .simultaneousGesture(TapGesture().onEnded {
+            onOpen(.作品(recommendation))
+        })
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -3982,6 +4275,7 @@ private struct Today推荐行: View {
     let revealCover: () -> Void
     let canRevealCover: Bool
     var usesCompactDisclosure = false
+    var showsTypeLabel = false
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
@@ -4072,6 +4366,12 @@ private struct Today推荐行: View {
                 }
 
                 HStack(spacing: 8) {
+                    if showsTypeLabel {
+                        探索元数据(
+                            systemImage: 作品类型.visualNovel.symbolName,
+                            text: 作品类型.visualNovel.localizedTitle
+                        )
+                    }
                     视觉小说统一评分标签(
                         vndbID: item.id,
                         vndbRating: item.rating,
@@ -4079,6 +4379,106 @@ private struct Today推荐行: View {
                     )
                     if let released = item.released {
                         探索元数据(systemImage: "calendar", text: released)
+                    }
+                }
+            }
+
+            Spacer(minLength: 0)
+            if usesCompactDisclosure {
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .frame(width: 20)
+            } else {
+                Text("查看")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(.tint)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 7)
+                    .background(Color.secondary.opacity(0.1), in: Capsule())
+            }
+        }
+        .contentShape(Rectangle())
+    }
+}
+
+/// 动画、漫画与轻小说的推荐行，排版与视觉小说的推荐行一致。
+private struct Today作品推荐行: View {
+    let item: 作品搜索结果
+    let isRestricted: Bool
+    let restrictionMethod: 内容限制方式
+    let revealCover: () -> Void
+    let canRevealCover: Bool
+    var usesCompactDisclosure = false
+    var showsTypeLabel = false
+
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    @AppStorage("preferredTitleLang")
+    private var preferredTitleLang: 标题语言 = .original
+    @AppStorage("fallbackTitleLang")
+    private var fallbackTitleLang: 标题语言 = .original
+    @AppStorage("allowUnofficialTitles")
+    private var allowUnofficialTitles = false
+
+    private var coverCornerRadius: CGFloat {
+        列表封面布局.圆角(horizontalSizeClass: horizontalSizeClass)
+    }
+
+    private var displayedTitle: 标题工具.标题结果 {
+        标题工具.获取主标题(
+            titles: item.多语言标题,
+            defaultTitle: item.标题,
+            偏好: preferredTitleLang,
+            回退: fallbackTitleLang,
+            允许非官方: allowUnofficialTitles
+        )
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            ZStack {
+                Today异步图片(
+                    url: URL(string: item.封面 ?? ""),
+                    maximumPixelSize: 1_200
+                )
+                .frame(width: 72, height: 100)
+                .clipped()
+                .clipShape(RoundedRectangle(cornerRadius: coverCornerRadius, style: .continuous))
+                .应用不安全内容限制(
+                    isRestricted,
+                    method: restrictionMethod,
+                    blurRadius: 16
+                )
+                .clipShape(RoundedRectangle(cornerRadius: coverCornerRadius, style: .continuous))
+
+                if isRestricted && canRevealCover {
+                    Color.clear
+                        .contentShape(RoundedRectangle(cornerRadius: coverCornerRadius, style: .continuous))
+                        .onTapGesture(perform: revealCover)
+                        .accessibilityLabel("连按两次以解除模糊")
+                }
+            }
+            .frame(width: 72, height: 100)
+            .clipShape(RoundedRectangle(cornerRadius: coverCornerRadius, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 4) {
+                多语言列表文本(
+                    displayedTitle,
+                    层级: .主标题,
+                    日文字体名称: "HiraginoSans-W5",
+                    系统字体粗细: displayedTitle.languageCode
+                        == 标题语言.chinese.langCode ? .medium : nil,
+                    语言来源已知: displayedTitle.languageCode != nil
+                )
+                .lineLimit(2)
+
+                HStack(spacing: 8) {
+                    if showsTypeLabel {
+                        探索元数据(systemImage: item.类型.symbolName, text: item.类型.localizedTitle)
+                    }
+                    if let year = item.年份 {
+                        探索元数据(systemImage: "calendar", text: String(year))
                     }
                 }
             }
@@ -4794,9 +5194,11 @@ private struct Today公开推荐内容: Decodable, Sendable {
     }
 }
 
+/// 视觉小说补上“v”；动画、漫画与轻小说的编号（“a5114”）保持不变。
 private func 标准化视觉小说ID(_ value: String) -> String {
     let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return trimmed }
+    if 作品搜索结果.解析(trimmed) != nil { return trimmed }
 
     let suffix = trimmed.drop { character in
         character == "v" || character == "V"
@@ -4839,7 +5241,7 @@ private struct PaperVNToday推荐服务 {
         var errorDescription: String? {
             switch self {
             case .rateLimitExceeded: return "每个VNDB ID每日最多提交5个推荐。"
-            case .duplicateOwn: return "7天内不可重复推荐相同视觉小说。"
+            case .duplicateOwn: return "7天内不可重复推荐相同作品。"
             case .duplicatePending(let message): return message
             case .duplicateRejected(let message): return message
             case .duplicateByOthers(let message): return message
@@ -4952,16 +5354,19 @@ private struct PaperVNToday推荐服务 {
         vndbUsername: String?,
         vnID: String,
         vnTitle: String,
+        imageURL: String? = nil,
         description: String,
         title: String,
         defaultLanguage: String,
         translations: Today推荐多语言内容
     ) async throws -> Today提交资格错误? {
+        /// 动画、漫画与轻小说也用 vnID 字段，值是作品编号（例如“a5114”）；服务器查不到它们的封面，由 App 一起提交。
         struct SubmissionRequest: Encodable {
             let vndbID: String
             let vndbUsername: String?
             let vnID: String
             let vnTitle: String
+            let visualNovelImage: String?
             let description: String
             let title: String
             let defaultLanguage: String
@@ -4977,6 +5382,7 @@ private struct PaperVNToday推荐服务 {
             vndbUsername: vndbUsername,
             vnID: vnID,
             vnTitle: vnTitle,
+            visualNovelImage: imageURL,
             description: description,
             title: title,
             defaultLanguage: defaultLanguage,
@@ -5254,7 +5660,7 @@ struct Today推荐页面: View {
                     未登录视图()
                 }
             }
-            .navigationTitle("推荐视觉小说")
+            .navigationTitle("推荐作品")
             .平台柔和滚动边缘(for: .top)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -5487,7 +5893,7 @@ struct Today推荐页面: View {
         ContentUnavailableView {
             Label("需要登录", systemImage: "person.crop.circle.badge.exclamationmark")
         } description: {
-            Text("登录VNDB账户后即可推荐视觉小说")
+            Text("登录VNDB账户后即可推荐作品")
         }
     }
 
@@ -5544,6 +5950,7 @@ private struct Today推荐列表加载占位行: View {
     }
 }
 
+/// 推荐页面里选中的作品。视觉小说的编号是 VNDB ID，动画、漫画与轻小说是作品编号（例如“a5114”）。
 private struct Today视觉小说搜索结果: Identifiable, Sendable {
     let id: String
     let title: String
@@ -5551,6 +5958,12 @@ private struct Today视觉小说搜索结果: Identifiable, Sendable {
     var displayIsJapanese = false
     var displayLanguageCode: String? = nil
     let imageURL: String?
+    var 类型: 作品类型 = .visualNovel
+
+    /// 视觉小说显示 VNDB ID，其他作品显示类型。
+    var 说明: String {
+        类型 == .visualNovel ? id : 类型.localizedTitle
+    }
 }
 
 @MainActor
@@ -5565,6 +5978,7 @@ private final class 视觉小说搜索视图模型 {
     }
 
     var 搜索文本 = ""
+    var 类型: 作品类型 = .visualNovel
     var 结果列表: [Today视觉小说搜索结果] = []
     var 页面状态: Today页面状态 = .loading
     var 当前页 = 1
@@ -5610,6 +6024,10 @@ private final class 视觉小说搜索视图模型 {
             当前页 = 1
             总结果数 = 0
             正在加载更多 = false
+        }
+        guard 类型 == .visualNovel else {
+            await 搜索作品(文本: 文本, 页码: 页码, 追加: 追加)
+            return
         }
 
         do {
@@ -5734,19 +6152,92 @@ private final class 视觉小说搜索视图模型 {
     }
 }
 
+extension 视觉小说搜索视图模型 {
+    /// 动画、漫画与轻小说：没有关键词时列出 AniList 上的热门作品，有关键词时在各平台上搜索（不分页）。
+    fileprivate func 搜索作品(文本: String, 页码: Int, 追加: Bool) async {
+        let type = 类型
+        let query = 文本.trimmingCharacters(in: .whitespacesAndNewlines)
+        do {
+            let items: [作品搜索结果]
+            let hasMore: Bool
+            if query.isEmpty {
+                let page = try await 作品聚合搜索.shared.热门(类型: type, 页码: 页码)
+                items = page.结果
+                hasMore = page.还有更多
+            } else {
+                items = await 作品聚合搜索.shared.在线搜索(query).filter { $0.类型 == type && !$0.成人内容 }
+                hasMore = false
+            }
+            guard !Task.isCancelled, 类型 == type else { return }
+            let 新结果 = items.map { item in
+                let title = 标题工具.获取主标题(
+                    titles: item.多语言标题,
+                    defaultTitle: item.标题,
+                    偏好: 标题语言(rawValue: UserDefaults.standard.string(forKey: "preferredTitleLang") ?? "") ?? .original,
+                    回退: 标题语言(rawValue: UserDefaults.standard.string(forKey: "fallbackTitleLang") ?? "") ?? .original,
+                    允许非官方: UserDefaults.standard.bool(forKey: "allowUnofficialTitles")
+                )
+                return Today视觉小说搜索结果(
+                    id: item.id,
+                    title: item.标题,
+                    displayTitle: title.text,
+                    displayIsJapanese: title.languageCode == "ja",
+                    displayLanguageCode: title.languageCode,
+                    imageURL: item.封面,
+                    类型: type
+                )
+            }
+            if 追加 {
+                结果列表.append(contentsOf: 新结果.filter { item in !结果列表.contains { $0.id == item.id } })
+            } else {
+                结果列表 = 新结果
+                页面状态 = 新结果.isEmpty ? .empty : .loaded
+            }
+            当前页 = 页码
+            总结果数 = hasMore ? 结果列表.count + 1 : 结果列表.count
+            正在加载更多 = false
+        } catch {
+            if !追加 {
+                页面状态 = .failed(error.localizedDescription)
+            }
+            正在加载更多 = false
+        }
+    }
+}
+
 private struct 视觉小说搜索页面: View {
     @Environment(\.dismiss) private var dismiss
     @Binding var 选中的视觉小说: Today视觉小说搜索结果?
     @State private var viewModel = 视觉小说搜索视图模型()
 
+    /// 设置里打开的作品类型。
+    private var 可选类型: [作品类型] {
+        let enabled = 作品类型显示设置.已启用类型()
+        return [作品类型.visualNovel, .anime, .manga, .lightNovel].filter(enabled.contains)
+    }
+
     var body: some View {
         NavigationStack {
             List {
+                if 可选类型.count > 1 {
+                    Section {
+                        Picker("类型", selection: $viewModel.类型) {
+                            ForEach(可选类型) { type in
+                                Text(type.localizedTitle).tag(type)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets())
+                }
+
                 switch viewModel.页面状态 {
                 case .idle:
                     Section {
                         平台内容不可用视图(
-                            "选择视觉小说",
+                            "选择作品",
                             systemImage: "magnifyingglass",
                             description: Text("在上方输入关键词开始搜索")
                         )
@@ -5834,10 +6325,10 @@ private struct 视觉小说搜索页面: View {
                     EmptyView()
                 }
             }
-            .navigationTitle("选择视觉小说")
+            .navigationTitle("选择作品")
             .平台柔和滚动边缘(for: .top)
             .navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $viewModel.搜索文本, prompt: "搜索视觉小说")
+            .searchable(text: $viewModel.搜索文本, prompt: Text(viewModel.类型.localizedTitle))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button {
@@ -5850,7 +6341,13 @@ private struct 视觉小说搜索页面: View {
             .onChange(of: viewModel.搜索文本) { _, 新值 in
                 viewModel.搜索(文本: 新值)
             }
+            .onChange(of: viewModel.类型) { _, _ in
+                viewModel.搜索(文本: viewModel.搜索文本)
+            }
             .task {
+                if let first = 可选类型.first, !可选类型.contains(viewModel.类型) {
+                    viewModel.类型 = first
+                }
                 viewModel.加载默认列表()
             }
         }
@@ -5936,7 +6433,7 @@ private struct 视觉小说搜索行: View {
                 )
                 .foregroundStyle(.primary)
 
-                Text(视觉小说.id)
+                Text(verbatim: 视觉小说.说明)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -6036,7 +6533,7 @@ private struct Today推荐编辑页面: View {
                                         层级: .主标题,
                                         系统字体粗细: .semibold
                                     )
-                                    Text(vn.id)
+                                    Text(verbatim: vn.说明)
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
@@ -6058,13 +6555,13 @@ private struct Today推荐编辑页面: View {
                         Button {
                             显示搜索页面 = true
                         } label: {
-                            Label("选择视觉小说", systemImage: 搜索范围.visualNovel.systemImage)
+                            Label("选择作品", systemImage: 搜索范围.visualNovel.systemImage)
                                 .foregroundStyle(.primary)
                         }
                         .contentShape(Rectangle())
                     }
                 } header: {
-                    Text("视觉小说")
+                    Text("作品")
                 }
 
                 Section {
@@ -6191,7 +6688,7 @@ private struct Today推荐编辑页面: View {
                 正在提交 = false
             }
         } message: {
-            Text("用于提交的VNDB ID将被记录以防止滥用行为。用户提交的视觉小说、标题、描述与用户名在通过后将向所有用户展示，开发者可能出于PaperVN的需要对内容进行适当修改。\n\n每个VNDB ID每日最多提交5个推荐，7天内不可重复推荐相同视觉小说。")
+            Text("用于提交的VNDB ID将被记录以防止滥用行为。用户提交的作品、标题、描述与用户名在通过后将向所有用户展示，开发者可能出于PaperVN的需要对内容进行适当修改。\n\n每个VNDB ID每日最多提交5个推荐，7天内不可重复推荐相同作品。")
         }
     }
 
@@ -6221,7 +6718,8 @@ private struct Today推荐编辑页面: View {
                 displayTitle: 显示标题.text,
                 displayIsJapanese: 显示标题.isJapanese,
                 displayLanguageCode: 显示标题.languageCode,
-                imageURL: 推荐.visualNovelImage
+                imageURL: 推荐.visualNovelImage,
+                类型: 作品搜索结果.解析(推荐.vnID)?.类型 ?? .visualNovel
             )
             if let translations = 推荐.submissionTranslations {
                 for language in Today推荐语言.allCases {
@@ -6341,6 +6839,7 @@ private struct Today推荐编辑页面: View {
                     vndbUsername: vndbAccount.用户名,
                     vnID: vn.id,
                     vnTitle: vn.title,
+                    imageURL: vn.类型 == .visualNovel ? nil : vn.imageURL,
                     description: 已整理描述(提交默认语言),
                     title: 已整理标题(提交默认语言),
                     defaultLanguage: 提交默认语言.rawValue,
@@ -6435,3 +6934,20 @@ struct Today显示配置: Codable, Equatable {
         case showEvents, showQuotes
     }
 }
+
+#if DEBUG
+#Preview("Today：推荐视觉小说卡片") {
+    ScrollView {
+        Today添加推荐卡片(cardAspectRatio: Today布局.cardAspectRatio, usesWideLayout: false) {}
+            .padding(20)
+    }
+}
+
+#Preview("Today：推荐视觉小说卡片（iPad）", traits: .landscapeLeft) {
+    ScrollView {
+        Today添加推荐卡片(cardAspectRatio: Today布局.iPadCardAspectRatio, usesWideLayout: true) {}
+            .frame(maxWidth: 520)
+            .padding(20)
+    }
+}
+#endif

@@ -192,7 +192,7 @@ final class AniList账户: ObservableObject {
           MediaListCollection(userId: $userId, type: $type, chunk: $chunk, perChunk: 500) {
             hasNextChunk
             lists { entries {
-              status score(format: POINT_100) progress updatedAt
+              status score(format: POINT_100) progress updatedAt createdAt
               startedAt { year month day } completedAt { year month day }
               media {
                 id idMal format episodes chapters averageScore countryOfOrigin
@@ -227,11 +227,14 @@ final class AniList账户: ObservableObject {
 
     /// 新增或修改一条记录。
     /// `清除空值` 为真时（在 App 里编辑），没有评分、进度表示清除；否则不改动 AniList 上的值。
+    /// `自动日期修正`：AniList 新建记录或改成“看过”“在看”时，没有传日期会自动填上当天。
+    /// 平台上原来没有的日期被自动填上、又和资料库里的不同时，改回资料库里的日期（没有就清除）。
     func 保存(
         mediaID: Int,
         快照 value: 同步快照,
         日期: (start: String?, finish: String?)? = nil,
-        清除空值: Bool = false
+        清除空值: Bool = false,
+        自动日期修正: (原有: 同步日期, 期望: 同步日期)? = nil
     ) async throws {
         var variables: [String: Any] = [
             "mediaId": mediaID,
@@ -244,7 +247,7 @@ final class AniList账户: ObservableObject {
             variables["startedAt"] = Self.模糊日期(日期.start)
             variables["completedAt"] = Self.模糊日期(日期.finish)
         }
-        _ = try await 平台账户工具.graphQL(
+        let data = try await 平台账户工具.graphQL(
             endpoint: AniListOAuth配置.endpoint,
             platform: "AniList",
             accessToken: try accessToken(),
@@ -252,11 +255,54 @@ final class AniList账户: ObservableObject {
             mutation ($mediaId: Int, $status: MediaListStatus, $scoreRaw: Int, $progress: Int,
                       $startedAt: FuzzyDateInput, $completedAt: FuzzyDateInput) {
               SaveMediaListEntry(mediaId: $mediaId, status: $status, scoreRaw: $scoreRaw, progress: $progress,
-                                 startedAt: $startedAt, completedAt: $completedAt) { id }
+                                 startedAt: $startedAt, completedAt: $completedAt) {
+                startedAt { year month day } completedAt { year month day }
+              }
             }
             """,
             variables: variables
         )
+        guard 日期 == nil, let 自动日期修正,
+              let saved = try? JSONDecoder().decode(保存响应.self, from: data).data?.SaveMediaListEntry else { return }
+        let 保存后 = 同步日期(开始: saved.startedAt?.文本, 完成: saved.completedAt?.文本)
+        guard let 修正 = 同步合并.自动填写后的修正(原有: 自动日期修正.原有, 保存后: 保存后, 期望: 自动日期修正.期望) else { return }
+        try await 修改日期(mediaID: mediaID, 日期: 修正)
+    }
+
+    /// 只修改开始、完成日期（为 nil 的部分清除）。
+    func 修改日期(mediaID: Int, 日期: 同步日期) async throws {
+        _ = try await 平台账户工具.graphQL(
+            endpoint: AniListOAuth配置.endpoint,
+            platform: "AniList",
+            accessToken: try accessToken(),
+            query: """
+            mutation ($mediaId: Int, $startedAt: FuzzyDateInput, $completedAt: FuzzyDateInput) {
+              SaveMediaListEntry(mediaId: $mediaId, startedAt: $startedAt, completedAt: $completedAt) { id }
+            }
+            """,
+            variables: [
+                "mediaId": mediaID,
+                "startedAt": Self.模糊日期(日期.开始),
+                "completedAt": Self.模糊日期(日期.完成),
+            ]
+        )
+    }
+
+    private struct 保存响应: Decodable {
+        struct 数据: Decodable {
+            struct 条目: Decodable {
+                struct 日期: Decodable {
+                    let year: Int?
+                    let month: Int?
+                    let day: Int?
+                    var 文本: String? { 平台账户工具.日期文本(year: year, month: month, day: day) }
+                }
+                let startedAt: 日期?
+                let completedAt: 日期?
+            }
+            let SaveMediaListEntry: 条目?
+        }
+        let data: 数据?
     }
 
     /// 删除一条记录。AniList 按列表条目 ID 删除，所以先查出条目 ID。
@@ -379,6 +425,7 @@ private struct AniList列表响应: Decodable {
         let score: Double?
         let progress: Int?
         let updatedAt: Int?
+        let createdAt: Int?
         let startedAt: 日期?
         let completedAt: 日期?
         let media: 作品
@@ -405,6 +452,7 @@ private struct AniList列表响应: Decodable {
                 开始日期: text(startedAt),
                 完成日期: text(completedAt),
                 修改时间: updatedAt.map { Date(timeIntervalSince1970: TimeInterval($0)) },
+                创建时间: createdAt.map { Date(timeIntervalSince1970: TimeInterval($0)) },
                 多语言标题: 作品多语言标题.生成(
                     原名: media.title?.native,
                     原名语言: 作品多语言标题.语言(国家: media.countryOfOrigin),
@@ -473,3 +521,15 @@ extension AniList账户 {
         }
     }
 }
+
+#if DEBUG
+extension AniList账户 {
+    /// 预览用：已登录的账户，不读写钥匙串。
+    static func 预览已登录(_ profile: AniList用户资料) -> AniList账户 {
+        let account = AniList账户(previewing: true)
+        account.profile = profile
+        account.isLoggedIn = true
+        return account
+    }
+}
+#endif

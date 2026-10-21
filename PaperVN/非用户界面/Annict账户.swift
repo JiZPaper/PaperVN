@@ -353,3 +353,15 @@ extension Annict账户 {
         }
     }
 }
+
+#if DEBUG
+extension Annict账户 {
+    /// 预览用：已登录的账户，不读写钥匙串。
+    static func 预览已登录(_ profile: Annict用户资料) -> Annict账户 {
+        let account = Annict账户(previewing: true)
+        account.profile = profile
+        account.isLoggedIn = true
+        return account
+    }
+}
+#endif

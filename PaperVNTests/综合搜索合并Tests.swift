@@ -53,6 +53,47 @@ struct 综合搜索合并Tests {
         }
     }
 
+    private func 动画(_ mal: Int, _ 标题: String, _ 年份: Int) -> 作品搜索结果 {
+        var item = 作品(mal)
+        item.标题 = 标题
+        item.年份 = 年份
+        return item
+    }
+
+    @Test
+    func 只搜系列名时各部正作按播出顺序排() {
+        var 输入 = 综合搜索合并.输入()
+        输入.查询 = "lovelive"
+        let 作品们 = [动画(15051, "Love Live! School idol project", 2013), 动画(41169, "Love Live! Superstar!!", 2021),
+                    动画(40879, "Love Live! Nijigasaki Gakuen School Idol Doukoukai", 2020), 动画(32526, "Love Live! Sunshine!!", 2016)]
+        输入.智能搜索命中 = 作品们.map { 命中($0.id, .动画) }
+        for item in 作品们 { 输入.动画漫画[item.id] = item }
+        #expect(综合搜索合并.合并(输入).map(\.id) == ["a15051", "a32526", "a40879", "a41169"])
+        // 单独的 OVA、特别篇接在各部正作后面
+        var ova = 动画(17549, "Love Live! School Idol Project OVA", 2013)
+        ova.格式 = "OVA"
+        输入.动画漫画[ova.id] = ova
+        输入.智能搜索命中.insert(命中(ova.id, .动画), at: 1)
+        #expect(综合搜索合并.合并(输入).map(\.id) == ["a15051", "a32526", "a40879", "a41169", "a17549"])
+        输入.智能搜索命中.remove(at: 1)
+        // 指明了哪一部时按搜索的可能性
+        输入.查询 = "lovelive superstar"
+        #expect(综合搜索合并.合并(输入).map(\.id) == ["a15051", "a41169", "a40879", "a32526"])
+        // 只对上一个词的一部分（“sp”对“SPY×FAMILY”）不算
+        输入.查询 = "lovel"
+        #expect(综合搜索合并.合并(输入).map(\.id) == ["a15051", "a41169", "a40879", "a32526"])
+    }
+
+    @Test
+    func LoveLive标题改成官方写法() {
+        #expect(作品多语言标题.校正("Love Live! School Idol Project") == "LoveLive! School Idol Project")
+        #expect(作品多语言标题.校正("Love Live! Sunshine!!") == "LoveLive! Sunshine!!")
+        #expect(作品多语言标题.校正("ラブライブ!") == "ラブライブ!")
+        let titles = 作品多语言标题.生成(原名: "ラブライブ! School idol project", 罗马字: "Love Live! School idol project", 英文: "Love Live! School Idol Project")
+        #expect(titles.allSatisfy { !$0.title.contains("Love Live!") && !($0.latin ?? "").contains("Love Live!") })
+        #expect(标题工具.标题结果(text: "Love Live! The School Idol Movie", isJapanese: false).text == "LoveLive! The School Idol Movie")
+    }
+
     @Test
     func 编号前缀区分动画漫画轻小说() {
         #expect(作品搜索结果.编号(类型: .anime, malID: 1) == "a1")

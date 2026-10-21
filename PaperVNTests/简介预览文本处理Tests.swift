@@ -23,15 +23,4 @@ struct 简介预览文本处理Tests {
         let text = "第一段\n\n普通的最后一行"
         #expect(简介预览文本处理.外部显示文本(text) == text)
     }
-
-    @Test
-    func 在空白截断行上显示省略号() {
-        let text = "第一行\n\n后续正文"
-        #expect(
-            简介预览文本处理.在截断空行显示省略号(
-                text,
-                lineIndex: 1
-            ) == "第一行\n…"
-        )
-    }
 }

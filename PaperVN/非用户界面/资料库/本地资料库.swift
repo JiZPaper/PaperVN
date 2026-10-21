@@ -2,7 +2,7 @@ import Combine
 import Foundation
 
 /// 资料库里的作品类型。
-enum 作品类型: String, Codable, CaseIterable, Identifiable, Hashable, Sendable {
+nonisolated enum 作品类型: String, Codable, CaseIterable, Identifiable, Hashable, Sendable {
     case anime
     case manga
     case lightNovel
@@ -21,16 +21,16 @@ enum 作品类型: String, Codable, CaseIterable, Identifiable, Hashable, Sendab
 
     var symbolName: String {
         switch self {
-        case .anime: "play.tv"
-        case .manga: "book.pages"
+        case .anime: "play.square.stack"
+        case .manga: "richtext.page.ja"
         case .lightNovel: "text.book.closed"
-        case .visualNovel: "gamecontroller"
+        case .visualNovel: "zipper.page"
         }
     }
 }
 
 /// 资料库状态。文案随作品类型变化：视觉小说是“游玩”，动画是“看”，漫画与轻小说是“读”。
-enum 资料库状态: String, Codable, CaseIterable, Identifiable, Hashable, Sendable {
+nonisolated enum 资料库状态: String, Codable, CaseIterable, Identifiable, Hashable, Sendable {
     case inProgress
     case completed
     case onHold
@@ -92,7 +92,7 @@ enum 资料库平台: String, Codable, CaseIterable, Identifiable, Hashable, Sen
     var localizedTitle: String {
         switch self {
         case .vndb: "VNDB"
-        case .bangumi: "Bangumi"
+        case .bangumi: String(localized: "Bangumi番组计划")
         case .myAnimeList: "MyAnimeList"
         case .aniList: "AniList"
         case .annict: "Annict"
@@ -428,3 +428,16 @@ enum 资料库排序 {
         return Double(year * 10_000 + month * 100 + day)
     }
 }
+
+#if DEBUG
+extension 本地资料库 {
+    /// 预览用：换成示例条目，不读写磁盘。
+    func 预览载入(_ entries: [本地资料库条目]) {
+        载入任务?.cancel()
+        所有者 = "preview"
+        载入失败 = false
+        条目 = entries
+        已载入 = true
+    }
+}
+#endif

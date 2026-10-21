@@ -140,7 +140,7 @@ nonisolated final class 只读映射文件: @unchecked Sendable {
 }
 
 
-/// `Tools/智能搜索模型/模糊.py` 生成的模型文件：
+/// Hiro智能的模型文件：
 /// "PVSS" | 格式版本 UInt32 | 头长度 UInt32 | 头 JSON | 各段数据（16 字节对齐，小端序）。
 nonisolated struct 智能搜索模型文件: @unchecked Sendable {
     /// 2：纯名称模糊匹配（名称索引 + 排序器），不再包含查询编码器。

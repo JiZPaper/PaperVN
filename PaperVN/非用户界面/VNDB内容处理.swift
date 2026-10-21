@@ -2641,7 +2641,8 @@ struct 标题工具 {
             isJapanese: Bool,
             languageCode: String? = nil
         ) {
-            self.text = text
+            // 各平台写错的标题（“Love Live!”）在显示时统一改成官方写法
+            self.text = 作品多语言标题.校正(text)
             self.isJapanese = isJapanese
             self.languageCode = languageCode
         }
@@ -3384,3 +3385,40 @@ struct 多语言列表文本: View {
         )
     }
 }
+
+#if DEBUG
+#Preview("沉浸详情：玻璃色调过渡") {
+    // 封面取样结果变化时，玻璃的补偿色调平滑过渡；“无色调”时淡出而不经过灰色
+    @Previewable @State var 色调: Color? = Color(red: 0.32, green: 0.52, blue: 0.30).opacity(0.35)
+    let 选项: [(String, Color?)] = [
+        ("森林", Color(red: 0.32, green: 0.52, blue: 0.30).opacity(0.35)),
+        ("夜空", Color(red: 0.12, green: 0.16, blue: 0.38).opacity(0.45)),
+        ("夕阳", Color(red: 0.86, green: 0.48, blue: 0.30).opacity(0.35)),
+        ("无色调", nil),
+    ]
+    ZStack {
+        CachedAsyncImage(url: URL(string: 预览数据.芙莉莲.封面), contentMode: .fill)
+            .ignoresSafeArea()
+        VStack(spacing: 24) {
+            沉浸玻璃色调过渡(target: 色调.map(沉浸玻璃色调分量.init)) { tint in
+                Text(verbatim: "葬送のフリーレン")
+                    .font(.title2.weight(.bold))
+                    .frame(maxWidth: .infinity, minHeight: 120)
+                    .modifier(液态玻璃Modifier(
+                        glass: 沉浸详情外观.clear.glass(tint: tint),
+                        shape: RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    ))
+            }
+            .padding(.horizontal, 20)
+            HStack {
+                ForEach(选项.indices, id: \.self) { index in
+                    Button(选项[index].0) {
+                        色调 = 选项[index].1
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+            }
+        }
+    }
+}
+#endif

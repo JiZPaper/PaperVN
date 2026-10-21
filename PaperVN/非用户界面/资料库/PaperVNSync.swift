@@ -34,30 +34,8 @@ final class PaperVNSync中心: ObservableObject {
     /// 等待用户处理的同步。用户关闭处理页面后仍然保留，可以在同步任务页面继续处理。
     @Published private(set) var 待处理: 同步会话?
     @Published var 显示待处理 = false
-    /// 用户确认后，查找和写入进行中。
-    @Published private(set) var 正在执行 = false
-    @Published private(set) var 执行平台: [资料库平台] = []
-    /// 最近一次确认后同步的结果，显示在处理页面里，用户点“完成”后清除。
-    @Published private(set) var 最近结果: 同步结果?
-
-    struct 同步结果: Equatable {
-        struct 平台结果: Equatable, Identifiable {
-            let 平台: 资料库平台
-            var 添加 = 0
-            var 更改 = 0
-            var 删除 = 0
-            var 无法删除 = 0
-            var 找不到: [String] = []
-            var 失败: String?
-            var id: 资料库平台 { 平台 }
-        }
-        var 平台: [平台结果]
-    }
-
-    func 关闭结果() {
-        最近结果 = nil
-        显示待处理 = false
-    }
+    /// 这次同步中前几步停下时的会话，按顺序保存，用来返回上一步重新选择。
+    @Published private(set) var 上一步: [同步会话] = []
     /// 能弹出处理页面的位置（App 根视图、“账户与设置”），后出现的在上层。
     /// 已经有弹出页面时，从根视图再弹出会被系统静默忽略，所以处理页面由最上层的位置弹出。
     @Published private(set) var 弹出层级: [UUID] = []
@@ -71,8 +49,6 @@ final class PaperVNSync中心: ObservableObject {
     func 注销弹出层级(_ id: UUID) {
         弹出层级.removeAll { $0 == id }
     }
-    /// 正在查找作品或推送，处理页面显示进度。
-    @Published private(set) var 正在处理 = false
     /// 各平台找不到对应作品、没有同步过去的作品，可以手动匹配。
     @Published private(set) var 未匹配作品: [资料库平台: [未匹配作品]] = [:]
     var 未匹配数: [资料库平台: Int] { 未匹配作品.mapValues(\.count) }
@@ -80,6 +56,22 @@ final class PaperVNSync中心: ObservableObject {
     @Published private(set) var 读取失败: [资料库平台: String] = [:]
     /// 分别保留时在资料库中隐藏的作品数。
     @Published private(set) var 隐藏数 = 0
+    /// 用户在资料库顶部忽略过的缺失作品（“平台|编号”）。发现新的缺失作品时再次提示。
+    @Published private(set) var 已忽略缺失: Set<String> = Set(UserDefaults.standard.stringArray(forKey: 已忽略缺失键) ?? [])
+    private static let 已忽略缺失键 = "paperVNSyncDismissedUnmatched"
+
+    private var 缺失作品标识: Set<String> {
+        Set(未匹配作品.flatMap { platform, works in works.map { "\(platform.rawValue)|\($0.键)" } })
+    }
+
+    /// 有用户还没忽略过的缺失作品。
+    var 有新的缺失作品: Bool { !缺失作品标识.isSubset(of: 已忽略缺失) }
+
+    /// 忽略当前的缺失作品，直到发现更多或其他缺失的作品。
+    func 忽略缺失作品() {
+        已忽略缺失 = 缺失作品标识
+        UserDefaults.standard.set(Array(已忽略缺失), forKey: Self.已忽略缺失键)
+    }
 
     nonisolated static let 启用设置键 = "paperVNSyncEnabled"
     private static let 最近同步时间键 = "paperVNSyncLastSynchronized"
@@ -397,6 +389,22 @@ final class PaperVNSync中心: ObservableObject {
                     }
                 }
             }
+            // AniList 在 PaperVN 新建记录时自动填上的日期：资料库和这次读到的记录都改回应有的日期，推送时再改 AniList
+            var aniListDateFixes: [String: 同步日期] = [:]
+            for (key, record) in libraries[.aniList]?.记录 ?? [:] {
+                guard let entry = local[key],
+                      let fix = 同步合并.AniList自动填写的日期(
+                          record,
+                          本地: entry,
+                          基线: store.基线[.aniList]?.快照[key],
+                          其他记录: libraries.values.filter { $0.平台 != .aniList }.compactMap { $0.记录[key] }
+                      ) else { continue }
+                aniListDateFixes[key] = fix
+                local[key]?.开始日期 = fix.开始
+                local[key]?.完成日期 = fix.完成
+                libraries[.aniList]?.记录[key]?.开始日期 = fix.开始
+                libraries[.aniList]?.记录[key]?.完成日期 = fix.完成
+            }
             // 隐藏的作品后来又在 PaperVN 中加入资料库时，不再隐藏
             for key in store.隐藏.keys where local[key] != nil {
                 store.隐藏[key] = nil
@@ -419,6 +427,7 @@ final class PaperVNSync中心: ObservableObject {
                 待推送: store.待推送.filter { store.隐藏[$0.key] == nil }
             )
             session.本地已删除 = store.本地已删除
+            session.AniList日期修正 = aniListDateFixes
             session.仅导出 = Set(platforms.filter { $0.同步方向 == .仅导出 })
             session.仅导入 = Set(platforms.filter { !$0.可导出 })
             session.读取失败 = failures
@@ -435,6 +444,7 @@ final class PaperVNSync中心: ObservableObject {
                 }
             }
             同步合并.检查减少(&session)
+            上一步 = []
             await 继续(session)
         }
         动画同步 = task
@@ -516,6 +526,8 @@ final class PaperVNSync中心: ObservableObject {
 
     /// 等用户处理。不自动弹出处理页面：资料库顶部会显示提示，用户点按后再打开。
     private func 等待用户(_ session: 同步会话) {
+        // 从上一步继续到这里：记下上一步停下时的会话，返回时恢复，之前做的选择也还在
+        if let previous = 待处理 { 上一步.append(previous) }
         待处理 = session
         for platform in session.平台.keys {
             任务[platform]?.状态 = .需要处理
@@ -527,11 +539,6 @@ final class PaperVNSync中心: ObservableObject {
         let platforms = Array(session.平台.keys)
         let task = Task {
             await 继续(session)
-            // 中途退出（例如账户已退出）时结束执行状态，处理页面不会一直显示进度
-            if 正在执行 {
-                正在执行 = false
-                最近结果 = 同步结果(平台: [])
-            }
             // 中途退出时不能让平台一直显示“正在同步”
             for platform in platforms {
                 if case .进行中 = 任务[platform]?.状态 { 任务[platform]?.状态 = .等待 }
@@ -601,17 +608,22 @@ final class PaperVNSync中心: ObservableObject {
         待处理?.修改时间来源 = platform
     }
 
+    /// 回到上一步停下的地方。
+    func 返回上一步() {
+        guard 动画同步 == nil, let previous = 上一步.popLast() else { return }
+        待处理 = previous
+    }
+
     func 确认推送() {
         guard var session = 待处理,
               !session.需要选择修改时间来源 || session.修改时间来源 != nil else { return }
         session.已确认推送 = true
-        // 确认后处理页面留着，改为显示同步进度，完成后显示结果，由用户关闭
+        // 确认后立即关闭处理页面，进度显示在资料库顶部和同步任务页面
         待处理 = nil
-        最近结果 = nil
-        正在执行 = true
-        执行平台 = session.平台.keys.filter(session.可导出).sorted { $0.rawValue < $1.rawValue }
+        上一步 = []
+        显示待处理 = false
         // 已经确认：查找作品期间各平台显示正在同步，不再显示“需要确认”
-        for platform in 执行平台 {
+        for platform in session.平台.keys {
             任务[platform]?.状态 = .进行中(已完成: 0, 总数: nil)
         }
         开始继续(session)
@@ -694,6 +706,7 @@ final class PaperVNSync中心: ObservableObject {
     func 取消待处理() {
         guard let session = 待处理 else { return }
         待处理 = nil
+        上一步 = []
         显示待处理 = false
         for platform in session.平台.keys {
             任务[platform]?.状态 = .等待
@@ -837,10 +850,7 @@ final class PaperVNSync中心: ObservableObject {
     private func 执行(_ session: 同步会话) async {
         guard let owner = 本地资料库.shared.所有者, 本地资料库.shared.可写入 else { return }
         待处理 = nil
-        // 用户确认后的同步在处理页面里显示进度和结果，不关闭页面
-        if !正在执行 { 显示待处理 = false }
-        正在处理 = true
-        defer { 正在处理 = false }
+        显示待处理 = false
 
         let operations = session.推送.filter { $0.平台ID != nil }
         var failed: Set<String> = []
@@ -875,6 +885,13 @@ final class PaperVNSync中心: ObservableObject {
             let (platformFailed, firstError) = await worker.value
             failed.formUnion(platformFailed)
             if let firstError { errors[platform] = firstError }
+        }
+        // 改回 AniList 自动填写的日期。失败了也不要紧：下次同步还会认出来再改
+        if let account = aniList, account.isLoggedIn {
+            for (key, fix) in session.AniList日期修正 {
+                guard let value = session.平台[.aniList]?.记录[key]?.平台ID, let mediaID = Int(value) else { continue }
+                try? await account.修改日期(mediaID: mediaID, 日期: fix)
+            }
         }
 
         // 新的资料库：没有推送成功的新增，平台 ID 不写进去
@@ -978,22 +995,6 @@ final class PaperVNSync中心: ObservableObject {
 
         未匹配作品 = store.未匹配作品
         隐藏数 = store.隐藏条目.count
-        if 正在执行 {
-            let titles = Dictionary(session.推送.map { ($0.键, $0.标题) }, uniquingKeysWith: { first, _ in first })
-            最近结果 = 同步结果(平台: session.平台.keys.filter(session.可导出).sorted { $0.rawValue < $1.rawValue }.map { platform in
-                let done = session.推送.filter { $0.平台 == platform && $0.平台ID != nil && !failed.contains($0.id) }
-                return 同步结果.平台结果(
-                    平台: platform,
-                    添加: done.filter { $0.种类 == .新增 }.count,
-                    更改: done.filter { $0.种类 == .修改 }.count,
-                    删除: done.filter { $0.种类 == .删除 }.count,
-                    无法删除: session.无法删除[platform]?.count ?? 0,
-                    找不到: (session.未匹配[platform] ?? []).map { titles[$0] ?? $0 },
-                    失败: errors[platform]
-                )
-            })
-            正在执行 = false
-        }
         for platform in session.平台.keys {
             if let message = errors[platform] {
                 任务[platform]?.状态 = .失败(message)
@@ -1006,12 +1007,13 @@ final class PaperVNSync中心: ObservableObject {
 
     private func 写入(_ operation: 推送操作) async throws {
         guard let platformID = operation.平台ID else { return }
+        let 日期修正 = (原有: operation.平台原有日期, 期望: operation.资料库日期)
         do {
-            try await 写入(operation.平台, platformID: platformID, type: operation.类型, target: operation.目标)
+            try await 写入(operation.平台, platformID: platformID, type: operation.类型, target: operation.目标, 自动日期修正: 日期修正)
         } catch let 平台账户错误.rateLimited(_, retryAfter) {
             // AniList 每分钟限制请求次数，等一会儿再试一次
             try await Task.sleep(for: .seconds(min(retryAfter, 90)))
-            try await 写入(operation.平台, platformID: platformID, type: operation.类型, target: operation.目标)
+            try await 写入(operation.平台, platformID: platformID, type: operation.类型, target: operation.目标, 自动日期修正: 日期修正)
         }
     }
 
@@ -1029,7 +1031,8 @@ final class PaperVNSync中心: ObservableObject {
         type: 作品类型,
         target: 同步快照?,
         日期: 推送日期? = nil,
-        清除空值: Bool = false
+        清除空值: Bool = false,
+        自动日期修正: (原有: 同步日期, 期望: 同步日期)? = nil
     ) async throws {
         switch platform {
         case .myAnimeList:
@@ -1051,7 +1054,9 @@ final class PaperVNSync中心: ObservableObject {
             guard let account = aniList, account.isLoggedIn else { throw 平台账户错误.notLoggedIn(platform.localizedTitle) }
             guard let id = Int(platformID) else { throw 平台账户错误.invalidResponse(platform.localizedTitle) }
             if let target {
-                try await account.保存(mediaID: id, 快照: target, 日期: 日期.map { ($0.开始, $0.完成) }, 清除空值: 清除空值)
+                try await account.保存(
+                    mediaID: id, 快照: target, 日期: 日期.map { ($0.开始, $0.完成) }, 清除空值: 清除空值, 自动日期修正: 自动日期修正
+                )
             } else {
                 try await account.删除(mediaID: id)
             }
@@ -1134,6 +1139,8 @@ final class PaperVNSync中心: ObservableObject {
         guard !platforms.isEmpty else { return }
 
         var firstError: Error?
+        // 没有改日期时，平台上的日期按和资料库一致看待：AniList 自动填上的日期改回资料库里的
+        let 本地日期 = 同步日期(开始: entry.开始日期, 完成: entry.完成日期)
         for platform in platforms {
             let platformID = entry.平台ID[platform]
                 ?? (platform == .myAnimeList ? entry.malID.map(String.init) : nil)
@@ -1146,7 +1153,10 @@ final class PaperVNSync中心: ObservableObject {
             // 还不知道作品在该平台上的 ID：留在待推送里，完整同步时查找后再推送
             guard let platformID else { continue }
             do {
-                try await 写入(platform, platformID: platformID, type: entry.类型, target: target, 日期: 日期, 清除空值: 清除空值)
+                try await 写入(
+                    platform, platformID: platformID, type: entry.类型, target: target, 日期: 日期, 清除空值: 清除空值,
+                    自动日期修正: 日期 == nil ? (原有: 本地日期, 期望: 本地日期) : nil
+                )
                 store.待推送[entry.id]?.remove(platform)
                 if store.基线[platform] != nil {
                     let existing = store.基线[platform]?.快照[entry.id]
@@ -1174,6 +1184,7 @@ final class PaperVNSync中心: ObservableObject {
         动画同步?.cancel()
         动画同步 = nil
         待处理 = nil
+        上一步 = []
         显示待处理 = false
         上次凭据 = nil
         任务 = [:]
@@ -1253,3 +1264,29 @@ struct 同步状态存储: Codable {
     }
 }
 
+
+#if DEBUG
+extension PaperVNSync中心 {
+    /// 预览用：直接设定同步状态，不读取平台、不写入磁盘。每个预览都完整设定一次，互不影响。
+    func 预览设置(
+        待处理 session: 同步会话? = nil,
+        任务 tasks: [资料库平台: 任务状态] = [:],
+        最近同步时间 times: [资料库平台: Date] = [:],
+        上一步 previous: [同步会话] = [],
+        未匹配作品 unmatched: [资料库平台: [未匹配作品]] = [:],
+        读取失败 failures: [资料库平台: String] = [:],
+        隐藏数 hidden: Int = 0
+    ) {
+        待处理 = session
+        显示待处理 = false
+        任务 = Dictionary(uniqueKeysWithValues: tasks.map { platform, state in
+            (platform, 同步任务(平台: platform, 标题: platform.localizedTitle, 状态: state))
+        })
+        最近同步时间 = times
+        上一步 = previous
+        未匹配作品 = unmatched
+        读取失败 = failures
+        隐藏数 = hidden
+    }
+}
+#endif

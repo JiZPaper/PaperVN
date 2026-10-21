@@ -113,6 +113,8 @@ struct 平台资料库记录: Codable, Hashable {
     var 开始日期: String?
     var 完成日期: String?
     var 修改时间: Date?
+    /// 平台上这条记录的创建时间（AniList）。用来认出平台在创建时自动填写的日期。
+    var 创建时间: Date? = nil
     /// 各语言的标题。
     var 多语言标题: [用户多语言标题] = []
     /// 作品映射给出的编号；没有时按 MAL ID 或平台 ID 编号。
@@ -295,8 +297,18 @@ struct 推送操作: Identifiable, Hashable {
     var 平台ID: String?
     /// 删除时为 nil。
     let 目标: 同步快照?
+    /// 写入前平台上的开始、完成日期（平台上还没有这部作品时都为 nil）与资料库里的日期。
+    /// AniList 会给没有日期的记录自动填上当天，写入后用这两个值改回来，见 `同步合并.自动填写后的修正`。
+    var 平台原有日期 = 同步日期()
+    var 资料库日期 = 同步日期()
 
     var id: String { "\(平台.rawValue)|\(键)" }
+}
+
+/// 开始、完成日期（“2024-05-31”，也可能只有年或年月）。
+struct 同步日期: Hashable, Sendable {
+    var 开始: String?
+    var 完成: String?
 }
 
 /// 一次同步的完整过程：读到的数据、用户的选择与最终的推送计划。
@@ -339,6 +351,8 @@ struct 同步会话 {
     /// 没有参与这次同步的动画漫画平台和原因（读取失败的另见 `读取失败`），在选择导入方式时说明。
     var 未参与: [资料库平台: 未参与原因] = [:]
     var 需要确认推送 = false
+    /// AniList 自动填写、要改回来的日期（作品 → 应有的日期），见 `同步合并.AniList自动填写的日期`。
+    var AniList日期修正: [String: 同步日期] = [:]
     /// 第一次导入时，资料库“最近更改”使用哪个平台记录的更改时间，由用户选择。
     var 修改时间来源: 资料库平台?
     var 已确认推送 = false
@@ -1017,8 +1031,62 @@ enum 同步合并 {
             全部标题: entry.map { 全部标题(日文标题: $0.日文标题, 标题: $0.标题, 多语言标题: $0.多语言标题) }
                 ?? record.map { 全部标题(日文标题: $0.日文标题, 标题: $0.标题, 多语言标题: $0.多语言标题) } ?? [],
             平台ID: record?.平台ID ?? entry?.平台ID[platform],
-            目标: target
+            目标: target,
+            平台原有日期: 同步日期(开始: record?.开始日期, 完成: record?.完成日期),
+            资料库日期: 同步日期(开始: entry?.开始日期, 完成: entry?.完成日期)
         )
+    }
+
+    // MARK: 平台自动填写的日期
+
+    /// AniList 新建记录或改成“看过”“在看”时，没有传日期会自动填上当天（MAL 不会）。
+    /// 写入后平台上原来没有的日期被填上、又和资料库里的不同，返回要改成的日期（资料库里没有就清除）；不需要修正时返回 nil。
+    static func 自动填写后的修正(原有: 同步日期, 保存后: 同步日期, 期望: 同步日期) -> 同步日期? {
+        var result = 保存后
+        var changed = false
+        if 原有.开始 == nil, 保存后.开始 != nil, 保存后.开始 != 期望.开始 {
+            result.开始 = 期望.开始
+            changed = true
+        }
+        if 原有.完成 == nil, 保存后.完成 != nil, 保存后.完成 != 期望.完成 {
+            result.完成 = 期望.完成
+            changed = true
+        }
+        return changed ? result : nil
+    }
+
+    /// 以前同步时 PaperVN 在 AniList 上新建记录，AniList 把开始、完成日期自动填成了新建那天，下一次同步又把这个日期导入了资料库。
+    /// 认出这样的日期：
+    /// - 日期就是 AniList 上这条记录创建的那天；
+    /// - 资料库里早在那之前就有这部作品（记录是 PaperVN 推送过去才新建的）；
+    /// - 上次同步时 AniList 上的状态已经和现在相同（创建之后没有在 AniList 上改过状态）；
+    /// - 其他平台没有记着同一天。
+    /// 返回应有的日期（其他平台记着的日期，没有就为空）；不是自动填写的返回 nil。
+    static func AniList自动填写的日期(
+        _ record: 平台资料库记录,
+        本地 entry: 本地资料库条目,
+        基线 base: 同步快照?,
+        其他记录 others: [平台资料库记录]
+    ) -> 同步日期? {
+        guard record.平台 == .aniList, let created = record.创建时间,
+              let added = entry.加入时间, added < created.addingTimeInterval(-3600),
+              let base, base.状态 == record.快照.状态 else { return nil }
+        // AniList 按用户设置的时区记日期，创建时间前后一天都算
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(identifier: "UTC")!
+        let days = Set((-1...1).compactMap { offset -> String? in
+            guard let day = utc.date(byAdding: .day, value: offset, to: created) else { return nil }
+            let parts = utc.dateComponents([.year, .month, .day], from: day)
+            return 平台账户工具.日期文本(year: parts.year, month: parts.month, day: parts.day)
+        })
+        func 修正(_ value: String?, 其他: [String?]) -> (自动: Bool, 应有: String?) {
+            guard let value, days.contains(value), !其他.contains(value) else { return (false, value) }
+            return (true, 其他.compactMap { $0 }.first)
+        }
+        let start = 修正(record.开始日期, 其他: others.map(\.开始日期))
+        let finish = 修正(record.完成日期, 其他: others.map(\.完成日期))
+        guard start.自动 || finish.自动 else { return nil }
+        return 同步日期(开始: start.应有, 完成: finish.应有)
     }
 
     /// 推送完成后，各平台新的基线：成功的操作按目标值，失败的保持平台原来的值。

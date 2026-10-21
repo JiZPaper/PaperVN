@@ -326,3 +326,36 @@ struct 资料库滚动条拖动检测: UIViewRepresentable {
         ) -> Bool { true }
     }
 }
+
+#if DEBUG
+// MARK: - 预览
+
+#Preview("资料库：滚动位置气泡") {
+    // 模拟按住系统滚动条：每隔一段时间移动到下一段
+    let 段 = 预览数据.资料库条目.prefix(4).enumerated().map { index, entry in
+        资料库索引段(
+            标签: ["10月", "9月", "2025年", "2024年"][index],
+            首个编号: entry.id,
+            封面: entry.封面地址,
+            sexual: nil,
+            violence: nil,
+            数量: [3, 8, 41, 96][index],
+            起始序号: [0, 3, 11, 52][index]
+        )
+    }
+    let 状态 = 资料库滚动条状态()
+    GeometryReader { proxy in
+        资料库滚动位置气泡(段: 段, 作品数: 148, 状态: 状态)
+            .padding(.vertical, 24)
+            .task {
+                let 顶部 = proxy.frame(in: .global).minY + 24
+                let 高度 = proxy.size.height - 48
+                for 比例 in stride(from: 0.05, through: 0.95, by: 0.15) {
+                    状态.按住位置 = 顶部 + 高度 * 比例
+                    try? await Task.sleep(for: .seconds(1))
+                }
+                状态.按住位置 = nil
+            }
+    }
+}
+#endif

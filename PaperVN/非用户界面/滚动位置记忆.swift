@@ -79,3 +79,25 @@ private struct 滚动位置记忆修饰器<Key: Hashable>: ViewModifier {
         position.scrollTo(y: offset + record.topInset)
     }
 }
+
+#if DEBUG
+#Preview("记住滚动位置（切换分类）") {
+    @Previewable @State var 类型: 作品类型 = .anime
+    NavigationStack {
+        List {
+            ForEach(1...60, id: \.self) { index in
+                Text(verbatim: "\(类型.localizedTitle) \(index)")
+            }
+        }
+        .记住滚动位置(key: 类型)
+        .navigationTitle("资料库")
+        .safeAreaInset(edge: .top) {
+            Picker("类型", selection: $类型) {
+                ForEach(作品类型.allCases) { Text($0.localizedTitle).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal)
+        }
+    }
+}
+#endif

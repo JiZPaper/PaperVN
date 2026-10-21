@@ -413,6 +413,14 @@ def resolve_duplicate_mal(anilist, mal_titles, stats, name):
 
 # MARK: 动画
 
+# 只按续作、前作连起来（第 1、2、3 季，续篇剧场版）。外传、衍生、另一版本不算：
+# 例如 Love Live! 的各企划（μ's、Sunshine!!、虹咲、Superstar!!）是不同的作品，不能叠在一起
+SERIES_RELATIONS = {"SEQUEL", "PREQUEL"}
+# AniList 也会把不同企划标成续作（Love Live! 剧场版 → Sunshine!!，高达 → 高达 0083）。两部都有 Bangumi 条目时，
+# 还要 Bangumi 也记着前传、续集、总集篇、全集或番外篇才算同一系列（Bangumi 动画条目关系的编号）
+BANGUMI_SERIES_RELATIONS = {2, 3, 4, 5, 6}
+
+
 def fill_missing_mal(anilist, found, stats, name):
     """AniList 没记 MAL ID 的作品补上 MAL ID（found：AniList ID → MAL ID）。这个 MAL ID 已经属于另一个 AniList 条目时不补。"""
     used = {media["idMal"] for media in anilist.values() if media.get("idMal")}
@@ -542,6 +550,7 @@ def build_anime(directory, stats):
     corrections = json.load(open(CORRECTIONS))["anime"] if CORRECTIONS.exists() else {}
     data = json.load(open(directory / "bangumi-data.json"))
     by_work = collections.defaultdict(list)
+    moved_bangumi = {}  # 改用按原名对应的 Bangumi 条目 → 改到的作品（这条 bangumi-data 的 TMDB 也跟着改）
     rejected = 0
     for item in data["items"]:
         sites = {site["site"]: site.get("id") for site in item.get("sites", [])}
@@ -572,6 +581,7 @@ def build_anime(directory, stats):
                 and (format_wrong or title_wrong)):
             overrides.append((subject.get("name"), works.rows[index][1], works.rows[by_title][1]))
             index = by_title
+            moved_bangumi[bangumi] = index
             rejected += 1
         by_work[index].append(bangumi)
     # TMDB：bangumi-data 也给出了 TMDB 的条目（“tv/123”“tv/123/season/2”“movie/123”）。
@@ -595,6 +605,9 @@ def build_anime(directory, stats):
             continue
         try:
             index = works.find("myAnimeList", int(mal))
+            # 上面因为 MAL ID 记错而改了对应的 Bangumi 条目，TMDB 也是这一部的（例如“虹ヶ咲 2期”的 TMDB 第 2 季
+            # 不能留在 MAL 的“1期总集篇”上）
+            index = moved_bangumi.get(int(sites.get("bangumi") or 0), index)
         except ValueError:
             continue
         if index is not None and works.rows[index][5] is None:
@@ -709,12 +722,19 @@ def build_anime(directory, stats):
             continue
         for edge in (media.get("relations") or {}).get("edges", []):
             node = edge["node"]
-            if edge["relationType"] not in ("SEQUEL", "PREQUEL") or node.get("type") != "ANIME" or node.get("format") == "MUSIC":
+            # 只按续作、前作合并（见 SERIES_RELATIONS）
+            if edge["relationType"] not in SERIES_RELATIONS or node.get("type") != "ANIME" or node.get("format") == "MUSIC":
                 continue
             b = works.find("aniList", node["id"])
             if b is None and node.get("idMal"):
                 b = works.find("myAnimeList", node["idMal"])
             if b is None or b == a:
+                continue
+            ba, bb = works.rows[a][4], works.rows[b][4]
+            if ba in subjects and bb in subjects and not any(
+                kind in BANGUMI_SERIES_RELATIONS and other == y
+                for x, y in ((ba, bb), (bb, ba)) for kind, other in relations.get(x, [])
+            ):
                 continue
             ra, rb = find(a), find(b)
             if ra != rb:

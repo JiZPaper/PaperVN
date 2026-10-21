@@ -31,8 +31,8 @@ struct 用户结果 {
 }
 
 struct 参数 {
-    var model = URL(fileURLWithPath: ".build/vndb-recommendation-model/VNDBRecommendationModel.json.gz")
-    var users = URL(fileURLWithPath: ".build/vndb-recommendation-model/evaluation-users.json.gz")
+    var model = URL(fileURLWithPath: "../训练数据/视觉小说推荐/VNDBRecommendationModel.json.gz")
+    var users = URL(fileURLWithPath: "../训练数据/视觉小说推荐/evaluation-users.json.gz")
     var count = 300
     var output: URL?
 

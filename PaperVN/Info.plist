@@ -2,18 +2,16 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>AniListClientID</key>
+	<string>$(ANILIST_CLIENT_ID)</string>
+	<key>AnnictClientID</key>
+	<string>$(ANNICT_CLIENT_ID)</string>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>com.jizpaper.PaperVN.preference-analysis.*</string>
 	</array>
 	<key>BangumiOAuthClientID</key>
 	<string>$(BANGUMI_OAUTH_CLIENT_ID)</string>
-	<key>MALClientID</key>
-	<string>$(MAL_CLIENT_ID)</string>
-	<key>AniListClientID</key>
-	<string>$(ANILIST_CLIENT_ID)</string>
-	<key>AnnictClientID</key>
-	<string>$(ANNICT_CLIENT_ID)</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -29,6 +27,8 @@
 	</array>
 	<key>KUNOAuthClientID</key>
 	<string>f80456b95e7a5aa2ccfbadad6d727981</string>
+	<key>MALClientID</key>
+	<string>$(MAL_CLIENT_ID)</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>processing</string>

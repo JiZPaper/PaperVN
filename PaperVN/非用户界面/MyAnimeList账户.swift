@@ -646,3 +646,15 @@ extension MyAnimeList账户 {
         return found.data.map(\.node.候选)
     }
 }
+
+#if DEBUG
+extension MyAnimeList账户 {
+    /// 预览用：已登录的账户，不读写钥匙串。
+    static func 预览已登录(_ profile: MyAnimeList用户资料) -> MyAnimeList账户 {
+        let account = MyAnimeList账户(previewing: true)
+        account.profile = profile
+        account.isLoggedIn = true
+        return account
+    }
+}
+#endif

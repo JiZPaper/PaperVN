@@ -790,6 +790,11 @@ actor 作品详情服务 {
         if detail.日文标题 == nil {
             detail.日文标题 = value.日文标题
             detail.原名语言 = value.原名语言
+        } else if let native = value.日文标题, let mal = detail.日文标题, native != mal,
+                  native.hasPrefix(mal) {
+            // MAL 的 ja 字段有时只写系列名（分割放送的第二部分也只写“SPY×FAMILY”），
+            // AniList 的原名更完整（“SPY×FAMILY 第2クール”）时用 AniList 的，和列表里显示的一致
+            detail.日文标题 = native
         }
         // AniList 标明了出品国家时以它为准（MAL 把中国、韩国作品的原名也放在 ja 字段）
         if let language = value.原名语言, detail.日文标题 != nil { detail.原名语言 = language }

@@ -5090,3 +5090,62 @@ struct 视觉小说详情: View {
     }
 }
 
+
+#if DEBUG
+#Preview("详情：上拉查看全部评论提示") {
+    VStack(spacing: 48) {
+        上拉查看全部评论提示(剩余条数: 12, 拖动距离: 0, 已到阈值: false, 反馈次数: 0) {}
+        上拉查看全部评论提示(剩余条数: 12, 拖动距离: 视觉小说评论入口拖动参数.阈值 / 2, 已到阈值: false, 反馈次数: 0) {}
+        上拉查看全部评论提示(剩余条数: 12, 拖动距离: 视觉小说评论入口拖动参数.阈值, 已到阈值: true, 反馈次数: 1) {}
+    }
+    .padding()
+}
+
+#Preview("详情：上拉查看全部评论（可拖动）") {
+    // 滚动到底部后继续上划，进度条随手指填满，到阈值后松手即“打开”
+    @Previewable @State var 距离: CGFloat = 0
+    @Previewable @State var 已到阈值 = false
+    @Previewable @State var 反馈次数 = 0
+    @Previewable @State var 已打开 = false
+    NavigationStack {
+        ScrollView {
+            LazyVStack(spacing: 12) {
+                ForEach(预览数据.评论) { comment in
+                    评论卡片(评论: comment)
+                }
+                上拉查看全部评论提示(剩余条数: 12, 拖动距离: 距离, 已到阈值: 已到阈值, 反馈次数: 反馈次数) {
+                    已打开 = true
+                }
+                .padding(.vertical, 24)
+            }
+            .padding(16)
+        }
+        .modifier(详情底部继续上划修饰器(
+            isEnabled: true,
+            onBegan: { 已到阈值 = false },
+            onChanged: { value in
+                距离 = value
+                let armed = value >= 视觉小说评论入口拖动参数.阈值
+                if armed != 已到阈值 {
+                    已到阈值 = armed
+                    if armed { 反馈次数 += 1 }
+                }
+            },
+            onEnded: {
+                defer { 距离 = 0 }
+                return 已到阈值
+            },
+            onSettled: {
+                已到阈值 = false
+                已打开 = true
+            }
+        ))
+        .background(Color.平台分组背景.ignoresSafeArea())
+        .navigationTitle("葬送のフリーレン")
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(isPresented: $已打开) {
+            Text("所有评论")
+        }
+    }
+}
+#endif

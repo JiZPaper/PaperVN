@@ -376,3 +376,15 @@ final class TMDB账户: ObservableObject {
         }
     }
 }
+
+#if DEBUG
+extension TMDB账户 {
+    /// 预览用：已登录的账户，不读写钥匙串。
+    static func 预览已登录(_ profile: TMDB用户资料) -> TMDB账户 {
+        let account = TMDB账户(previewing: true)
+        account.profile = profile
+        account.isLoggedIn = true
+        return account
+    }
+}
+#endif

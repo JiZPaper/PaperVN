@@ -2,7 +2,7 @@ import Foundation
 
 /// 搜索页里的一部动画、漫画或轻小说。作品的划分和资料库一致（动画以 Annict 为准、漫画与轻小说以 MAL 为准），
 /// 不同平台搜到的同一部作品合成一条。数据源是综合的：没有 MAL ID 的作品用 AniList 或 Bangumi 的 ID。
-struct 作品搜索结果: Identifiable, Hashable, Sendable {
+struct 作品搜索结果: Identifiable, Hashable, Sendable, Codable {
     /// 和 Hiro智能的条目编号一致：“a”“m”“n”加编号，例如“a10495”。编号是 MAL ID；
     /// 没有 MAL ID 时最高位标出来源：0x8000_0000 | AniList ID，0x4000_0000 | Bangumi ID。
     let id: String
@@ -179,6 +179,47 @@ final class 作品聚合搜索 {
             格式: subject.platform,
             成人内容: subject.nsfw ?? false
         ))
+    }
+
+    /// 搜索页没有搜索词时的列表：AniList 上按热度排列的动画、漫画或轻小说（不含成人作品）。
+    /// 作品的划分和资料库一致：并入别的作品的条目（例如并入正篇的特别篇）不单独列出。
+    func 热门(类型 type: 作品类型, 页码 page: Int, 每页 perPage: Int = 平台列表分页.每页) async throws -> (结果: [作品搜索结果], 还有更多: Bool) {
+        struct 响应: Decodable {
+            struct 页信息: Decodable { let hasNextPage: Bool? }
+            struct 页: Decodable { let pageInfo: 页信息?; let media: [AniList作品] }
+            struct 数据: Decodable { let Page: 页 }
+            let data: 数据
+        }
+        let 格式条件 = switch type {
+        case .lightNovel: ", format: NOVEL"
+        case .manga: ", format_not: NOVEL"
+        default: ""
+        }
+        let data = try await 平台账户工具.graphQL(
+            endpoint: AniListOAuth配置.endpoint,
+            platform: "AniList",
+            accessToken: nil,
+            query: """
+            query ($page: Int, $perPage: Int) {
+              Page(page: $page, perPage: $perPage) {
+                pageInfo { hasNextPage }
+                media(type: \(type == .anime ? "ANIME" : "MANGA"), sort: [POPULARITY_DESC], isAdult: false\(格式条件)) { \(AniList作品.字段) }
+              }
+            }
+            """,
+            variables: ["page": page, "perPage": min(50, perPage)]
+        )
+        let decoded = try JSONDecoder().decode(响应.self, from: data)
+        let items = decoded.data.Page.media.compactMap { media -> 作品搜索结果? in
+            let id = 作品搜索结果.编号(类型: type, malID: media.idMal ?? 0, aniListID: media.id)
+            guard let item = media.结果(请求的编号: [id]).first else { return nil }
+            if let mal = media.idMal, 作品映射.查找(.myAnimeList, 平台ID: String(mal), 类型: type)?.附属 == true {
+                return nil
+            }
+            return item
+        }
+        for item in items { 详情缓存[item.id] = item }
+        return (items, decoded.data.Page.pageInfo?.hasNextPage ?? !items.isEmpty)
     }
 
     /// 在各平台上按关键词搜索，按相关程度排好。没登录的平台、请求失败的平台跳过。

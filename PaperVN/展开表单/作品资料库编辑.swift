@@ -29,6 +29,9 @@ struct 作品资料库编辑页面: View {
     @State private var automaticallyFilledFinished = false
     @State private var isSaving = false
     @State private var saveError: String?
+    /// 手动输入进度，适合几百话的作品。
+    @State private var showsProgressInput = false
+    @State private var progressInput = ""
 
     init(entry: 本地资料库条目, title: 标题工具.标题结果) {
         self.entry = entry
@@ -134,6 +137,21 @@ struct 作品资料库编辑页面: View {
         } message: {
             Text(verbatim: saveError ?? "")
         }
+        .alert(进度标题, isPresented: $showsProgressInput) {
+            TextField(进度标题, text: $progressInput)
+                .keyboardType(.numberPad)
+            Button("取消", role: .cancel) {}
+            Button("好") {
+                guard let value = Int(progressInput.trimmingCharacters(in: .whitespaces)) else { return }
+                withAnimation(.snappy) {
+                    draft.进度 = min(max(value, 0), entry.总数 ?? 99_999)
+                }
+            }
+        } message: {
+            if let total = entry.总数 {
+                Text("输入0到\(total)之间的数字。")
+            }
+        }
         .alert("这是补标吗？", isPresented: $showDateCorrectionAlert) {
             Button("修改日期") {
                 hasHandledDateCorrection = true
@@ -189,15 +207,33 @@ struct 作品资料库编辑页面: View {
         }
     }
 
+    private var 进度标题: LocalizedStringKey { 是动画 ? "已观看话数" : "已阅读话数" }
+
     private var progressSection: some View {
         Section {
-            Stepper(value: $draft.进度, in: 0...(entry.总数 ?? 99_999)) {
+            // 绑定带动画，加减时数字使用系统的数字滚动效果
+            Stepper(value: $draft.进度.animation(.snappy), in: 0...(entry.总数 ?? 99_999)) {
                 HStack {
-                    Label(是动画 ? "已看集数" : "已读话数", systemImage: 是动画 ? "play.rectangle" : "book")
+                    // Stepper 的标签不会套用强调色，图标要单独设为强调色，和上下的图标一致
+                    Label {
+                        Text(进度标题)
+                    } icon: {
+                        Image(systemName: 是动画 ? "play.rectangle" : "book")
+                            .foregroundStyle(.tint)
+                    }
                     Spacer()
-                    Text(verbatim: entry.总数.map { "\(draft.进度)/\($0)" } ?? "\(draft.进度)")
-                        .font(.headline.monospacedDigit())
-                        .foregroundStyle(draft.进度 == 0 ? Color.secondary : Color.blue)
+                    // 点按数字可以直接输入
+                    Button {
+                        progressInput = String(draft.进度)
+                        showsProgressInput = true
+                    } label: {
+                        Text(verbatim: entry.总数.map { "\(draft.进度)/\($0)" } ?? "\(draft.进度)")
+                            .font(.headline.monospacedDigit())
+                            .foregroundStyle(draft.进度 == 0 ? Color.secondary : Color.blue)
+                            .contentTransition(.numericText(value: Double(draft.进度)))
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityHint(Text("输入数字"))
                 }
             }
             .sensoryFeedback(.selection, trigger: draft.进度)
@@ -215,6 +251,7 @@ struct 作品资料库编辑页面: View {
                     Text(verbatim: draft.评分 == 0 ? String(localized: "无") : "\(draft.评分)")
                         .font(.headline.monospacedDigit())
                         .foregroundStyle(draft.评分 == 0 ? Color.secondary : Color.blue)
+                        .contentTransition(.numericText(value: Double(draft.评分)))
                 }
 
                 HStack(spacing: 4) {
@@ -248,8 +285,8 @@ struct 作品资料库编辑页面: View {
                 .sensoryFeedback(.selection, trigger: draft.评分)
                 .accessibilityAdjustableAction { direction in
                     switch direction {
-                    case .increment: draft.评分 = min(draft.评分 + 1, 10)
-                    case .decrement: draft.评分 = max(draft.评分 - 1, 0)
+                    case .increment: withAnimation(.snappy) { draft.评分 = min(draft.评分 + 1, 10) }
+                    case .decrement: withAnimation(.snappy) { draft.评分 = max(draft.评分 - 1, 0) }
                     @unknown default: break
                     }
                 }
@@ -329,7 +366,9 @@ struct 作品资料库编辑页面: View {
     private func updateRating(at location: CGFloat, width: CGFloat) {
         guard width > 0 else { return }
         let normalized = min(max(location / width, 0), 0.999_999)
-        draft.评分 = min(Int(normalized * 11), 10)
+        let value = min(Int(normalized * 11), 10)
+        guard value != draft.评分 else { return }
+        withAnimation(.snappy) { draft.评分 = value }
     }
 
     private func applyAutomaticDates(for status: 资料库状态) {
@@ -457,18 +496,36 @@ struct 无法编辑资料库提示: ViewModifier {
             let types = 作品类型.allCases
                 .filter { $0 != .visualNovel && !platform.同步能力.支持的类型.contains($0) }
                 .map(\.localizedTitle)
-            return String(localized: "\(platform.localizedTitle)不支持\(Self.并列(types))记录。无法向\(platform.localizedTitle)同步资料库。")
+            return String(localized: "\(platform.localizedTitle)不支持\(types.并列)记录。无法向\(platform.localizedTitle)同步资料库。")
         }
-        let names = 限制.可登录.map(\.localizedTitle).joined(separator: "、")
+        let names = 限制.可登录.map(\.localizedTitle).顿号并列
         return (reasons + [String(localized: "请至少登录\(names)之一以编辑资料库。")]).joined()
     }
+}
 
-    /// “动画、漫画与轻小说”的写法。
-    private static func 并列(_ items: [String]) -> String {
-        guard let last = items.last else { return "" }
-        guard items.count > 1 else { return last }
-        let head = items.dropLast().joined(separator: "、")
-        return String(localized: "\(head)与\(last)")
+extension [String] {
+    /// “动画、漫画与轻小说”的写法。系统列表格式在中文用“和”、在日语不加“と”，所以中文与日语用目录里的“%@与%@”，
+    /// 其他语言交给系统（例如英语“A, B, and C”）。
+    var 并列: String {
+        guard Self.用中日写法 else { return formatted(.list(type: .and).locale(Self.界面语言)) }
+        guard let last else { return "" }
+        guard count > 1 else { return last }
+        return String(localized: "\(dropLast().joined(separator: "、"))与\(last)")
+    }
+
+    /// “MyAnimeList、AniList”的写法，只用顿号不加“与”。系统列表格式在中文会加“和”，所以中文与日语直接用“、”，
+    /// 其他语言交给系统（例如英语“A, B, and C”）。
+    var 顿号并列: String {
+        Self.用中日写法 ? joined(separator: "、") : formatted(.list(type: .and).locale(Self.界面语言))
+    }
+
+    /// App 实际显示的语言，而不是系统首选语言（两者可能不同，例如系统语言 App 不支持时）。
+    private static var 界面语言: Locale {
+        Locale(identifier: Bundle.main.preferredLocalizations.first ?? "zh-Hans")
+    }
+
+    private static var 用中日写法: Bool {
+        ["zh", "ja"].contains(界面语言.language.languageCode?.identifier)
     }
 }
 
@@ -477,3 +534,59 @@ extension View {
         modifier(PaperVN.无法编辑资料库提示(限制: 限制))
     }
 }
+
+#if DEBUG
+// MARK: - 预览
+
+#Preview("编辑资料库") {
+    预览状态切换([
+        .init("动画", 准备: { 本地资料库.shared.预览载入(预览数据.资料库条目) }) {
+            作品资料库编辑页面(entry: 预览数据.我推的孩子.条目(.inProgress, 评分: 80, 进度: 7, 开始日期: "2023-04-12"), title: 预览数据.我推的孩子.标题结果)
+        },
+        .init("漫画", 准备: { 本地资料库.shared.预览载入(预览数据.资料库条目) }) {
+            作品资料库编辑页面(entry: 预览数据.芙莉莲漫画.条目(.inProgress, 评分: 90, 进度: 128), title: 预览数据.芙莉莲漫画.标题结果)
+        },
+        .init("轻小说", 准备: { 本地资料库.shared.预览载入(预览数据.资料库条目) }) {
+            作品资料库编辑页面(
+                entry: 预览数据.狼与香辛料.条目(.completed, 评分: 90, 进度: 24, 开始日期: "2024-01-03", 完成日期: "2024-05-20"),
+                title: 预览数据.狼与香辛料.标题结果
+            )
+        },
+        // 一小时内加入的“计划观看”：改为“已观看”后存储会询问是否为补标
+        .init("刚加入（试试补标提示）", 准备: { 本地资料库.shared.预览载入(预览数据.资料库条目) }) {
+            作品资料库编辑页面(entry: 预览数据.刚加入的条目, title: 预览数据.芙莉莲第二季.标题结果)
+        },
+    ])
+}
+
+/// 打开时就显示“无法编辑资料库”提示；关闭后可以轻点按钮再显示。
+private struct 无法编辑资料库提示预览: View {
+    let 限制: PaperVNSync中心.资料库编辑限制
+    @State private var 当前: PaperVNSync中心.资料库编辑限制?
+
+    init(_ 限制: PaperVNSync中心.资料库编辑限制) {
+        self.限制 = 限制
+        _当前 = State(initialValue: 限制)
+    }
+
+    var body: some View {
+        Button("显示提示") { 当前 = 限制 }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .无法编辑资料库提示($当前)
+    }
+}
+
+#Preview("无法编辑资料库提示") {
+    预览状态切换([
+        .init("只登录了VNDB") {
+            无法编辑资料库提示预览(.init(无法同步: [.vndb], 可登录: [.myAnimeList, .aniList]))
+        },
+        .init("只登录了Bangumi") {
+            无法编辑资料库提示预览(.init(无法同步: [.bangumi], 可登录: [.myAnimeList, .aniList, .annict, .tmdb]))
+        },
+        .init("编辑漫画时只登录了Bangumi与Annict") {
+            无法编辑资料库提示预览(.init(无法同步: [.bangumi, .annict], 可登录: [.myAnimeList, .aniList]))
+        },
+    ])
+}
+#endif

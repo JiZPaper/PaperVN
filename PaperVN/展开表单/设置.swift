@@ -1887,10 +1887,15 @@ struct 资料库设置: View {
                             bangumiAccount.cancelLibrarySynchronization()
                         }
                     }
+                // 开启PaperVN Sync后才能进入
+                NavigationLink {
+                    同步任务页面()
+                } label: {
+                    Text("同步任务")
+                }
+                .disabled(!paperVNSyncEnabled)
             } header: {
                 Text("同步")
-            } footer: {
-                Text("同步资料库。")
             }
 
             Section {
@@ -2024,6 +2029,70 @@ struct 搜索设置: View {
         }
         .平台分组列表样式()
         .navigationTitle("搜索")
+        .平台柔和滚动边缘(for: .top)
+        .平台内联导航标题()
+        .toolbar {
+            if showsDismissButton {
+                ToolbarItem(placement: .平台关闭操作) {
+                    Button {
+                        isPresented = false
+                    } label: {
+                        Label("关闭", systemImage: "xmark")
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct 作品类型设置: View {
+    @Binding var isPresented: Bool
+    var showsDismissButton: Bool = true
+
+    @AppStorage(作品类型显示设置.键(.anime)) private var animeEnabled = true
+    @AppStorage(作品类型显示设置.键(.manga)) private var mangaEnabled = true
+    @AppStorage(作品类型显示设置.键(.lightNovel)) private var lightNovelEnabled = true
+    @AppStorage(作品类型显示设置.键(.visualNovel)) private var visualNovelEnabled = true
+
+    private func binding(_ type: 作品类型) -> Binding<Bool> {
+        switch type {
+        case .anime: $animeEnabled
+        case .manga: $mangaEnabled
+        case .lightNovel: $lightNovelEnabled
+        case .visualNovel: $visualNovelEnabled
+        }
+    }
+
+    private var enabledCount: Int {
+        [animeEnabled, mangaEnabled, lightNovelEnabled, visualNovelEnabled].filter { $0 }.count
+    }
+
+    var body: some View {
+        平台滚动页面 {
+            Section {
+                设置类别介绍(
+                    title: "作品类型",
+                    description: "选择要在Today和搜索中显示的作品类型。",
+                    systemImage: "square.stack.fill",
+                    color: .indigo
+                )
+            }
+
+            Section {
+                ForEach([作品类型.anime, .manga, .lightNovel, .visualNovel]) { type in
+                    let isOn = binding(type)
+                    Toggle(isOn: isOn) {
+                        Label(type.localizedTitle, systemImage: type.symbolName)
+                    }
+                    // 至少保留一种类型
+                    .disabled(isOn.wrappedValue && enabledCount == 1)
+                }
+            } footer: {
+                Text("关闭后，Today中不再显示这类作品，搜索也不会找到这类作品。资料库不受影响。")
+            }
+        }
+        .平台分组列表样式()
+        .navigationTitle("作品类型")
         .平台柔和滚动边缘(for: .top)
         .平台内联导航标题()
         .toolbar {
@@ -2710,3 +2779,72 @@ struct 内容与安全限制: View {
         }
     }
 }
+
+#if DEBUG
+// MARK: - PaperVN 2 预览
+
+#Preview("设置：PaperVN 2相关页面") {
+    let 模型 = 智能搜索模型下载状态.shared
+    预览状态切换([
+        .init("搜索", 准备: { 模型.预览下载(进度: nil) }) {
+            NavigationStack { 搜索设置(isPresented: .constant(true)) }
+        },
+        .init("搜索（Hiro智能已关闭）", 准备: { 模型.预览下载(进度: nil) }) {
+            NavigationStack { 搜索设置(isPresented: .constant(true)) }
+                .defaultAppStorage(预览数据.设置("Hiro关闭", [智能搜索设置.启用键: false]))
+        },
+        .init("搜索（正在下载Hiro智能模型）", 准备: { 模型.预览下载(进度: 0.42) }) {
+            NavigationStack { 搜索设置(isPresented: .constant(true)) }
+        },
+        .init("搜索（正在安装Hiro智能模型）", 准备: { 模型.预览下载(进度: 1, 正在安装: true) }) {
+            NavigationStack { 搜索设置(isPresented: .constant(true)) }
+        },
+        .init("资料库（PaperVN Sync）", 准备: { 模型.预览下载(进度: nil) }) {
+            NavigationStack { 资料库设置(isPresented: .constant(true)) }
+        },
+        .init("储存空间", 准备: { 模型.预览下载(进度: nil) }) {
+            NavigationStack { 储存空间设置(isPresented: .constant(true)) }
+        },
+    ])
+    .预览环境()
+}
+
+#Preview("提示：模型更新") {
+    // 关闭提示后，切换到别的状态再切回来即可再次显示
+    let 智能搜索 = 智能搜索模型下载状态.shared
+    let 偏好分析 = 推荐模型下载状态.shared
+    let 清空 = {
+        简介翻译下载状态.shared.availableUpdate = nil
+        智能搜索.availableUpdate = nil
+        智能搜索.updateError = nil
+        偏好分析.availableUpdate = nil
+        偏好分析.updateError = nil
+    }
+    预览状态切换([
+        .init("更新Hiro智能模型", 准备: {
+            清空()
+            智能搜索.availableUpdate = 智能搜索模型更新(modelIdentifier: "20261020-v3", bytes: 38_400_000)
+        }) {
+            Color.clear.智能搜索模型更新提示()
+        },
+        .init("无法下载Hiro智能模型", 准备: {
+            清空()
+            智能搜索.updateError = String(localized: "请求失败。")
+        }) {
+            Color.clear.智能搜索模型更新提示()
+        },
+        .init("更新偏好分析模型", 准备: {
+            清空()
+            偏好分析.availableUpdate = 推荐模型更新(modelIdentifier: "20261018-v2", bytes: 12_800_000)
+        }) {
+            Color.clear.偏好分析模型更新提示()
+        },
+        .init("无法下载偏好分析模型", 准备: {
+            清空()
+            偏好分析.updateError = String(localized: "请求失败。")
+        }) {
+            Color.clear.偏好分析模型更新提示()
+        },
+    ])
+}
+#endif

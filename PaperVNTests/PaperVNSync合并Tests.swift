@@ -692,4 +692,84 @@ struct PaperVNSync合并Tests {
         #expect(同步合并.新资料库(session)[键(99)] == nil)
         #expect(!session.推送.contains { $0.平台 == .myAnimeList })
     }
+
+    // MARK: AniList 自动填写的日期
+
+    @Test
+    func AniList新建时自动填上的日期写入后改回资料库里的() {
+        // 新建：平台上原来没有日期，AniList 填了当天，资料库里没有 → 清除
+        #expect(同步合并.自动填写后的修正(
+            原有: 同步日期(), 保存后: 同步日期(完成: "2026-10-19"), 期望: 同步日期()
+        ) == 同步日期())
+        // 资料库里有真实的日期 → 改成资料库里的
+        #expect(同步合并.自动填写后的修正(
+            原有: 同步日期(), 保存后: 同步日期(完成: "2026-10-19"), 期望: 同步日期(完成: "2024-05-01")
+        ) == 同步日期(完成: "2024-05-01"))
+        // 平台上原来就有的日期不动；和资料库一致时也不用改
+        #expect(同步合并.自动填写后的修正(
+            原有: 同步日期(完成: "2023-01-02"), 保存后: 同步日期(完成: "2023-01-02"), 期望: 同步日期()
+        ) == nil)
+        #expect(同步合并.自动填写后的修正(
+            原有: 同步日期(), 保存后: 同步日期(完成: "2024-05-01"), 期望: 同步日期(完成: "2024-05-01")
+        ) == nil)
+    }
+
+    private func AniList记录(完成日期: String?, 创建: String) -> 平台资料库记录 {
+        var record = 记录(.aniList, mal: 32281, .completed, progress: 1)
+        record.完成日期 = 完成日期
+        record.创建时间 = ISO8601DateFormatter().date(from: 创建)
+        return record
+    }
+
+    private func 本地条目(加入: String) -> 本地资料库条目 {
+        var entry = 本地资料库条目(id: 键(32281), 类型: .anime, 平台ID: [:], 标题: "君の名は。", 加入时间: ISO8601DateFormatter().date(from: 加入))
+        entry.状态 = .completed
+        entry.完成日期 = "2026-10-19"
+        return entry
+    }
+
+    @Test
+    func 认出PaperVN推送后AniList自动填写的完成日期() {
+        let record = AniList记录(完成日期: "2026-10-19", 创建: "2026-10-19T10:08:27Z")
+        let mal = 记录(.myAnimeList, mal: 32281, .completed, progress: 1)
+        let fix = 同步合并.AniList自动填写的日期(
+            record, 本地: 本地条目(加入: "2026-10-17T02:00:00Z"),
+            基线: 同步快照(状态: .completed, 评分: nil, 进度: 1), 其他记录: [mal]
+        )
+        #expect(fix == 同步日期())
+        // MAL 上有真实的完成日期时改成它
+        var malWithDate = mal
+        malWithDate.完成日期 = "2017-01-03"
+        #expect(同步合并.AniList自动填写的日期(
+            record, 本地: 本地条目(加入: "2026-10-17T02:00:00Z"),
+            基线: 同步快照(状态: .completed, 评分: nil, 进度: 1), 其他记录: [malWithDate]
+        ) == 同步日期(完成: "2017-01-03"))
+    }
+
+    @Test
+    func 在AniList上自己标记的完成日期不动() {
+        let record = AniList记录(完成日期: "2026-10-19", 创建: "2026-10-19T10:08:27Z")
+        // 作品是从 AniList 导入的（资料库里没有更早的记录）
+        #expect(同步合并.AniList自动填写的日期(
+            record, 本地: 本地条目(加入: "2026-10-19T12:00:00Z"),
+            基线: 同步快照(状态: .completed, 评分: nil, 进度: 1), 其他记录: []
+        ) == nil)
+        // 上次同步时还是“在看”，之后在 AniList 上改成了看过
+        #expect(同步合并.AniList自动填写的日期(
+            record, 本地: 本地条目(加入: "2026-10-17T02:00:00Z"),
+            基线: 同步快照(状态: .inProgress, 评分: nil, 进度: 1), 其他记录: []
+        ) == nil)
+        // 日期不是创建那天
+        #expect(同步合并.AniList自动填写的日期(
+            AniList记录(完成日期: "2026-10-25", 创建: "2026-10-19T10:08:27Z"), 本地: 本地条目(加入: "2026-10-17T02:00:00Z"),
+            基线: 同步快照(状态: .completed, 评分: nil, 进度: 1), 其他记录: []
+        ) == nil)
+        // MAL 上也记着同一天
+        var mal = 记录(.myAnimeList, mal: 32281, .completed, progress: 1)
+        mal.完成日期 = "2026-10-19"
+        #expect(同步合并.AniList自动填写的日期(
+            record, 本地: 本地条目(加入: "2026-10-17T02:00:00Z"),
+            基线: 同步快照(状态: .completed, 评分: nil, 进度: 1), 其他记录: [mal]
+        ) == nil)
+    }
 }

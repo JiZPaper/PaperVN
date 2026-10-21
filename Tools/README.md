@@ -14,7 +14,7 @@
 python3 "Tools/收集Paparu视觉小说图像数据集.py"
 ```
 
-输出默认写入 `.build/paparu-vision-dataset/`，包括：
+输出默认写入 `../训练数据/Paparu图像数据集/`，包括：
 
 - `dataset.sqlite3`：可断点续跑的状态、作品、角色、来源响应和图片清单；
 - `images/`：下载的 VNDB、Steam、Bangumi 图片；
@@ -27,7 +27,7 @@ Bangumi或Steam某个ID不存在时会记录错误并继续处理其他来源。
 手动补图时，将图片放进：
 
 ```text
-.build/paparu-vision-dataset/manual/v123/
+../训练数据/Paparu图像数据集/manual/v123/
 ```
 
 其中目录名必须是 VNDB ID。重新运行脚本后，图片会被复制到 `images/v123/manual/` 并写入同一份清单。
@@ -75,7 +75,7 @@ caffeinate -dimsu python3 Tools/构建VNDB离线推荐模型.py
 python3 Tools/构建VNDB离线推荐模型.py --base-model 已发布的/VNDBRecommendationModel.json.gz --refresh-votes
 ```
 
-再次运行会复用`.build/vndb-recommendation-model/`中的断点和去重数据；公开评分文件中断后会保留`.partial`并尝试续传。继续现有构建时不要添加`--refresh-content`。生成的模型默认放在`.build/vndb-recommendation-model/VNDBRecommendationModel.json.gz`，不会进入App资源。
+再次运行会复用`../训练数据/视觉小说推荐/`中的断点和去重数据；公开评分文件中断后会保留`.partial`并尝试续传。继续现有构建时不要添加`--refresh-content`。生成的模型默认放在`../训练数据/视觉小说推荐/VNDBRecommendationModel.json.gz`，不会进入App资源。
 
 ## 质量门槛
 
@@ -94,8 +94,8 @@ python3 Tools/构建VNDB离线推荐模型.py --base-model 已发布的/VNDBReco
 构建完成后，在上传前确认文件存在并检查gzip文件：
 
 ```sh
-test -f .build/vndb-recommendation-model/VNDBRecommendationModel.json.gz
-gzip -t .build/vndb-recommendation-model/VNDBRecommendationModel.json.gz
+test -f ../训练数据/视觉小说推荐/VNDBRecommendationModel.json.gz
+gzip -t ../训练数据/视觉小说推荐/VNDBRecommendationModel.json.gz
 ```
 
 将该文件上传到`https://r2-papervn.jizpaper.com/Resources/VNDBRecommendationModel.json.gz`。App不再打包模型；用户开启“为你推荐”后会按需下载。之后服务器上的模型一有变化，App 就会弹出“更新偏好分析模型”提示，并显示服务器上的文件大小：先比较 ETag，必要时只读取文件开头的模型清单，确认确实是新模型才提示。用户选择“忽略”只跳过这一版，模型再次变化时会重新提示；旧版构建器生成的模型也可以在设置里点“重新下载模型”。
@@ -128,57 +128,20 @@ Tools/更新推荐模型.sh --votes-only  # 只用最新评分重训协同部分
 
 # Hiro智能模型
 
-`构建智能搜索模型.py` 在 Mac 上训练搜索页的 Hiro智能：一个名称模糊匹配模型。用户输入作品名、角色名、会社、制作人员的几个字、错拼、别名或玩家常用的梗（如“白学”“助手”“吾王”），App 在设备上找出对应条目并排序。搜索页按相关程度排序时完全按这个顺序排列，第一个结果把握足够大时加彩虹辉光。查询文本不离开设备，只有结果的 VNDB 编号会用来请求详情。
+搜索页的 Hiro智能 是一个在设备上运行的名称模糊匹配模型（`PaperVNSmartSearch.pvss`），App 安装包里预装了一份，更新放在 `https://r2-papervn.jizpaper.com/Resources/PaperVNSmartSearch.pvss`。仓库里只有模型文件和 App 端的读取、搜索代码（`PaperVN/智能搜索/`），训练方式与数据不公开。
 
-不做剧情、外观描述的语义检索，所以没有查询编码器。模型打包成一个约 32 MB 的文件 `PaperVNSmartSearch.pvss`（格式版本 2），App 直接内存映射：
-
-- **条目**：约 3.9 万部作品（至少 1 票）、6.2 万个角色（得票至少 10 的作品里的主要角色）、1.8 万个会社、4.9 万名制作人员，各带一个热度先验。作品带系列编号（按 VNDB 作品关联的续作、前作、外传、同系列等关系合并，搜索页据此把同系列作品叠在一起），角色带主要出场作品（搜索页把角色挂在这部作品下面）。
-- **名称索引**：标题、别名、角色名、Bangumi 中文名和梗的双字片段索引（NFKC、小写、去变音、片假名转平假名、折叠罗马字长音）；不超过 8 个汉字的查询还加上单字片段，输入两三个字也能召回。候选包括名称最相近的 80 个，以及包含全部查询片段的名称里最热门的 40 个。
-- **排序器**：综合名称匹配（覆盖率、完全一致、前缀、包含）、热度和条目类型等 15 项特征的小型网络，还有一个“输入不像任何名字”选项。用软标签训练：一条查询匹配多个条目时正例概率按热度分配，让同样匹配时热门条目排在前面。
-
-数据来源：VNDB 数据库导出；Bangumi 数据库导出（中文名、别名，以及只出现在极少数条目上、又有足够多人打的标签，往往就是这部作品的简称或梗）；`智能搜索模型/社区别名.json` 手工维护两边都没有的叫法（作品、角色、会社、制作人员都可以加）。合成查询包括完整名称、开头几个字、中间片段、错拼和别名，另有 `智能搜索模型/评估查询-名称.json` 中的人工评估查询。
-
-## 动画、漫画与轻小说（格式 3）
-
-`--works-data <数据目录>` 把动画、漫画、轻小说也放进索引（`智能搜索模型/作品.py`），数据目录与 `构建作品映射.py` 相同，另需：
-
-- `anilist-popularity.json`：AniList 热度前 5000 部动画、漫画；
-- `wikidata-names-P4086.json` / `wikidata-names-P4087.json`：Wikidata 上动画、漫画的各语言名称与别名；
-- `wikipedia-redirects.json`：中、日、英 Wikipedia 重定向到作品条目的名称（按 Wikidata 的 MAL/VNDB ID 归到作品）。
-
-作品的划分与资料库一致：动画全部收录（映射里的每部作品，以及 Bangumi 上没对应、收藏 ≥ 5 的条目），漫画、轻小说收录 Bangumi 收藏或 AniList 热度 ≥ 5 的。编号是 MAL ID，没有 MAL ID 时最高位标出来源（0x8000_0000 | AniList ID、0x4000_0000 | Bangumi ID），App 的 `作品搜索结果.解析` 用同样的规则。
-
-别名来源：AniList、MAL（anime-offline-database）、Bangumi（中文名、infobox 别名、少见又多人打的标签）、Annict、Wikidata、Wikipedia 重定向、同名视觉小说的别名，以及手工整理的 `智能搜索模型/社区叫法.json`（按名称指定作品或角色，构建时报告对不上的名称）。
-
-`--extra-aliases <文件>` 加入另外提供的别名（`{"结果": {条目键: [别名, …]}}`），这份文件不放在仓库里。
-
-## 环境
-
-```sh
-python3 -m venv .build/smart-search-venv
-.build/smart-search-venv/bin/pip install torch numpy boto3
-```
-
-## 构建
-
-```sh
-caffeinate -dimsu .build/smart-search-venv/bin/python -u Tools/构建智能搜索模型.py
-```
-
-依次执行 `prepare`（下载并解析 VNDB 数据库导出）、`aliases`（下载 Bangumi 数据库导出，补充中文名、别名和梗）、`fuzzy`（构建名称索引，训练排序器，打印合成评估、人工评估和示例查询，然后打包）。也可以只运行某几个阶段，例如改了 `社区别名.json` 后运行 `Tools/构建智能搜索模型.py aliases fuzzy`。`fuzzy` 在 M4 上约 20 分钟。
-
-App 的名称规范化、片段索引和特征计算是 Swift 重写的（`PaperVN/智能搜索/`），必须与 `名称.py`、`模糊.py` 逐项一致，修改任一侧后都要重新比对。
-
-产物在 `.build/smart-search-model/PaperVNSmartSearch.pvss`，上传到 `https://r2-papervn.jizpaper.com/Resources/PaperVNSmartSearch.pvss`：
+发布新模型时，`PaperVN/Resources/PaperVNSmartSearch.pvss` 必须和 R2 上的文件一致，否则装好 App 的用户会马上收到一次没有必要的更新提示：
 
 ```sh
 R2_ACCOUNT_ID=… R2_ACCESS_KEY_ID=… R2_SECRET_ACCESS_KEY=… R2_BUCKET=papervn \
-  .build/smart-search-venv/bin/python Tools/上传到R2.py .build/smart-search-model/PaperVNSmartSearch.pvss Resources/PaperVNSmartSearch.pvss
+  python3 Tools/上传到R2.py PaperVN/Resources/PaperVNSmartSearch.pvss Resources/PaperVNSmartSearch.pvss
 ```
 
-App 安装包里预装了一份模型（`PaperVN/Resources/PaperVNSmartSearch.pvss`），装好就能用。上传新模型后，App 会像偏好分析模型一样先比较 ETag、必要时只读取文件头，确认服务器上的模型和正在用的不同才提示“更新Hiro智能模型”，下载的更新放在 Application Support 里。模型标识开头是构建日期：App 更新后内置的模型和下载的一样新或更新时，改用内置的并删除下载的文件。
+# 动画、漫画与轻小说推荐模型
 
-发布带新模型的 App 版本前，把同一个文件复制到 `PaperVN/Resources/PaperVNSmartSearch.pvss`，并且和 R2 上的保持一致，否则装好 App 的用户会马上收到一次没有必要的更新提示。
+“为你推荐”里的动画、漫画与轻小说来自预装的模型 `PaperVN/Resources/PaperVNWorkRecommendation.pvwr`（App 端代码在 `PaperVN/非用户界面/推荐/作品推荐模型.swift`、`作品推荐中心.swift`）。和 Hiro智能一样，仓库里只有模型文件，训练方式与数据不公开。
+
+设备上每次打开 Today 时按资料库重新计算，不需要登录 VNDB。文件格式：`PVWR`、UInt32 标识长度、标识、UInt32 原文长度、raw DEFLATE 压缩的 JSON；作品编号与 Hiro智能相同（`作品搜索结果.编号`）。
 
 # 归档与上传
 
