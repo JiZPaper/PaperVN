@@ -1,9 +1,9 @@
 import Foundation
 
 /// 动画、漫画与轻小说详情页用到的整合数据。
-/// 视觉小说继续用 VNDB；这里整合 MyAnimeList（简介、类型、制作、相关作品）、
-/// AniList（角色与声优、制作人员、标签、外部链接）与 Bangumi（中文标题、评分、吐槽）。
-/// 标签和简介不使用 Bangumi。
+/// 视觉小说继续用 VNDB；这里整合 MyAnimeList（类型、制作、相关作品）、
+/// AniList（封面、角色与声优、制作人员、标签、外部链接）与 Bangumi（中文标题、评分、吐槽）。
+/// 简介和评分按设置从各平台中选择；标签不使用 Bangumi。
 struct 作品详细信息: Sendable {
     struct 角色: Identifiable, Sendable {
         let id: Int
@@ -20,7 +20,7 @@ struct 作品详细信息: Sendable {
         let kind: MyAnimeList列表项.种类
         let malID: Int
         let 标题: String
-        let 封面: String?
+        var 封面: String?
         let 关系: String
         /// AniList 提供的各语言标题，按标题语言设置显示；没有时用 MAL 的标题。
         var 多语言标题: [用户多语言标题]? = nil
@@ -30,6 +30,11 @@ struct 作品详细信息: Sendable {
     struct 标签: Identifiable, Sendable {
         let 名称: String
         let 是剧透: Bool
+        /// AniList 的相关度（0–100）。
+        var 相关度: Int? = nil
+        /// AniList 分类的第一级，例如“Theme-Action”取“Theme”。
+        var 分类: String? = nil
+        var 是成人: Bool = false
         var id: String { 名称 }
     }
 
@@ -39,6 +44,12 @@ struct 作品详细信息: Sendable {
         var 原名: String? = nil
         let 职责: String
         var id: String { "\(名字)|\(职责)" }
+    }
+
+    struct 简介文本: Sendable {
+        let 文本: String
+        /// 简介的语言（BCP 47），不知道时为空。MAL 与 AniList 是英语，TMDB 跟随界面语言。
+        let 语言: String?
     }
 
     struct 链接: Identifiable, Sendable {
@@ -55,8 +66,6 @@ struct 作品详细信息: Sendable {
     var 英文标题: String?
     var 封面: String?
     var 横幅: String?
-    /// MAL 的英文简介；TMDB 有界面语言的简介时换成 TMDB 的。
-    var 简介: String?
     var 媒体类型: String?
     var 状态: String?
     var 开始日期: String?
@@ -92,26 +101,30 @@ struct 作品详细信息: Sendable {
     var TMDB路径: String?
     var TMDB评分: Double?
     var TMDB评分人数: Int?
+    /// 各平台的简介，显示哪一个由“简介”设置决定。
+    var 各来源简介: [简介来源: 简介文本] = [:]
 
     /// 没有 MAL ID 的作品（只在 AniList、Bangumi 上）malID 为 0。
     var malURL: URL? { malID > 0 ? URL(string: "https://myanimelist.net/\(kind.rawValue)/\(malID)") : nil }
     var bangumiURL: URL? { bangumiID.flatMap { URL(string: "https://bgm.tv/subject/\($0)") } }
 
-    /// 各来源评分换算到 10 分制后，按评分人数的对数加权平均；AniList 没有人数，按人气折算。
-    var 综合评分: Double? {
-        var weighted = 0.0, weights = 0.0
-        func add(_ score: Double?, count: Int?) {
-            guard let score, score > 0 else { return }
-            let weight = log10(Double(max(count ?? 100, 10)))
-            weighted += score * weight
-            weights += weight
-        }
-        add(MAL评分, count: MAL评分人数)
-        add(Bangumi评分, count: Bangumi评分人数)
-        add(AniList评分.map { Double($0) / 10 }, count: AniList人气)
-        add(TMDB评分, count: TMDB评分人数)
-        return weights > 0 ? weighted / weights : nil
+    /// 设置里选中的平台的评分换算到 10 分制后合成，计算方式见“评分”设置；AniList 没有人数，按人气折算。
+    var 综合评分: (分数: Double, 人数: Int?)? {
+        var ratings: [(平台: 评分平台, 分数: Double, 人数: Int?)] = []
+        if let score = MAL评分 { ratings.append((.myAnimeList, score, MAL评分人数)) }
+        if let score = Bangumi评分 { ratings.append((.bangumi, score, Bangumi评分人数)) }
+        if let score = AniList评分 { ratings.append((.aniList, Double(score) / 10, AniList人气)) }
+        if let score = TMDB评分 { ratings.append((.tmdb, score, TMDB评分人数)) }
+        return 评分设置.合成(ratings, type: 类型)
     }
+
+    /// 按“简介”设置选择的简介；选中的平台没有时依次换用其他平台。
+    func 简介(偏好 source: 简介来源) -> 简介文本? {
+        let order = [source] + [.myAnimeList, .aniList, .tmdb, .bangumi].filter { $0 != source }
+        return order.lazy.compactMap { 各来源简介[$0] }.first { !$0.文本.isEmpty }
+    }
+
+    var 简介: String? { 简介(偏好: 简介来源.当前(类型))?.文本 }
 
     /// 各语言的标题，按标题语言设置显示。MAL 的标题是罗马字，日文标题是原名，中文标题来自 Bangumi。
     var 多语言标题: [用户多语言标题] {
@@ -200,7 +213,9 @@ actor 作品详情服务 {
                 // Bangumi 的 name 是原名，没有标明语言
                 detail.标题 = subject.name
                 detail.日文标题 = subject.name
-                detail.简介 = subject.summary.flatMap { $0.isEmpty ? nil : $0 }
+                if let summary = subject.summary, !summary.isEmpty {
+                    detail.各来源简介[.bangumi] = .init(文本: summary, 语言: nil)
+                }
                 detail.封面 = subject.images?.large ?? subject.images?.common
                 detail.开始日期 = subject.date
                 detail.集数 = kind == .anime ? subject.eps.flatMap { $0 > 0 ? $0 : nil } : nil
@@ -252,7 +267,7 @@ actor 作品详情服务 {
 
     // MARK: TMDB
 
-    /// TMDB 有各语言的简介：界面语言不是英语、TMDB 上有这种语言的简介时，用它代替 MAL 的英文简介。
+    /// TMDB 有各语言的简介，按界面语言读取。
     /// 评分只取电影和第一季（TMDB 的剧集评分是整部剧的，不能算作第二季以后的评分）。
     private static func mergeTMDB(_ path: String, into detail: inout 作品详细信息) async {
         struct 条目: Decodable { let overview: String?; let vote_average: Double?; let vote_count: Int? }
@@ -275,8 +290,8 @@ actor 作品详情服务 {
             }
         }
         detail.TMDB路径 = path
-        if !TMDB配置.语言.hasPrefix("en"), let overview = overview?.trimmingCharacters(in: .whitespacesAndNewlines), !overview.isEmpty {
-            detail.简介 = overview
+        if let overview = overview?.trimmingCharacters(in: .whitespacesAndNewlines), !overview.isEmpty {
+            detail.各来源简介[.tmdb] = .init(文本: overview, 语言: TMDB配置.语言)
         }
         if let url = URL(string: "https://www.themoviedb.org/\(base)"), !detail.外部链接.contains(where: { $0.站点 == "TMDB" }) {
             detail.外部链接.append(.init(站点: "TMDB", 地址: url.absoluteString))
@@ -383,7 +398,9 @@ actor 作品详情服务 {
         detail.原名语言 = detail.日文标题 == nil ? nil : (作品映射.原名语言(detail.类型, malID: raw.id) ?? "ja")
         detail.英文标题 = raw.alternativeTitles?.en.flatMap { $0.isEmpty ? nil : $0 }
         detail.封面 = raw.mainPicture?.large ?? raw.mainPicture?.medium
-        detail.简介 = raw.synopsis.flatMap { $0.isEmpty ? nil : $0 }
+        if let synopsis = raw.synopsis, !synopsis.isEmpty {
+            detail.各来源简介[.myAnimeList] = .init(文本: synopsis, 语言: "en")
+        }
         detail.媒体类型 = raw.mediaType
         detail.状态 = raw.status
         detail.开始日期 = raw.startDate
@@ -563,7 +580,7 @@ actor 作品详情服务 {
         struct 数据: Decodable { let Media: 作品? }
         struct 作品: Decodable {
             struct 图片: Decodable { let extraLarge: String?; let large: String? }
-            struct 标签: Decodable { let name: String; let rank: Int?; let isMediaSpoiler: Bool?; let isGeneralSpoiler: Bool? }
+            struct 标签: Decodable { let name: String; let rank: Int?; let category: String?; let isAdult: Bool?; let isMediaSpoiler: Bool?; let isGeneralSpoiler: Bool? }
             struct 名字: Decodable { let full: String?; let native: String? }
             struct 角色连接: Decodable {
                 struct 边: Decodable {
@@ -620,7 +637,7 @@ actor 作品详情服务 {
             let externalLinks: [链接]?
             struct 关联连接: Decodable {
                 struct 边: Decodable {
-                    struct 节点: Decodable { let idMal: Int?; let countryOfOrigin: String?; let title: 标题? }
+                    struct 节点: Decodable { let idMal: Int?; let countryOfOrigin: String?; let title: 标题?; let coverImage: 图片? }
                     let node: 节点?
                 }
                 let edges: [边]?
@@ -656,6 +673,8 @@ actor 作品详情服务 {
         var 链接: [作品详细信息.链接]
         /// 相关作品的 MAL ID → 各语言标题。
         var 相关标题: [Int: [用户多语言标题]] = [:]
+        /// 相关作品的 MAL ID → AniList 封面（和列表、相关作品详情页用同一张图）。
+        var 相关封面: [Int: String] = [:]
         /// 原名的语言，由 AniList 的出品国家决定。
         var 原名语言: String? = nil
     }
@@ -684,12 +703,12 @@ actor 作品详情服务 {
             popularity
             bannerImage
             coverImage { extraLarge large }
-            tags { name rank isMediaSpoiler isGeneralSpoiler }
+            tags { name rank category isAdult isMediaSpoiler isGeneralSpoiler }
             characters(sort: [ROLE, RELEVANCE], perPage: 16) {
               edges { role node { id name { full native } image { medium large } } voiceActors(language: JAPANESE) { name { full native } } }
             }
-            staff(sort: [RELEVANCE], perPage: 16) { edges { role node { name { full native } } } }
-            relations { edges { node { idMal type countryOfOrigin title { romaji english native } } } }
+            staff(sort: [RELEVANCE], perPage: 50) { edges { role node { name { full native } } } }
+            relations { edges { node { idMal type countryOfOrigin title { romaji english native } coverImage { extraLarge large } } } }
             externalLinks { site url }
           }
         }
@@ -732,7 +751,15 @@ actor 作品详情服务 {
             封面: media.coverImage?.extraLarge ?? media.coverImage?.large,
             标签: (media.tags ?? [])
                 .filter { ($0.rank ?? 0) >= 50 }
-                .map { 作品详细信息.标签(名称: $0.name, 是剧透: ($0.isMediaSpoiler ?? false) || ($0.isGeneralSpoiler ?? false)) },
+                .map {
+                    作品详细信息.标签(
+                        名称: $0.name,
+                        是剧透: ($0.isMediaSpoiler ?? false) || ($0.isGeneralSpoiler ?? false),
+                        相关度: $0.rank,
+                        分类: $0.category?.split(separator: "-").first.map { String($0).trimmingCharacters(in: .whitespaces) },
+                        是成人: $0.isAdult ?? false
+                    )
+                },
             角色: (media.characters?.edges ?? []).compactMap { edge in
                 guard let node = edge.node else { return nil }
                 let name = node.name?.full ?? node.name?.native ?? ""
@@ -764,6 +791,14 @@ actor 作品详情服务 {
                         罗马字: node.title?.romaji,
                         英文: node.title?.english
                     ))
+                },
+                uniquingKeysWith: { first, _ in first }
+            ),
+            相关封面: Dictionary(
+                (media.relations?.edges ?? []).compactMap { edge -> (Int, String)? in
+                    guard let node = edge.node, let malID = node.idMal,
+                          let cover = node.coverImage?.extraLarge ?? node.coverImage?.large else { return nil }
+                    return (malID, cover)
                 },
                 uniquingKeysWith: { first, _ in first }
             )
@@ -815,9 +850,11 @@ actor 作品详情服务 {
         if detail.kind == .manga, ["novel", "light_novel"].contains(value.媒体类型 ?? "") {
             detail.类型 = .lightNovel
         }
-        // 简介以 MAL 为准，MAL 没有时才用 AniList
-        if detail.简介 == nil { detail.简介 = value.简介 }
-        if detail.封面 == nil { detail.封面 = value.封面 }
+        if let synopsis = value.简介, !synopsis.isEmpty {
+            detail.各来源简介[.aniList] = .init(文本: synopsis, 语言: "en")
+        }
+        // 封面以 AniList 为准：列表、播出表、为你推荐都用 AniList 的封面，详情页用同一张图
+        if let cover = value.封面 { detail.封面 = cover }
         detail.横幅 = value.横幅
         detail.AniList评分 = value.评分
         detail.AniList人气 = value.人气
@@ -827,6 +864,10 @@ actor 作品详情服务 {
         detail.外部链接 = value.链接
         for index in detail.相关.indices {
             detail.相关[index].多语言标题 = value.相关标题[detail.相关[index].malID]
+            // 相关作品的封面也以 AniList 为准，点进去的详情页是同一张图
+            if let cover = value.相关封面[detail.相关[index].malID] {
+                detail.相关[index].封面 = cover
+            }
         }
     }
 

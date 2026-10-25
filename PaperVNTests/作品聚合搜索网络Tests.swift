@@ -15,7 +15,7 @@ struct 作品聚合搜索网络Tests {
     }
 
     @Test
-    func Hiro智能命中的AniList编号能取到标题() async {
+    func 智能搜索模型命中的AniList编号能取到标题() async {
         let id = 作品搜索结果.编号(类型: .manga, malID: 0, aniListID: 101444)
         let 详情 = await 作品聚合搜索.shared.详情([id])
         #expect(详情[id]?.aniListID == 101444)

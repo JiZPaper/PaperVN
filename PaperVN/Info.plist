@@ -6,10 +6,6 @@
 	<string>$(ANILIST_CLIENT_ID)</string>
 	<key>AnnictClientID</key>
 	<string>$(ANNICT_CLIENT_ID)</string>
-	<key>BGTaskSchedulerPermittedIdentifiers</key>
-	<array>
-		<string>com.jizpaper.PaperVN.preference-analysis.*</string>
-	</array>
 	<key>BangumiOAuthClientID</key>
 	<string>$(BANGUMI_OAUTH_CLIENT_ID)</string>
 	<key>CFBundleURLTypes</key>
@@ -29,9 +25,5 @@
 	<string>f80456b95e7a5aa2ccfbadad6d727981</string>
 	<key>MALClientID</key>
 	<string>$(MAL_CLIENT_ID)</string>
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>processing</string>
-	</array>
 </dict>
 </plist>

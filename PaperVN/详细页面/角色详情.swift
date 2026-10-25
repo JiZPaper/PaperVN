@@ -80,6 +80,7 @@ struct 角色详情: View {
 
     @ObservedObject private var auth: 用户登录
     @Namespace private var descriptionNamespace
+    @Namespace private var cardNamespace
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
@@ -100,6 +101,7 @@ struct 角色详情: View {
     @State private var revealedTraitIDs: Set<String> = []
     @State private var showTranslatedTraits = false
     @State private var showAllTraits = false
+    @State private var 标签浏览目标: 标签浏览?
     @State private var traitsContentOpacity = 1.0
     @State private var isSwitchingTraitLanguage = false
     @State private var characterInfoPopover: 角色信息提示?
@@ -377,6 +379,9 @@ struct 角色详情: View {
                 traits: displayedDetail.traits ?? [],
                 showTranslatedTraits: $showTranslatedTraits
             )
+        }
+        .navigationDestination(item: $标签浏览目标) { 浏览 in
+            搜索(showsSearchField: false, 标签浏览: 浏览)
         }
         .sheet(isPresented: $showDescriptionSheet) {
             if let detail {
@@ -779,7 +784,7 @@ struct 角色详情: View {
                     .frame(width: width, height: renderedHeight)
                 } else {
                     平台内容不可用视图(
-                        "无角色图片",
+                        "无角色图像",
                         systemImage: "person.crop.rectangle"
                     )
                     .frame(width: width, height: renderedHeight)
@@ -2096,6 +2101,14 @@ struct 角色详情: View {
         .角色沉浸取样框([sampleKey])
         .blur(radius: blurred ? 5 : 0)
         .contentShape(Capsule())
+        .标签浏览菜单(
+            blurred ? nil : 浏览特征(trait),
+            对象: .角色,
+            全部: allTraits
+                .filter { !shouldHideTrait($0) && !shouldBlurTrait($0) }
+                .map(浏览特征),
+            目标: $标签浏览目标
+        )
         .onTapGesture {
             guard blurred,
                   内容安全限制判定.允许手动解除模糊(
@@ -2109,6 +2122,10 @@ struct 角色详情: View {
                 }
             }
         }
+    }
+
+    private func 浏览特征(_ trait: 角色特征) -> 标签浏览.标签 {
+        .特征(值: trait.id, 名称: displayedTraitText(trait.name), 分组: displayedTraitText(trait.group_name))
     }
 
     private var immersiveVoiceActors: some View {
@@ -2179,8 +2196,10 @@ struct 角色详情: View {
                                     initialImageViolence: visualNovel.image?.violence,
                                     initialImageDimensions: visualNovel.image?.dims
                                 )
+                                .navigationTransition(.zoom(sourceID: "appearance-\(visualNovel.id)", in: cardNamespace))
                             } label: {
                                 immersiveAppearanceCard(visualNovel)
+                                    .matchedTransitionSource(id: "appearance-\(visualNovel.id)", in: cardNamespace)
                             }
                             .buttonStyle(.plain)
                         }
@@ -2842,8 +2861,10 @@ struct 角色详情: View {
                                     initialImageViolence: visualNovel.image?.violence,
                                     initialImageDimensions: visualNovel.image?.dims
                                 )
+                                .navigationTransition(.zoom(sourceID: "appearance-\(visualNovel.id)", in: cardNamespace))
                             } label: {
                                 appearanceCard(visualNovel)
+                                    .matchedTransitionSource(id: "appearance-\(visualNovel.id)", in: cardNamespace)
                             }
                             .buttonStyle(.plain)
                         }

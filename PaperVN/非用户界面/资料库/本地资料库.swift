@@ -245,12 +245,14 @@ final class 本地资料库: ObservableObject {
             let values: [本地资料库条目]? = await Task.detached(priority: .userInitiated) {
                 // 没有文件是正常的空资料库；有文件却读不出来时不能当成空的，否则下一次保存会把它覆盖掉
                 guard let data = try? Data(contentsOf: url) else { return [本地资料库条目]() }
-                guard let decoded = try? JSONDecoder().decode([本地资料库条目].self, from: data) else {
+                guard var decoded = try? JSONDecoder().decode([本地资料库条目].self, from: data) else {
                     let backup = url.deletingPathExtension()
                         .appendingPathExtension("unreadable-\(Int(Date().timeIntervalSince1970)).json")
                     try? FileManager.default.copyItem(at: url, to: backup)
                     return nil
                 }
+                // 显示之前先补上作品映射里预装的中文名，资料库一出现就是最终的标题
+                Bangumi中文名补全.预装(&decoded)
                 return decoded
             }.value
             guard let self, !Task.isCancelled, self.所有者 == owner else { return }
@@ -284,7 +286,9 @@ final class 本地资料库: ObservableObject {
     /// 新加入资料库的作品（例如在详情页加入计划）。
     func 添加(_ entry: 本地资料库条目) {
         guard 所有者 != nil else { return }
-        var entry = entry
+        var entries = [entry]
+        Bangumi中文名补全.预装(&entries)
+        var entry = entries[0]
         entry.加入时间 = entry.加入时间 ?? .now
         entry.修改时间 = .now
         条目.removeAll { $0.id == entry.id }

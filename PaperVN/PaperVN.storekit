@@ -10,9 +10,7 @@
     ]
   },
   "identifier" : "DE6E8ACB-0CAC-4E48-B584-F95B4CA80A72",
-  "nonRenewingSubscriptions" : [
-
-  ],
+  "nonRenewingSubscriptions" : [],
   "products" : [
     {
       "displayPrice" : "18",
@@ -85,7 +83,44 @@
     "_timeRate" : 0
   },
   "subscriptionGroups" : [
-
+    {
+      "id" : "12067178",
+      "localizations" : [],
+      "name" : "PaperVN Senkou",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [],
+          "codeOffers" : [],
+          "displayPrice" : "1.8",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "D7438AE2-EB26-4F01-A5CA-31117F73AA8C",
+          "introductoryOffer" : {
+            "internalID" : "EF7E8B01-8884-4DFF-896E-47899E04A8FB",
+            "paymentMode" : "free",
+            "subscriptionPeriod" : "P1M"
+          },
+          "localizations" : [
+            {
+              "description" : "抢先使用之后会免费的功能。",
+              "displayName" : "PaperVN先行",
+              "locale" : "zh_Hans"
+            },
+            {
+              "description" : "Get access to features before they become free.",
+              "displayName" : "PaperVN Senkou",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "PaperVN_Senkou",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "PaperVN Senkou",
+          "subscriptionGroupID" : "12067178",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : []
+        }
+      ]
+    }
   ],
   "version" : {
     "major" : 5,

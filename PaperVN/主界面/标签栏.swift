@@ -33,14 +33,6 @@ struct TabBar: View {
 
     var body: some View {
         rootContent
-        .onChange(of: selectedTab) { _, newTab in
-            switch newTab {
-            case .today:
-                推荐后台分析中心.shared.设置Today分析暂停(true)
-            default:
-                推荐后台分析中心.shared.设置Today分析暂停(false)
-            }
-        }
         .onChange(of: urlRouter.pendingRequest, initial: true) { _, request in
             guard let request else { return }
             selectedTab = .today

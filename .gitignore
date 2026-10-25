@@ -14,8 +14,7 @@ __pycache__/
 *.py[cod]
 
 # Generated Apple developer documentation
-Others/Apple Developer Documentation/
-Others/Documentation/AppleDeveloperDocumentation/
+Others/API文档/Apple Developer Documentation/
 
 # macOS filesystem metadata
 .DS_Store
@@ -40,7 +39,6 @@ Config/PaperVN.private.xcconfig
 
 # Files unrelated to the app
 Others/
-.codex-skill-staging/
 Tools/export_apple_developer_docs.py
 .berr.txt
 .build_errors.txt

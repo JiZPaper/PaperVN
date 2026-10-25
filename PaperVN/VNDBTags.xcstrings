@@ -1,49 +1,96 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "3D Graphics" : {
+    "100 percent Completion Bonus_tag" : {
       "extractionState" : "manual",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "3D-Grafik"
+            "value" : "Bonus für 100 % Abschluss"
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Grafika 3D"
+            "value" : "Premia za ukończenie w 100%"
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "3D Graphics"
+            "value" : "100 percent Completion Bonus"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "3Dグラフィックス"
+            "value" : "100%コンプリートボーナス"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "3D 그래픽"
+            "value" : "100% 완료 보너스"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "3D图形"
+            "value" : "100%完成奖励"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "3D圖形"
+            "value" : "100%完成獎勵"
+          }
+        }
+      }
+    },
+    "1001 Nights" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tausendundeine Nacht"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Baśnie tysiąca i jednej nocy"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1001 Nights"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "千夜一夜物語"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "천일야화"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一千零一夜"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一千零一夜"
           }
         }
       }
@@ -138,6 +185,194 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "20年代"
+          }
+        }
+      }
+    },
+    "2000s" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2000er-Jahre"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lata 2000–2009"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2000s"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2000年代"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2000년대"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2000年代"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2000年代"
+          }
+        }
+      }
+    },
+    "2010s" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2010er-Jahre"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lata 2010–2019"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2010s"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2010年代"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2010년대"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2010年代"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2010年代"
+          }
+        }
+      }
+    },
+    "2020s" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2020er-Jahre"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lata 2020–2029"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2020s"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2020年代"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2020년대"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2020年代"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2020年代"
+          }
+        }
+      }
+    },
+    "2030s" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2030er-Jahre"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lata 2030–2039"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2030s"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2030年代"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2030년대"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2030年代"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2030年代"
           }
         }
       }
@@ -279,6 +514,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "30年代"
+          }
+        }
+      }
+    },
+    "3D Graphics" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3D-Grafik"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grafika 3D"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3D Graphics"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3Dグラフィックス"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3D 그래픽"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3D图形"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3D圖形"
           }
         }
       }
@@ -561,288 +843,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "90年代"
-          }
-        }
-      }
-    },
-    "100% Completion Bonus" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bonus für 100 % Abschluss"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Premia za ukończenie w 100%"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "100% Completion Bonus"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "100%コンプリートボーナス"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "100% 완료 보너스"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "100%完成奖励"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "100%完成獎勵"
-          }
-        }
-      }
-    },
-    "1001 Nights" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tausendundeine Nacht"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Baśnie tysiąca i jednej nocy"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "1001 Nights"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "千夜一夜物語"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "천일야화"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "一千零一夜"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "一千零一夜"
-          }
-        }
-      }
-    },
-    "2000s" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "2000er-Jahre"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lata 2000–2009"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "2000s"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "2000年代"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "2000년대"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "2000年代"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "2000年代"
-          }
-        }
-      }
-    },
-    "2010s" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "2010er-Jahre"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lata 2010–2019"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "2010s"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "2010年代"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "2010년대"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "2010年代"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "2010年代"
-          }
-        }
-      }
-    },
-    "2020s" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "2020er-Jahre"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lata 2020–2029"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "2020s"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "2020年代"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "2020년대"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "2020年代"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "2020年代"
-          }
-        }
-      }
-    },
-    "2030s" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "2030er-Jahre"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lata 2030–2039"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "2030s"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "2030年代"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "2030년대"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "2030年代"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "2030年代"
           }
         }
       }
@@ -2686,13 +2686,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vollständige Durchdringung"
+            "value" : "Tentakel durch den ganzen Körper"
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Penetracja na wylot"
+            "value" : "Macka przez całe ciało"
           }
         },
         "en" : {
@@ -2704,25 +2704,25 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "貫通"
+            "value" : "触手貫通"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "관통"
+            "value" : "촉수 관통"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "贯通"
+            "value" : "触手贯通全身"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "貫通"
+            "value" : "觸手貫通全身"
           }
         }
       }
@@ -2904,13 +2904,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "替代起始点"
+            "value" : "可选起始点"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "替代起始點"
+            "value" : "可選起始點"
           }
         }
       }
@@ -8215,13 +8215,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "后退跳过功能"
+            "value" : "回退功能"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "後退跳過功能"
+            "value" : "回退功能"
           }
         }
       }
@@ -8309,13 +8309,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "跳转至文本记录"
+            "value" : "从文本记录跳转"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "跳轉至文字記錄"
+            "value" : "從文字記錄跳轉"
           }
         }
       }
@@ -8937,13 +8937,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Orale Hodenstimulation"
+            "value" : "Hodenreiben"
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Oralna stymulacja jąder"
+            "value" : "Stymulacja jądrami"
           }
         },
         "en" : {
@@ -8955,25 +8955,25 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "睾丸フェラ"
+            "value" : "玉ズリ"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "고환 펠라치오"
+            "value" : "고환 마찰"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "睾丸口交"
+            "value" : "睾丸摩擦"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "睪丸口交"
+            "value" : "睪丸摩擦"
           }
         }
       }
@@ -10330,7 +10330,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "腹部性交"
+            "value" : "腹交"
           }
         },
         "zh-Hant" : {
@@ -10706,13 +10706,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "花瓶女化"
+            "value" : "痴女化堕落"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "花瓶女化"
+            "value" : "痴女化墮落"
           }
         }
       }
@@ -11693,13 +11693,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "有血缘关系的姑妈／姨妈与侄子／外甥乱伦"
+            "value" : "血亲姑姨与侄甥乱伦"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "有血緣關係的姑媽／姨媽與侄子／外甥亂倫"
+            "value" : "血親姑姨與姪甥亂倫"
           }
         }
       }
@@ -11975,13 +11975,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "血亲祖孙乱伦（祖母与孙子）"
+            "value" : "血亲祖母与孙子乱伦"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "血親祖孫亂倫（祖母與孫子）"
+            "value" : "血親祖母與孫子亂倫"
           }
         }
       }
@@ -12210,13 +12210,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "有血缘关系的叔伯／舅舅与侄女／外甥女乱伦"
+            "value" : "血亲叔舅与侄甥女乱伦"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "有血緣關係的叔伯／舅舅與姪女／外甥女亂倫"
+            "value" : "血親叔舅與姪甥女亂倫"
           }
         }
       }
@@ -12762,25 +12762,25 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "体内給餌"
+            "value" : "女体盛り"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "체내 먹이 주기"
+            "value" : "인체 요리 담기"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "体内喂食"
+            "value" : "人体盛"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "體內餵食"
+            "value" : "人體盛"
           }
         }
       }
@@ -13338,7 +13338,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "身体性交"
+            "value" : "身体摩擦"
           }
         },
         "zh-Hant" : {
@@ -24776,13 +24776,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cowgirl"
+            "value" : "Reiterstellung"
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kowbojka"
+            "value" : "Na jeźdźca"
           }
         },
         "en" : {
@@ -24794,25 +24794,25 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "カウガール"
+            "value" : "騎乗位"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "카우걸"
+            "value" : "여성 상위"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "女牛仔"
+            "value" : "女上位"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "女牛仔"
+            "value" : "女上位"
           }
         }
       }
@@ -28895,13 +28895,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "关键反派"
+            "value" : "视路线而定的反派"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "關鍵反派"
+            "value" : "視路線而定的反派"
           }
         }
       }
@@ -31480,13 +31480,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "戏剧"
+            "value" : "剧情"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "戲劇"
+            "value" : "劇情"
           }
         }
       }
@@ -32890,13 +32890,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "教育性"
+            "value" : "教育"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "教育性"
+            "value" : "教育"
           }
         }
       }
@@ -39229,19 +39229,19 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "프레디의 피자가게"
+            "value" : "Five Nights at Freddy's"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "玩具熊的五夜后宫"
+            "value" : "玩具熊的五夜惊魂"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "佛萊迪的五夜驚魂"
+            "value" : "玩具熊的五夜驚魂"
           }
         }
       }
@@ -39752,13 +39752,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "食物吞咽"
+            "value" : "混入食物吞精"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "食物吞咽"
+            "value" : "混入食物吞精"
           }
         }
       }
@@ -40880,13 +40880,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "自由相机"
+            "value" : "自由视角"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "自由鏡頭"
+            "value" : "自由視角"
           }
         }
       }
@@ -45315,13 +45315,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kartätsche"
+            "value" : "Grapeshot (Ausstoßen vieler Objekte)"
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kartacz"
+            "value" : "Grapeshot (wyrzucenie wielu przedmiotów)"
           }
         },
         "en" : {
@@ -45333,25 +45333,25 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ぶどう弾"
+            "value" : "複数異物の一斉排出"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "포도탄"
+            "value" : "다수 이물 일제 배출"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "葡萄弹"
+            "value" : "多颗异物喷出"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "葡萄彈"
+            "value" : "多顆異物噴出"
           }
         }
       }
@@ -48682,13 +48682,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "双方同意的恨性爱"
+            "value" : "双方同意的泄恨性爱"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "雙方同意的恨性愛"
+            "value" : "雙方同意的洩恨性愛"
           }
         }
       }
@@ -51220,13 +51220,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "男主角角色／职业"
+            "value" : "男主角身份／职业"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "男主角角色／職業"
+            "value" : "男主角身分／職業"
           }
         }
       }
@@ -55027,13 +55027,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "女主角角色／职业"
+            "value" : "女主角身份／职业"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "女主角角色／職業"
+            "value" : "女主角身分／職業"
           }
         }
       }
@@ -58787,13 +58787,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "开门见山"
+            "value" : "从故事中途开场"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "從故事中段開始"
+            "value" : "從故事中途開場"
           }
         }
       }
@@ -59633,13 +59633,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "无限临场强化"
+            "value" : "反复危急时刻突然变强"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "無限次突發強化"
+            "value" : "反覆危急時刻突然變強"
           }
         }
       }
@@ -59727,13 +59727,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "集中灌输信息"
+            "value" : "大段设定说明"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "集中灌輸資訊"
+            "value" : "大段設定說明"
           }
         }
       }
@@ -60496,13 +60496,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Innenansicht beim Sex"
+            "value" : "Querschnittsansicht beim Sex"
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wewnętrzny widok podczas seksu"
+            "value" : "Przekrój podczas seksu"
           }
         },
         "en" : {
@@ -60514,25 +60514,25 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "性行為の内部描写"
+            "value" : "断面図"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "성행위 중 체내 묘사"
+            "value" : "단면도"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "性爱内部展示"
+            "value" : "性爱透视断面"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "性愛的體內描寫"
+            "value" : "性愛透視斷面"
           }
         }
       }
@@ -66784,6 +66784,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "戀愛對象性別選擇"
+          }
+        }
+      }
+    },
+    "Love Overcomes All" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "爱能战胜一切"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "愛能戰勝一切"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "愛はすべてに打ち勝つ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "사랑은 모든 것을 이긴다"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Liebe überwindet alles"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Miłość zwycięża wszystko"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Love Overcomes All"
           }
         }
       }
@@ -73063,25 +73110,25 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "精神を揺さぶる展開"
+            "value" : "難解な展開"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "정신을 뒤흔드는 전개"
+            "value" : "난해한 전개"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "精神错乱"
+            "value" : "烧脑叙事"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "精神錯亂"
+            "value" : "燒腦敘事"
           }
         }
       }
@@ -75049,13 +75096,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "怪物猎人"
+            "value" : "怪物狩猎者"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "怪物獵人"
+            "value" : "怪物狩獵者"
           }
         }
       }
@@ -77164,13 +77211,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "音乐化环境"
+            "value" : "音乐环境舞台"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "音樂化環境"
+            "value" : "音樂環境舞台"
           }
         }
       }
@@ -77933,13 +77980,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Penisstimulation an den Innenseiten der Oberschenkel"
+            "value" : "Tittenfick mit kleinen Brüsten"
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Stymulacja penisa wewnętrznymi stronami ud"
+            "value" : "Stosunek między małymi piersiami"
           }
         },
         "en" : {
@@ -77951,25 +77998,25 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ナイズリ"
+            "value" : "ないずり"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "허벅지 사이 성교"
+            "value" : "빈유 파이즈리"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "内腿交"
+            "value" : "贫乳乳交"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "內腿交"
+            "value" : "貧乳乳交"
           }
         }
       }
@@ -79561,13 +79608,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "主动寝取"
+            "value" : "让他人寝取"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "主動寢取"
+            "value" : "讓他人寢取"
           }
         }
       }
@@ -81629,13 +81676,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "无血缘关系的叔伯／舅舅与侄女／外甥女乱伦"
+            "value" : "非血亲叔舅与侄甥女乱伦"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "無血緣關係的叔伯／舅舅與姪女／外甥女亂倫"
+            "value" : "非血親叔舅與姪甥女亂倫"
           }
         }
       }
@@ -93202,53 +93249,6 @@
         }
       }
     },
-    "Pokémon" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pokémon"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pokémon"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pokémon"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ポケットモンスター"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "포켓몬스터"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "宝可梦"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "寶可夢"
-          }
-        }
-      }
-    },
     "Poker" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -93292,6 +93292,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "撲克"
+          }
+        }
+      }
+    },
+    "Pokémon" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pokémon"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pokémon"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pokémon"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ポケットモンスター"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "포켓몬스터"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "宝可梦"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "寶可夢"
           }
         }
       }
@@ -101604,13 +101651,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "主角角色／职业"
+            "value" : "主角身份／职业"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "主角角色／職業"
+            "value" : "主角身分／職業"
           }
         }
       }
@@ -102974,53 +103021,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "木偶師女主角"
-          }
-        }
-      }
-    },
-    "Pure Love Story" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Reine Liebesgeschichte"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Historia czystej miłości"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pure Love Story"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "純愛物語"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "순애 이야기"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "纯爱故事"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "純愛故事"
           }
         }
       }
@@ -104471,13 +104471,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "受影响状态下遭强奸"
+            "value" : "神志不清时遭强奸"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "受影響狀態下遭強姦"
+            "value" : "神志不清時遭強姦"
           }
         }
       }
@@ -106210,13 +106210,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "逆主动寝取"
+            "value" : "逆向让他人寝取"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "逆主動寢取"
+            "value" : "逆向讓他人寢取"
           }
         }
       }
@@ -110769,13 +110769,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "自己乱伦"
+            "value" : "与另一个自己性爱"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "自己亂倫"
+            "value" : "與另一個自己性愛"
           }
         }
       }
@@ -114435,13 +114435,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "变身"
+            "value" : "变形能力"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "變身"
+            "value" : "變形能力"
           }
         }
       }
@@ -116879,7 +116879,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "单人身体性交"
+            "value" : "单人身体摩擦"
           }
         },
         "zh-Hant" : {
@@ -120545,13 +120545,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "临场强化"
+            "value" : "危急时刻突然变强"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "突發強化"
+            "value" : "危急時刻突然變強"
           }
         }
       }
@@ -123752,49 +123752,49 @@
         }
       }
     },
-    "Sudden Girlfriend Appearance" : {
+    "Sudden Love Interest Appearance" : {
       "extractionState" : "manual",
       "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Plötzlich auftauchende Freundin"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nagłe pojawienie się dziewczyny"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sudden Girlfriend Appearance"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "突然の彼女出現"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "갑작스러운 여자친구의 등장"
-          }
-        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "突然出现女友"
+            "value" : "突然出现恋爱对象"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "突然出現女友"
+            "value" : "突然出現戀愛對象"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "突然の恋人候補出現"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "갑작스러운 연애 상대의 등장"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plötzlich auftauchender Love Interest"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nagłe pojawienie się obiektu uczuć"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sudden Love Interest Appearance"
           }
         }
       }
@@ -127031,13 +127031,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "文本解析器"
+            "value" : "文字指令输入"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "文字解析器"
+            "value" : "文字指令輸入"
           }
         }
       }
@@ -128206,13 +128206,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "时间跳跃"
+            "value" : "时间跨越"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "時間跳躍"
+            "value" : "時間跨越"
           }
         }
       }
@@ -131355,7 +131355,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "双人腹部性交"
+            "value" : "双人腹交"
           }
         },
         "zh-Hant" : {
@@ -131919,7 +131919,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "双人以上身体性交"
+            "value" : "双人以上身体摩擦"
           }
         },
         "zh-Hant" : {
@@ -133158,13 +133158,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Aufnahme in den Körper durch die Vagina"
+            "value" : "Unbirth (Aufnahme durch die Vagina)"
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wchłanianie do ciała przez pochwę"
+            "value" : "Unbirth (wchłonięcie przez pochwę)"
           }
         },
         "en" : {
@@ -133176,25 +133176,25 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "逆出産"
+            "value" : "アンバース（胎内回帰）"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "역출산"
+            "value" : "언버스（태내 회귀）"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "逆产"
+            "value" : "回胎"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "逆產"
+            "value" : "回胎"
           }
         }
       }
@@ -136008,13 +136008,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "郁作"
+            "value" : "致郁系"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "鬱作"
+            "value" : "致鬱系"
           }
         }
       }
@@ -138093,13 +138093,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Teilweise Sprachausgabe"
+            "value" : "Passagen nur mit Sprachausgabe"
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Częściowy dubbing"
+            "value" : "Fragmenty z samym głosem"
           }
         },
         "en" : {
@@ -138111,25 +138111,25 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "一部のみ音声付き"
+            "value" : "テキストなしの音声パート"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "일부만 음성 지원"
+            "value" : "텍스트 없는 음성 파트"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "仅部分配音"
+            "value" : "仅语音无文本的段落"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "僅部分配音"
+            "value" : "僅語音無文字的段落"
           }
         }
       }
@@ -140567,13 +140567,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "X形交叉"
+            "value" : "X形刑架"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "X形交叉"
+            "value" : "X形刑架"
           }
         }
       }

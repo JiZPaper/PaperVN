@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="./README.md">English</a> ·
+  <a href="../../README.md">English</a> ·
   <strong>简体中文</strong> ·
   <a href="./README.zh-Hant.md">繁體中文</a> ·
   <a href="./README.ja.md">日本語</a> ·
@@ -8,7 +8,7 @@
 
 <table>
   <tr>
-    <td><img src="./docs/images/app-icon.png" width="96" alt="PaperVN App 图标"></td>
+    <td><img src="../images/app-icon.png" width="96" alt="PaperVN App 图标"></td>
     <td width="32"></td>
     <td align="left">
       <h1>PaperVN</h1>
@@ -22,10 +22,10 @@ PaperVN 是一款为 Apple 设备打造的视觉小说辅助工具，帮助你�
 ## 预览
 
 <p align="center">
-  <a href="./docs/images/screenshots/explore.png"><img src="./docs/images/screenshots/explore.png" width="23%" alt="PaperVN Today 页面"></a>
-  <a href="./docs/images/screenshots/search.png"><img src="./docs/images/screenshots/search.png" width="23%" alt="PaperVN 搜索页面"></a>
-  <a href="./docs/images/screenshots/library.png"><img src="./docs/images/screenshots/library.png" width="23%" alt="PaperVN 资料库页面"></a>
-  <a href="./docs/images/screenshots/visual-novel-details.png"><img src="./docs/images/screenshots/visual-novel-details.png" width="23%" alt="PaperVN 视觉小说详情页面"></a>
+  <a href="../images/screenshots/explore.png"><img src="../images/screenshots/explore.png" width="23%" alt="PaperVN Today 页面"></a>
+  <a href="../images/screenshots/search.png"><img src="../images/screenshots/search.png" width="23%" alt="PaperVN 搜索页面"></a>
+  <a href="../images/screenshots/library.png"><img src="../images/screenshots/library.png" width="23%" alt="PaperVN 资料库页面"></a>
+  <a href="../images/screenshots/visual-novel-details.png"><img src="../images/screenshots/visual-novel-details.png" width="23%" alt="PaperVN 视觉小说详情页面"></a>
 </p>
 
 <p align="center"><sub>Today · 搜索 · 资料库 · 视觉小说详情</sub></p>
@@ -58,14 +58,14 @@ PaperVN 已为 VNDB 中 6,000 多个视觉小说标签与角色特征提供本�
 
 ## 协议与免责声明
 
-本项目采用[CC BY-SA 4.0](LICENSE)许可协议。**PaperVN的名称和图标不在本许可协议范围内**。第三方代码、图像和数据适用其各自的条款。详见[NOTICE.md](NOTICE.md)。
+本项目采用[CC BY-SA 4.0](../../LICENSE)许可协议。**PaperVN的名称和图标不在本许可协议范围内**。第三方代码、图像和数据适用其各自的条款。详见[NOTICE.md](../../NOTICE.md)。
 
 PaperVN是非官方的第三方App，与VNDB、Bangumi番组计划、Steam和鲲Galgame均无关联，也未获得其认可。
 
 ## 捐赠
 
 <p align="center">
-  <img src="./docs/images/donate/wechat-pay.jpg" height="220" alt="微信支付">
+  <img src="../images/donate/wechat-pay.jpg" height="220" alt="微信支付">
   &nbsp;&nbsp;
-  <img src="./docs/images/donate/alipay.jpg" height="220" alt="支付宝">
+  <img src="../images/donate/alipay.jpg" height="220" alt="支付宝">
 </p>

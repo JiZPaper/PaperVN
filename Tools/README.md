@@ -1,4 +1,4 @@
-# PaperVN 离线推荐模型构建器
+# PaperVN 工具
 
 以下命令均在仓库根目录执行。
 
@@ -40,95 +40,9 @@ python3 "Tools/收集Paparu视觉小说图像数据集.py" --limit 200 --retry-f
 python3 "Tools/收集Paparu视觉小说图像数据集.py" --skip-bangumi
 ```
 
-`构建VNDB离线推荐模型.py`在Mac上构建由服务器分发的推荐语料和低秩作品向量。
+# 智能搜索模型
 
-它会：
-
-- 从 `POST /vn` 获取全部可推荐视觉小说，并从 `POST /character` 获取候选作品中承担主要角色或核心角色的角色证据；
-- 用 SQLite 保存已经完成的页面和去重记录，中断后从下一个页面继续；
-- 下载 VNDB 每日公开评分文件，把每位用户的评分按其中位数和尺度转成信号，用每轮重新打乱顺序的逐条 SGD 训练“作品偏置 + 低秩向量”；
-- 作品偏置按“相当于 50 票的贝叶斯平均”收缩，避免只有少数粉丝评分的作品被推给所有人；
-- 留出 3,000 位公开用户的部分评分，按 App 折入资料库的方式评估模型，达不到质量门槛就不写出模型；
-- 只把作品、标签、角色特征、作品向量和作品偏置写入 `VNDBRecommendationModel.json.gz`，不写入公开用户 ID；
-- 把这些留出用户的评分（只有作品编号和分数，没有用户 ID）写入 `evaluation-users.json.gz`，供离线评估使用；
-- 通过 `--refresh-content` 或 `--refresh-votes` 显式重新获取对应数据。
-
-## 构建
-
-只需要 Python 3.10 及以上，不依赖第三方库。先运行不联网的自检：
-
-```sh
-python3 Tools/构建VNDB离线推荐模型.py --self-test
-```
-
-自检在合成评分里植入已知的口味结构，要求训练结果能学回这个结构（相关性至少 0.8），并确认质量门槛会接受训练好的模型、拒绝随机向量。
-
-完整构建（首次抓取作品与角色需要数小时；训练和评估约 10 分钟）：
-
-```sh
-caffeinate -dimsu python3 Tools/构建VNDB离线推荐模型.py
-```
-
-只想用最新评分重训协同部分、沿用已发布模型的作品和角色内容时，可以跳过抓取：
-
-```sh
-python3 Tools/构建VNDB离线推荐模型.py --base-model 已发布的/VNDBRecommendationModel.json.gz --refresh-votes
-```
-
-再次运行会复用`../训练数据/视觉小说推荐/`中的断点和去重数据；公开评分文件中断后会保留`.partial`并尝试续传。继续现有构建时不要添加`--refresh-content`。生成的模型默认放在`../训练数据/视觉小说推荐/VNDBRecommendationModel.json.gz`，不会进入App资源。
-
-## 质量门槛
-
-训练结束后，脚本会打印以下指标，并写进模型清单的 `collaborative.evaluation`：
-
-- 留出评分的 RMSE，必须低于“只用作品偏置”的基线；
-- 留出评分的成对排序准确率，必须比基线至少高 0.005；
-- 只用个性化项 p·q 排序时的准确率，必须至少 0.55（0.5 相当于随机）；
-- 官方续作、前作、FD 之间的向量余弦，必须比随机作品对至少高 0.15；
-- 留出用户喜欢的作品在前 100 名中的召回率，必须高于“所有人都按作品偏置排序”。
-
-任何一项不达标，构建直接失败。另外会打印“最常见作品出现在多少位留出用户的前 20 名里”，用来观察推荐是否过度集中；它不参与门槛判断。2026-08-01 发布的模型由旧版 MLX 路径训练，关联作品的余弦只有 +0.006，与随机向量没有区别；那条训练路径已删除。
-
-模型清单里的 `collaborative.userRegularization`、`biasWeight` 和 `scoreScale` 由同一次评估选出，App 折入资料库时直接使用：协同分 = 个性化项 p·q + `biasWeight` × 作品偏置，`biasWeight` 在 0、0.0625、0.125 中取留出召回率最高的值，`scoreScale` 让典型用户前 0.1% 的作品得到 0.72。`biasWeight` 不再放大：在留出用户上，0.25 会让同一部作品进入 76% 的前 20 名。缺少 `collaborative` 的旧模型，App 不会使用其中的低秩向量。
-
-构建完成后，在上传前确认文件存在并检查gzip文件：
-
-```sh
-test -f ../训练数据/视觉小说推荐/VNDBRecommendationModel.json.gz
-gzip -t ../训练数据/视觉小说推荐/VNDBRecommendationModel.json.gz
-```
-
-将该文件上传到`https://r2-papervn.jizpaper.com/Resources/VNDBRecommendationModel.json.gz`。App不再打包模型；用户开启“为你推荐”后会按需下载。之后服务器上的模型一有变化，App 就会弹出“更新偏好分析模型”提示，并显示服务器上的文件大小：先比较 ETag，必要时只读取文件开头的模型清单，确认确实是新模型才提示。用户选择“忽略”只跳过这一版，模型再次变化时会重新提示；旧版构建器生成的模型也可以在设置里点“重新下载模型”。
-
-## 离线评估
-
-```sh
-Tools/运行推荐离线评估.sh --count 300 --output report.json
-```
-
-脚本把 App 的推荐源码（`VNDB探索数据模型.swift`、`推荐/VNDB本地推荐算法.swift`、`推荐/VNDB离线推荐模型.swift`、`推荐/推荐展示排序.swift`）和 `Tools/推荐离线评估/main.swift` 一起编译，对 `evaluation-users.json.gz` 里的留出用户逐个运行与 App 完全相同的推荐流程。这些用户被隐藏的评分没有参与训练，所以不会有数据泄漏。报告包括：
-
-- NDCG@12、前 12 名至少命中一部的比例、Recall@48，以用户被隐藏的高分作品为准；
-- 前 12 名覆盖的不同作品数、最常出现的作品、推荐作品与资料库的评分人数中位数；
-- 前 12 名中“相似用户”理由和探索项的占比；
-- 两周展示模拟：在用户从不点开的最坏情况下，新的展示排序与改动前“固定前 8 名 + 轮换”各自展示过多少部作品、相邻两天的重合度。
-
-推荐源码只能依赖 Foundation；如果评估脚本编译失败，通常是有人在这些文件里引用了界面层的类型。
-
-## 每月更新
-
-```sh
-Tools/更新推荐模型.sh               # 完整更新：重新抓取作品与角色，需要数小时
-Tools/更新推荐模型.sh --votes-only  # 只用最新评分重训协同部分，约 15 分钟
-```
-
-脚本依次运行自检、构建（含质量门槛）和离线评估，最后提示需要上传的文件。
-
-用户自己资料库中的全部角色与角色特征不依赖下载的低秩模型：App首次分析时按资料库作品获取并永久保存，后续只为新增作品补充数据。
-
-# Hiro智能模型
-
-搜索页的 Hiro智能 是一个在设备上运行的名称模糊匹配模型（`PaperVNSmartSearch.pvss`），App 安装包里预装了一份，更新放在 `https://r2-papervn.jizpaper.com/Resources/PaperVNSmartSearch.pvss`。仓库里只有模型文件和 App 端的读取、搜索代码（`PaperVN/智能搜索/`），训练方式与数据不公开。
+搜索页的智能搜索模型（Paper智能）是一个在设备上运行的名称模糊匹配模型（`PaperVNSmartSearch.pvss`），App 安装包里预装了一份，更新放在 `https://r2-papervn.jizpaper.com/Resources/PaperVNSmartSearch.pvss`。仓库里只有模型文件和 App 端的读取、搜索代码（`PaperVN/智能搜索/`），训练方式与数据不公开。
 
 发布新模型时，`PaperVN/Resources/PaperVNSmartSearch.pvss` 必须和 R2 上的文件一致，否则装好 App 的用户会马上收到一次没有必要的更新提示：
 
@@ -137,11 +51,18 @@ R2_ACCOUNT_ID=… R2_ACCESS_KEY_ID=… R2_SECRET_ACCESS_KEY=… R2_BUCKET=paperv
   python3 Tools/上传到R2.py PaperVN/Resources/PaperVNSmartSearch.pvss Resources/PaperVNSmartSearch.pvss
 ```
 
-# 动画、漫画与轻小说推荐模型
+# “为你推荐”模型
 
-“为你推荐”里的动画、漫画与轻小说来自预装的模型 `PaperVN/Resources/PaperVNWorkRecommendation.pvwr`（App 端代码在 `PaperVN/非用户界面/推荐/作品推荐模型.swift`、`作品推荐中心.swift`）。和 Hiro智能一样，仓库里只有模型文件，训练方式与数据不公开。
+“为你推荐”里的动画、漫画、轻小说与视觉小说都来自同一个模型 `PaperVN/Resources/PaperVNWorkRecommendation.pvwr`（App 端代码在 `PaperVN/非用户界面/推荐/`）。和 Hiro智能一样，仓库里只有模型文件，训练方式与数据不公开。
 
-设备上每次打开 Today 时按资料库重新计算，不需要登录 VNDB。文件格式：`PVWR`、UInt32 标识长度、标识、UInt32 原文长度、raw DEFLATE 压缩的 JSON；作品编号与 Hiro智能相同（`作品搜索结果.编号`）。
+设备上每次打开 Today 时按资料库重新计算，只要几毫秒，不需要登录 VNDB，也没有后台分析。App 安装包里预装了一份，更新放在 `https://r2-papervn.jizpaper.com/Resources/PaperVNWorkRecommendation.pvwr`；服务器上的模型比正在用的新（标识开头的构建日期更晚）时，App 会弹出“更新“为你推荐”模型”提示。发布新模型时同样要让 App 资源和 R2 上的文件一致：
+
+```sh
+R2_ACCOUNT_ID=… R2_ACCESS_KEY_ID=… R2_SECRET_ACCESS_KEY=… R2_BUCKET=papervn \
+  python3 Tools/上传到R2.py PaperVN/Resources/PaperVNWorkRecommendation.pvwr Resources/PaperVNWorkRecommendation.pvwr
+```
+
+文件格式：`PVWR`、UInt32 标识长度、标识、UInt32 原文长度、raw DEFLATE 压缩的 JSON；作品编号与智能搜索模型相同（`作品搜索结果.编号`）。
 
 # 归档与上传
 

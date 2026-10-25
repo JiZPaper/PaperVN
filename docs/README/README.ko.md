@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="./README.md">English</a> ·
+  <a href="../../README.md">English</a> ·
   <a href="./README.zh-Hans.md">简体中文</a> ·
   <a href="./README.zh-Hant.md">繁體中文</a> ·
   <a href="./README.ja.md">日本語</a> ·
@@ -8,7 +8,7 @@
 
 <table>
   <tr>
-    <td><img src="./docs/images/app-icon.png" width="96" alt="PaperVN 앱 아이콘"></td>
+    <td><img src="../images/app-icon.png" width="96" alt="PaperVN 앱 아이콘"></td>
     <td width="32"></td>
     <td align="left">
       <h1>PaperVN</h1>
@@ -22,10 +22,10 @@ PaperVN은 Apple 기기를 위해 만든 비주얼 노벨 도우미입니다. �
 ## 미리 보기
 
 <p align="center">
-  <a href="./docs/images/screenshots/explore.png"><img src="./docs/images/screenshots/explore.png" width="23%" alt="PaperVN Today 화면"></a>
-  <a href="./docs/images/screenshots/search.png"><img src="./docs/images/screenshots/search.png" width="23%" alt="PaperVN 검색 화면"></a>
-  <a href="./docs/images/screenshots/library.png"><img src="./docs/images/screenshots/library.png" width="23%" alt="PaperVN 보관함 화면"></a>
-  <a href="./docs/images/screenshots/visual-novel-details.png"><img src="./docs/images/screenshots/visual-novel-details.png" width="23%" alt="PaperVN 비주얼 노벨 상세 화면"></a>
+  <a href="../images/screenshots/explore.png"><img src="../images/screenshots/explore.png" width="23%" alt="PaperVN Today 화면"></a>
+  <a href="../images/screenshots/search.png"><img src="../images/screenshots/search.png" width="23%" alt="PaperVN 검색 화면"></a>
+  <a href="../images/screenshots/library.png"><img src="../images/screenshots/library.png" width="23%" alt="PaperVN 보관함 화면"></a>
+  <a href="../images/screenshots/visual-novel-details.png"><img src="../images/screenshots/visual-novel-details.png" width="23%" alt="PaperVN 비주얼 노벨 상세 화면"></a>
 </p>
 
 <p align="center"><sub>Today · 검색 · 보관함 · 비주얼 노벨 상세</sub></p>
@@ -58,14 +58,14 @@ iOS 26 이상이 설치된 iPhone 또는 iPadOS 26 이상이 설치된 iPad가 �
 
 ## 라이선스 및 면책 조항
 
-이 프로젝트는 [CC BY-SA 4.0](LICENSE) 라이선스를 따릅니다. **PaperVN의 이름과 아이콘은 이 라이선스에 포함되지 않습니다**. 서드파티 코드, 이미지, 데이터에는 각각의 조건이 적용됩니다. 자세한 내용은 [NOTICE.md](NOTICE.md)를 참고하세요.
+이 프로젝트는 [CC BY-SA 4.0](../../LICENSE) 라이선스를 따릅니다. **PaperVN의 이름과 아이콘은 이 라이선스에 포함되지 않습니다**. 서드파티 코드, 이미지, 데이터에는 각각의 조건이 적용됩니다. 자세한 내용은 [NOTICE.md](../../NOTICE.md)를 참고하세요.
 
 PaperVN은 비공식 서드파티 앱이며 VNDB, Bangumi, Steam, KunGalgame과 제휴하거나 이들의 승인을 받지 않았습니다.
 
 ## 후원
 
 <p align="center">
-  <img src="./docs/images/donate/wechat-pay.jpg" height="220" alt="WeChat Pay">
+  <img src="../images/donate/wechat-pay.jpg" height="220" alt="WeChat Pay">
   &nbsp;&nbsp;
-  <img src="./docs/images/donate/alipay.jpg" height="220" alt="Alipay">
+  <img src="../images/donate/alipay.jpg" height="220" alt="Alipay">
 </p>

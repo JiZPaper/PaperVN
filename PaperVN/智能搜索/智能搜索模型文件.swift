@@ -106,9 +106,9 @@ nonisolated enum 智能搜索模型错误: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .文件无效, .缺少数据:
-            return String(localized: "Hiro智能模型文件已损坏，请重新下载。")
+            return String(localized: "智能搜索模型文件已损坏，请重新下载。")
         case .服务器响应无效:
-            return String(localized: "无法从服务器下载Hiro智能模型。")
+            return String(localized: "无法从服务器下载智能搜索模型。")
         }
     }
 }
@@ -140,7 +140,7 @@ nonisolated final class 只读映射文件: @unchecked Sendable {
 }
 
 
-/// Hiro智能的模型文件：
+/// 智能搜索模型的文件：
 /// "PVSS" | 格式版本 UInt32 | 头长度 UInt32 | 头 JSON | 各段数据（16 字节对齐，小端序）。
 nonisolated struct 智能搜索模型文件: @unchecked Sendable {
     /// 2：纯名称模糊匹配（名称索引 + 排序器），不再包含查询编码器。

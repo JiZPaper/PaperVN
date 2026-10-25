@@ -1,9 +1,9 @@
 <p align="center">
   <strong>English</strong> ·
-  <a href="./README.zh-Hans.md">简体中文</a> ·
-  <a href="./README.zh-Hant.md">繁體中文</a> ·
-  <a href="./README.ja.md">日本語</a> ·
-  <a href="./README.ko.md">한국어</a>
+  <a href="./docs/README/README.zh-Hans.md">简体中文</a> ·
+  <a href="./docs/README/README.zh-Hant.md">繁體中文</a> ·
+  <a href="./docs/README/README.ja.md">日本語</a> ·
+  <a href="./docs/README/README.ko.md">한국어</a>
 </p>
 
 <table>

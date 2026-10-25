@@ -6,6 +6,8 @@ private struct 资料库编辑草稿: Equatable {
     var releaseID: String?
     var started: Date?
     var finished: Date?
+    /// VNDB标签（不含状态与“已投票”）。
+    var tagIDs: Set<Int>
 }
 
 struct 资料库编辑页面: View {
@@ -66,7 +68,8 @@ struct 资料库编辑页面: View {
             rating: (currentItem?.vote ?? 0) / 10,
             releaseID: currentItem?.releases?.first?.id ?? initialReleaseID,
             started: Self.date(from: currentItem?.started),
-            finished: Self.date(from: currentItem?.finished)
+            finished: Self.date(from: currentItem?.finished),
+            tagIDs: currentItem?.标签ID ?? []
         )
         _draft = State(initialValue: initial)
         _originalDraft = State(initialValue: initial)
@@ -98,6 +101,7 @@ struct 资料库编辑页面: View {
 
                 if mode == .full {
                     datesSection
+                    tagsSection
                 }
             }
             .onChange(of: draft.status) { _, status in
@@ -134,7 +138,7 @@ struct 资料库编辑页面: View {
                             dismiss()
                         }
                     } message: {
-                        Text("尚未存储的状态、评分或日期将会丢失。")
+                        Text("尚未存储的状态、评分、日期或标签将会丢失。")
                     }
                 }
 
@@ -432,6 +436,36 @@ struct 资料库编辑页面: View {
         }
     }
 
+    private var tagsSection: some View {
+        Section {
+            NavigationLink {
+                资料库标签选择页面(
+                    selection: $draft.tagIDs,
+                    currentLabels: currentItem?.labels ?? []
+                )
+            } label: {
+                LabeledContent {
+                    Text(verbatim: selectedTagNames)
+                        .lineLimit(1)
+                } label: {
+                    Label(String(localized: "资料库标签", defaultValue: "标签", comment: "VNDB用户列表的标签（labels），不是作品的内容标签（tags）"), systemImage: "tag")
+                }
+            }
+        }
+    }
+
+    private var selectedTagNames: String {
+        guard !draft.tagIDs.isEmpty else { return String(localized: "无") }
+        let known = Dictionary(
+            (PaperVNSync中心.shared.VNDB标签.map { ($0.id, $0.显示名称) })
+                + (currentItem?.labels ?? []).map { ($0.id, $0.显示名称) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        return ListFormatter.localizedString(
+            byJoining: draft.tagIDs.sorted().compactMap { known[$0] }
+        )
+    }
+
     private func optionalDateRow(
         title: LocalizedStringKey,
         systemImage: String,
@@ -618,7 +652,9 @@ struct 资料库编辑页面: View {
                     updateStarted: draft.started != originalDraft.started,
                     finished: Self.string(from: draft.finished),
                     updateFinished: draft.finished != originalDraft.finished,
-                    existingLabels: currentItem?.labels ?? []
+                    existingLabels: currentItem?.labels ?? [],
+                    addedTagIDs: draft.tagIDs.subtracting(originalDraft.tagIDs),
+                    removedTagIDs: originalDraft.tagIDs.subtracting(draft.tagIDs)
                 )
 
                 if draft.releaseID != originalDraft.releaseID {
@@ -684,4 +720,100 @@ struct 资料库编辑页面: View {
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter
     }()
+}
+
+/// 选择作品的VNDB标签。标签只能在VNDB网站上新建、重命名或删除，这里只列出已有的标签。
+private struct 资料库标签选择页面: View {
+    @Binding var selection: Set<Int>
+    /// 作品现有的标签：账户的标签还没读到时也能显示它们。
+    let currentLabels: [用户列表项目.用户列表标签]
+
+    @EnvironmentObject private var auth: 用户登录
+    @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var labels = PaperVNSync中心.shared.VNDB标签
+    @State private var searchText = ""
+
+    private var options: [用户列表标签信息] {
+        var result = labels
+        let known = Set(labels.map(\.id))
+        result += currentLabels
+            .filter { $0.可作为标签 && !known.contains($0.id) }
+            .map { 用户列表标签信息(id: $0.id, label: $0.label, private: false) }
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return result }
+        return result.filter { $0.显示名称.localizedCaseInsensitiveContains(query) }
+    }
+
+    var body: some View {
+        List {
+            Section {
+                ForEach(options) { tag in
+                    Button {
+                        if selection.contains(tag.id) {
+                            selection.remove(tag.id)
+                        } else {
+                            selection.insert(tag.id)
+                        }
+                    } label: {
+                        HStack {
+                            Text(verbatim: tag.显示名称)
+                                .foregroundStyle(.primary)
+                            if tag.private {
+                                Image(systemName: "lock")
+                                    .foregroundStyle(.secondary)
+                                    .accessibilityLabel("私有")
+                            }
+                            Spacer()
+                            if selection.contains(tag.id) {
+                                Image(systemName: "checkmark")
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(.tint)
+                            }
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    // 默认样式会把标签名称也染成强调色
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(selection.contains(tag.id) ? .isSelected : [])
+                }
+            } footer: {
+                Text("标签只能在VNDB上新建、重命名或删除。")
+            }
+
+            Section {
+                Button("在VNDB上管理标签") {
+                    if let url = URL(string: "https://vndb.org/\(auth.userID)/ulist") {
+                        openURL(url)
+                    }
+                }
+            }
+        }
+        .overlay {
+            if options.isEmpty {
+                if searchText.isEmpty {
+                    平台内容不可用视图(
+                        "没有标签",
+                        systemImage: "tag",
+                        description: Text("在VNDB上新建标签后，即可在此选择。")
+                    )
+                } else {
+                    平台内容不可用视图.search(text: searchText)
+                }
+            }
+        }
+        .searchable(text: $searchText, prompt: Text("搜索标签"))
+        .navigationTitle(String(localized: "资料库标签", defaultValue: "标签", comment: "VNDB用户列表的标签（labels），不是作品的内容标签（tags）"))
+        .平台内联导航标题()
+        .onReceive(PaperVNSync中心.shared.$VNDB标签) { labels = $0 }
+        .task { await 刷新标签() }
+        // 从VNDB网站回来时，读取新建或改名后的标签
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await 刷新标签() } }
+        }
+    }
+
+    private func 刷新标签() async {
+        await PaperVNSync中心.shared.读取VNDB标签(token: auth.token, userID: auth.userID)
+    }
 }

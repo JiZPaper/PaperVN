@@ -74,7 +74,7 @@ nonisolated enum 综合搜索合并 {
         var VNDB角色顺序: [String] = []
         var VNDB制作人员顺序: [String] = []
         var VNDB会社顺序: [String] = []
-        /// 动画、漫画与轻小说（Hiro智能找到的和各平台搜到的）
+        /// 动画、漫画与轻小说（智能搜索模型找到的和各平台搜到的）
         var 动画漫画: [String: 作品搜索结果] = [:]
         /// 各平台按关键词搜到的动画、漫画与轻小说的顺序
         var 在线作品顺序: [String] = []
@@ -104,13 +104,15 @@ nonisolated enum 综合搜索合并 {
                 case .角色 where 输入.角色[命中.编号] != nil: 加入(.角色, 命中.编号)
                 case .制作人员 where 输入.制作人员[命中.编号] != nil: 加入(.制作人员, 命中.编号)
                 case .会社 where 输入.会社[命中.编号] != nil: 加入(.会社, 命中.编号)
-                case .动画, .漫画, .轻小说 where 输入.动画漫画[命中.编号] != nil: 加入(.动画漫画, 命中.编号)
+                case .动画 where 输入.动画漫画[命中.编号] != nil,
+                     .漫画 where 输入.动画漫画[命中.编号] != nil,
+                     .轻小说 where 输入.动画漫画[命中.编号] != nil: 加入(.动画漫画, 命中.编号)
                 default: break
                 }
             }
         }
         if 输入.按相关程度 {
-            // Hiro智能没找到的：VNDB 搜到的视觉小说和各平台搜到的动画、漫画、轻小说交替排列，不分类别
+            //智能搜索模型没找到的：VNDB 搜到的视觉小说和各平台搜到的动画、漫画、轻小说交替排列，不分类别
             let 在线 = 输入.在线作品顺序.filter { 输入.动画漫画[$0] != nil }
             for i in 0..<max(输入.VNDB作品顺序.count, 在线.count) {
                 if i < 输入.VNDB作品顺序.count { 加入(.作品, 输入.VNDB作品顺序[i]) }
@@ -259,7 +261,7 @@ nonisolated extension 综合搜索合并 {
         }
     }
 
-    /// 和Hiro智能相同的规范化（不含变音映射）：小写、片假名转平假名、只留字母和数字。
+    /// 和智能搜索模型相同的规范化（不含变音映射）：小写、片假名转平假名、只留字母和数字。
     private static func 名称键(_ 文本: String) -> String {
         var 结果 = String.UnicodeScalarView()
         结果.append(contentsOf: 智能搜索名称索引.规范化(文本, 变音映射: [:]))
@@ -292,9 +294,9 @@ final class 智能搜索视图模型: ObservableObject {
     @Published private(set) var 正在补充所属作品 = false
     /// 已经请求过的角色所属作品（被筛选掉的作品不会返回，不能靠结果判断是否请求过）
     @Published private(set) var 已请求所属作品 = Set<String>()
-    /// 动画、漫画与轻小说：Hiro智能找到的和各平台搜到的，编号是“a”“m”“n”加 MAL ID。
+    /// 动画、漫画与轻小说：智能搜索模型找到的和各平台搜到的，编号是“a”“m”“n”加 MAL ID。
     @Published private(set) var 动画漫画: [String: 作品搜索结果] = [:]
-    /// 各平台按关键词搜到的动画、漫画与轻小说，按相关程度排好（Hiro智能没找到的接在后面）。
+    /// 各平台按关键词搜到的动画、漫画与轻小说，按相关程度排好（智能搜索模型没找到的接在后面）。
     @Published private(set) var 在线作品顺序: [String] = []
     /// 各平台的搜索还没回来。
     @Published private(set) var 正在搜索作品 = false
@@ -359,7 +361,7 @@ final class 智能搜索视图模型: ObservableObject {
                 self.角色 = 详情.角色
                 self.制作人员 = 详情.制作人员
                 self.会社 = 详情.会社
-                // Hiro智能读到的标题更完整（AniList 的各语言标题），覆盖各平台搜索结果里的
+                //智能搜索模型读到的标题更完整（AniList 的各语言标题），覆盖各平台搜索结果里的
                 self.动画漫画.merge(动画漫画详情) { _, 新 in 新 }
                 self.结果集 = 结果
                 self.正在搜索 = false
@@ -381,7 +383,7 @@ final class 智能搜索视图模型: ObservableObject {
         }
     }
 
-    /// 在各平台上搜索动画、漫画与轻小说。和 Hiro智能无关：没有模型或关闭 Hiro智能时也会搜索。
+    /// 在各平台上搜索动画、漫画与轻小说。和智能搜索模型无关：没有模型或关闭智能搜索时也会搜索。
     private func 更新在线作品(_ 查询: String) {
         guard Self.值得搜索(查询) else {
             作品任务?.cancel()

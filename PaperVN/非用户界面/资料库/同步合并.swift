@@ -491,6 +491,28 @@ enum 同步合并 {
         同步快照(状态: entry.状态 ?? .planning, 评分: entry.评分, 进度: entry.进度)
     }
 
+    /// 平台上的条目还在，只是这次归到了另一部作品（映射、校准表更新后改了编号，或成了附属条目）：
+    /// 原来编号下的基线去掉，不当成“在平台上删除”。资料库条目记着它在该平台上的 ID，按这个 ID 认。
+    /// 返回去掉的“平台|编号”，方便检查。
+    @discardableResult
+    static func 去掉仍在平台上的基线(
+        _ bases: inout [资料库平台: 平台基线],
+        平台 libraries: [资料库平台: 平台资料库],
+        本地 local: [String: 本地资料库条目]
+    ) -> [String] {
+        var removed: [String] = []
+        for (platform, library) in libraries {
+            guard let base = bases[platform], base.账户ID == library.账户ID else { continue }
+            let ids = Set((Array(library.记录.values) + library.附属记录).map(\.平台ID))
+            for key in base.快照.keys where library.记录[key] == nil {
+                guard let id = local[key]?.平台ID[platform], ids.contains(id) else { continue }
+                bases[platform]?.快照[key] = nil
+                removed.append("\(platform.rawValue)|\(key)")
+            }
+        }
+        return removed.sorted()
+    }
+
     // MARK: 第一步：检查资料库是否异常减少
 
     static func 检查减少(_ session: inout 同步会话) {
@@ -878,10 +900,12 @@ enum 同步合并 {
                     entry.平台ID[platform] = record.平台ID
                 }
             }
-            let titles = 多语言标题(key: key, session: session)
+            // 有平台这次读取失败时，少了它的标题，主标题会换成别的平台的写法：资料库里已有的作品保留原来的标题
+            let keepsTitles = !session.读取失败.isEmpty && session.本地[key] != nil
+            let titles = keepsTitles ? [] : 多语言标题(key: key, session: session)
             if !titles.isEmpty { entry.多语言标题 = titles }
             if let best = 最佳记录(key: key, session: session) {
-                entry.标题 = best.标题
+                if !keepsTitles { entry.标题 = best.标题 }
                 entry.封面地址 = best.封面地址 ?? entry.封面地址
                 entry.总数 = best.总数 ?? entry.总数
                 entry.平均评分 = best.平均评分 ?? entry.平均评分

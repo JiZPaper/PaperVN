@@ -2434,7 +2434,10 @@ enum 简介翻译语言: String, CaseIterable, Identifiable {
             for tag: 视觉小说标签,
             target: 简介翻译语言
         ) -> String? {
-            let key = tag.name == "Type" ? "Type_tag" : tag.name
+            //避开 String Catalog 对保留键 "Type" 的自动重命名，以及源文本含百分号时的格式警告；须与 Tools/获取VNDB标签.py 一致
+            let key = tag.name == "Type" || tag.name.contains("%")
+                ? tag.name.replacingOccurrences(of: "%", with: " percent") + "_tag"
+                : tag.name
 
             if let value = 人工译文表(target: target)[key]?
                 .trimmingCharacters(in: .whitespacesAndNewlines),

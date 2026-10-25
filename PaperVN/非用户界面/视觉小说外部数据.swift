@@ -2,6 +2,7 @@ import Combine
 import Foundation
 import SwiftUI
 
+/// 旧版视觉小说评分设置，只用于迁移到 `评分设置`。
 enum 评分数据来源: String, CaseIterable, Identifiable {
     static let 设置键 = "visualNovelRatingSource"
 
@@ -320,16 +321,18 @@ final class 视觉小说外部数据服务: ObservableObject {
     }
 
     func rating(vndbID: String, vndbRating: Double?, vndbVoteCount: Int?, forceRefresh: Bool = false) async -> 统一视觉小说评分? {
-        let vndbValue = vndbRating.map { 统一视觉小说评分(score: $0 / 10, voteCount: vndbVoteCount) }
-        switch 评分数据来源.current {
-        case .vndb: return vndbValue
-        case .bangumi: return await bangumiRating(vndbID: vndbID, forceRefresh: forceRefresh)
-        case .combined:
-            let bangumiValue = await bangumiRating(vndbID: vndbID, forceRefresh: forceRefresh)
-            guard let vndbValue else { return bangumiValue }
-            guard let bangumiValue else { return vndbValue }
-            let weight = min(max(UserDefaults.standard.object(forKey: "combinedRatingVNDBWeight") as? Double ?? 0.5, 0.1), 0.9)
-            return 统一视觉小说评分(score: vndbValue.score * weight + bangumiValue.score * (1 - weight), voteCount: (vndbValue.voteCount ?? 0) + (bangumiValue.voteCount ?? 0))
+        // 按“评分”设置里视觉小说选中的平台合成
+        let sources = 评分设置.已选平台(.visualNovel)
+        var ratings: [(平台: 评分平台, 分数: Double, 人数: Int?)] = []
+        if sources.contains(.vndb), let vndbRating {
+            ratings.append((.vndb, vndbRating / 10, vndbVoteCount))
+        }
+        if sources.contains(.bangumi),
+           let bangumiValue = await bangumiRating(vndbID: vndbID, forceRefresh: forceRefresh) {
+            ratings.append((.bangumi, bangumiValue.score, bangumiValue.voteCount))
+        }
+        return 评分设置.合成(ratings, type: .visualNovel).map {
+            统一视觉小说评分(score: $0.分数, voteCount: $0.人数)
         }
     }
 
@@ -853,10 +856,10 @@ struct 视觉小说统一评分标签: View {
     let vndbVoteCount: Int?
     var includesVoteCount = false
 
-    @AppStorage(评分数据来源.设置键)
-    private var ratingSource = 评分数据来源.combined.rawValue
-    @AppStorage("combinedRatingVNDBWeight")
-    private var vndbWeight = 0.5
+    @AppStorage(评分设置.来源键(.visualNovel))
+    private var ratingSources = ""
+    @AppStorage(评分设置.方式键(.visualNovel))
+    private var ratingMethod = 评分计算方式.weighted.rawValue
     @State private var rating: 统一视觉小说评分?
 
     init(
@@ -869,7 +872,7 @@ struct 视觉小说统一评分标签: View {
         self.vndbRating = vndbRating
         self.vndbVoteCount = vndbVoteCount
         self.includesVoteCount = includesVoteCount
-        let initial = 评分数据来源.current == .bangumi ? nil : vndbRating.map {
+        let initial = 评分设置.已选平台(.visualNovel) != [.vndb] ? nil : vndbRating.map {
             统一视觉小说评分(score: $0 / 10, voteCount: vndbVoteCount)
         }
         _rating = State(initialValue: initial)
@@ -886,7 +889,7 @@ struct 视觉小说统一评分标签: View {
         }
         .font(.caption2)
         .foregroundStyle(.secondary)
-        .task(id: "\(vndbID)|\(ratingSource)|\(vndbWeight)") {
+        .task(id: "\(vndbID)|\(ratingSources)|\(ratingMethod)") {
             rating = await 视觉小说外部数据服务.shared.rating(
                 vndbID: vndbID,
                 vndbRating: vndbRating,

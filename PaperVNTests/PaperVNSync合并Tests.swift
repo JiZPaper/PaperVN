@@ -772,4 +772,40 @@ struct PaperVNSync合并Tests {
             基线: 同步快照(状态: .completed, 评分: nil, 进度: 1), 其他记录: [mal]
         ) == nil)
     }
+
+    // MARK: 条目改归另一部作品
+
+    /// 校准表把 MAL 上单独的 OVA 列为 TV 版的附属后，MAL 记录换了编号：不能当成“在 MAL 上删除”。
+    @Test
+    func 平台条目改归其他作品时不算删除() {
+        let ova = 记录(.myAnimeList, mal: 24991, .completed, score: 70, progress: 6)
+        let tv = 记录(.myAnimeList, mal: 19815, .completed, progress: 12)
+        let local = 本地(from: [ova, tv])
+        var moved = ova
+        moved.指定键 = 键(19815)
+        moved.附属 = true
+        let mal = 资料库(.myAnimeList, [tv, moved])
+        var bases: [资料库平台: 平台基线] = [.myAnimeList: 平台基线(账户ID: "1", 账户名称: "user", 快照: [键(24991): ova.快照, 键(19815): tv.快照])]
+        #expect(mal.记录[键(24991)] == nil)
+        #expect(同步合并.去掉仍在平台上的基线(&bases, 平台: [.myAnimeList: mal], 本地: local) == ["myAnimeList|\(键(24991))"])
+
+        var session = 同步会话(本地: local, 平台: [.myAnimeList: mal], 基线: bases, 待推送: [:])
+        同步合并.合并(&session)
+        #expect(session.冲突.isEmpty)
+        #expect(session.结果[键(24991)] != .删除)
+    }
+
+    @Test
+    func 平台上真的删除时仍然询问() {
+        let ova = 记录(.myAnimeList, mal: 24991, .completed, score: 70, progress: 6)
+        let tv = 记录(.myAnimeList, mal: 19815, .completed, progress: 12)
+        let local = 本地(from: [ova, tv])
+        let mal = 资料库(.myAnimeList, [tv])
+        var bases: [资料库平台: 平台基线] = [.myAnimeList: 平台基线(账户ID: "1", 账户名称: "user", 快照: [键(24991): ova.快照, 键(19815): tv.快照])]
+        #expect(同步合并.去掉仍在平台上的基线(&bases, 平台: [.myAnimeList: mal], 本地: local).isEmpty)
+
+        var session = 同步会话(本地: local, 平台: [.myAnimeList: mal], 基线: bases, 待推送: [:])
+        同步合并.合并(&session)
+        #expect(session.冲突.map(\.键) == [键(24991)])
+    }
 }

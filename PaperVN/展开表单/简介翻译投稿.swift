@@ -636,7 +636,7 @@ struct 简介翻译投稿页面: View {
         } footer: {
             switch existing.status {
             case .pending:
-                Text("更改后将重新提交以供审核。")
+                Text("你的更改将重新提交以供审核。")
             case .rejected:
                 Text("更改后可重新提交以供审核。")
             case .accepted:

@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="./README.md">English</a> ·
+  <a href="../../README.md">English</a> ·
   <a href="./README.zh-Hans.md">简体中文</a> ·
   <a href="./README.zh-Hant.md">繁體中文</a> ·
   <strong>日本語</strong> ·
@@ -8,7 +8,7 @@
 
 <table>
   <tr>
-    <td><img src="./docs/images/app-icon.png" width="96" alt="PaperVNのアプリアイコン"></td>
+    <td><img src="../images/app-icon.png" width="96" alt="PaperVNのアプリアイコン"></td>
     <td width="32"></td>
     <td align="left">
       <h1>PaperVN</h1>
@@ -22,10 +22,10 @@ PaperVNはAppleデバイス向けに設計されたビジュアルノベル支�
 ## プレビュー
 
 <p align="center">
-  <a href="./docs/images/screenshots/explore.png"><img src="./docs/images/screenshots/explore.png" width="23%" alt="PaperVNのToday画面"></a>
-  <a href="./docs/images/screenshots/search.png"><img src="./docs/images/screenshots/search.png" width="23%" alt="PaperVNの検索画面"></a>
-  <a href="./docs/images/screenshots/library.png"><img src="./docs/images/screenshots/library.png" width="23%" alt="PaperVNのライブラリ画面"></a>
-  <a href="./docs/images/screenshots/visual-novel-details.png"><img src="./docs/images/screenshots/visual-novel-details.png" width="23%" alt="PaperVNのビジュアルノベル詳細画面"></a>
+  <a href="../images/screenshots/explore.png"><img src="../images/screenshots/explore.png" width="23%" alt="PaperVNのToday画面"></a>
+  <a href="../images/screenshots/search.png"><img src="../images/screenshots/search.png" width="23%" alt="PaperVNの検索画面"></a>
+  <a href="../images/screenshots/library.png"><img src="../images/screenshots/library.png" width="23%" alt="PaperVNのライブラリ画面"></a>
+  <a href="../images/screenshots/visual-novel-details.png"><img src="../images/screenshots/visual-novel-details.png" width="23%" alt="PaperVNのビジュアルノベル詳細画面"></a>
 </p>
 
 <p align="center"><sub>Today・検索・ライブラリ・ビジュアルノベル詳細</sub></p>
@@ -58,14 +58,14 @@ iOS 26以降を搭載したiPhone、またはiPadOS 26以降を搭載したiPad�
 
 ## ライセンスと免責事項
 
-本プロジェクトは[CC BY-SA 4.0](LICENSE)のもとで提供されています。**PaperVNの名称とアイコンは、このライセンスの対象外です**。サードパーティのコード、画像、データにはそれぞれの条件が適用されます。詳しくは[NOTICE.md](NOTICE.md)をご覧ください。
+本プロジェクトは[CC BY-SA 4.0](../../LICENSE)のもとで提供されています。**PaperVNの名称とアイコンは、このライセンスの対象外です**。サードパーティのコード、画像、データにはそれぞれの条件が適用されます。詳しくは[NOTICE.md](../../NOTICE.md)をご覧ください。
 
 PaperVNは非公式のサードパーティ製アプリです。VNDB、Bangumi番組計画、Steam、KunGalgameとは提携しておらず、これらから承認を受けたものでもありません。
 
 ## 寄付
 
 <p align="center">
-  <img src="./docs/images/donate/wechat-pay.jpg" height="220" alt="WeChat Pay">
+  <img src="../images/donate/wechat-pay.jpg" height="220" alt="WeChat Pay">
   &nbsp;&nbsp;
-  <img src="./docs/images/donate/alipay.jpg" height="220" alt="Alipay">
+  <img src="../images/donate/alipay.jpg" height="220" alt="Alipay">
 </p>

@@ -202,7 +202,6 @@ class 用户登录: ObservableObject {
     func logout() {
         authenticationGeneration += 1
         credentialStoreUnavailable = false
-        推荐后台分析中心.shared.停止分析()
         clearSession()
         errorMessage = nil
     }
@@ -447,15 +446,15 @@ struct 用户页面: View {
             }
 
             NavigationLink {
-                作品类型设置(
+                Paper智能设置(
                     isPresented: $isPresented,
                     showsDismissButton: true
                 )
             } label: {
                 设置项目标签(
-                    "作品类型",
-                    systemImage: "square.stack.fill",
-                    color: .indigo
+                    "Paper智能与Hiro API",
+                    systemImage: 设置图标.Paper智能,
+                    color: .purple
                 )
             }
 
@@ -501,35 +500,33 @@ struct 用户页面: View {
                 )
             }
 
-            if #available(iOS 27.0, *),
-               UIDevice.current.userInterfaceIdiom != .pad {
-                NavigationLink {
-                    搜索设置(
-                        isPresented: $isPresented,
-                        showsDismissButton: true
-                    )
-                } label: {
-                    设置项目标签(
-                        "搜索",
-                        systemImage: "magnifyingglass",
-                        color: .gray
-                    )
-                }
+            NavigationLink {
+                搜索设置(
+                    isPresented: $isPresented,
+                    showsDismissButton: true
+                )
+            } label: {
+                设置项目标签(
+                    "搜索",
+                    systemImage: "magnifyingglass",
+                    color: .gray
+                )
             }
         }
     }
 
+    /// PaperVN Premium 已停止销售，换成 PaperVN Senkou；买过 Premium 的用户在这里看到已终身解锁。
     private var supportSection: some View {
         Section {
             NavigationLink {
-                PaperVNPremiumView()
+                PaperVNSenkou设置页面()
                     .账户与设置关闭按钮(
                         isVisible: !isEmbedded,
                         action: dismissPage
                     )
             } label: {
                 设置项目标签(
-                    "资助开发者换台电脑",
+                    "PaperVN Senkou",
                     systemImage: "heart.fill",
                     color: .pink
                 )
@@ -1617,7 +1614,7 @@ struct 关于页面: View {
     private static let termsOfServiceURL = URL(
         string: "https://papervn.jizpaper.com/TermsOfService.html"
     )!
-    private static let discordURL = URL(string: "https://discord.gg/h2szTmfWS")!
+    private static let discordURL = URL(string: "https://discord.gg/GkFWCsFq36")!
     static let telegramURL = URL(string: "https://t.me/papervn_app")!
     static let qqGroupURL = URL(
         string: "https://qun.qq.com/universal-share/share?ac=1"

@@ -362,6 +362,11 @@ extension ToolbarItemPlacement {
         }
         return .topBarTrailing
     }
+
+    /// 右上角已有操作时，关闭按钮放在左上角（没有固定版本，前导位置本就紧随导航控件）。
+    static var 平台前导关闭操作: ToolbarItemPlacement {
+        .topBarLeading
+    }
 }
 
 nonisolated enum 平台工具栏优先级 {
@@ -467,6 +472,14 @@ extension View {
         self
             .presentationDetents([.fraction(0.98)])
             .presentationDragIndicator(dragIndicator)
+            .缩放弹窗上滑不关闭()
+    }
+
+    /// iOS 26：缩放转场的弹窗不是 .large 高度时，系统“轻扫内容关闭”手势会抢走
+    /// 内容顶部的上滑，往上翻内容时弹窗直接关闭。让该手势在上滑时失败，交回给滚动视图；
+    /// 下拉关闭、缩放动画都不受影响。没有缩放转场的弹窗找不到该手势，不做任何事。
+    func 缩放弹窗上滑不关闭() -> some View {
+        background(缩放弹窗上滑保护())
     }
 
     /// 挂在弹窗内的滚动视图上：只有从顶部开始的下拉才会关闭弹窗，
@@ -700,25 +713,116 @@ extension View {
 }
 
 private struct 仅顶部可下拉关闭修饰器: ViewModifier {
-    @State private var 在顶部 = true
-    /// 本次滑动开始时是否在顶部；滑动停止后复位
-    @State private var 起始在顶部 = true
+    /// 离开顶部后禁止下拉关闭，回到顶部并停留一会儿才恢复。
+    /// 不能看滚动阶段：一路下拉滑回顶部时，手势会交给弹窗，
+    /// 滚动阶段随即变成 idle，但手指还按着，这时恢复就会直接关闭。
+    @State private var 允许关闭 = true
+    @State private var 恢复任务: Task<Void, Never>?
+
+    private static let 顶部停留时间: Duration = .milliseconds(500)
 
     func body(content: Content) -> some View {
         content
             .onScrollGeometryChange(for: Bool.self) { geometry in
                 geometry.contentOffset.y + geometry.contentInsets.top <= 1
             } action: { _, isAtTop in
-                在顶部 = isAtTop
-            }
-            .onScrollPhaseChange { oldPhase, newPhase in
-                if newPhase == .interacting, oldPhase != .interacting {
-                    起始在顶部 = 在顶部
-                } else if newPhase == .idle {
-                    起始在顶部 = true
+                恢复任务?.cancel()
+                if !isAtTop {
+                    允许关闭 = false
+                } else if !允许关闭 {
+                    恢复任务 = Task {
+                        try? await Task.sleep(for: Self.顶部停留时间)
+                        guard !Task.isCancelled else { return }
+                        允许关闭 = true
+                    }
                 }
             }
-            .interactiveDismissDisabled(!(在顶部 && 起始在顶部))
+            .onDisappear { 恢复任务?.cancel() }
+            .interactiveDismissDisabled(!允许关闭)
+    }
+}
+
+private struct 缩放弹窗上滑保护: UIViewRepresentable {
+    func makeUIView(context: Context) -> 保护视图 { 保护视图() }
+    func updateUIView(_ uiView: 保护视图, context: Context) {}
+
+    final class 保护视图: UIView {
+        /// 只在上滑时识别；系统关闭手势要等它失败才能开始
+        private let 上滑手势 = UIPanGestureRecognizer()
+        private let 上滑判断 = 上滑手势代理()
+        private var 剩余尝试次数 = 0
+
+        override init(frame: CGRect) {
+            super.init(frame: frame)
+            isUserInteractionEnabled = false
+            上滑手势.cancelsTouchesInView = false
+            上滑手势.delaysTouchesBegan = false
+            上滑手势.delaysTouchesEnded = false
+            上滑手势.delegate = 上滑判断
+        }
+
+        required init?(coder: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            guard window != nil, 上滑手势.view == nil else { return }
+            // 关闭手势在弹出动画结束后才挂上
+            剩余尝试次数 = 20
+            尝试安装()
+        }
+
+        private func 尝试安装() {
+            guard 上滑手势.view == nil, window != nil, 剩余尝试次数 > 0 else { return }
+            剩余尝试次数 -= 1
+            var 祖先: [UIView] = []
+            var view = superview
+            while let current = view {
+                祖先.append(current)
+                view = current.superview
+            }
+            // 只处理缩放转场的弹窗：找到“轻扫内容关闭”手势才安装
+            guard let 内容视图 = 祖先.first(where: { current in
+                current.gestureRecognizers?.contains { Self.类名($0) == "_UIContentSwipeDismissGestureRecognizer" } == true
+            }) else {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+                    self?.尝试安装()
+                }
+                return
+            }
+            内容视图.addGestureRecognizer(上滑手势)
+            // 轻扫内容关闭、弹窗自身的拖移关闭都要等上滑判断失败
+            for 手势 in 祖先.flatMap({ $0.gestureRecognizers ?? [] }) where 手势 !== 上滑手势 {
+                let 名称 = Self.类名(手势)
+                let 代理名称 = 手势.delegate.map { String(describing: type(of: $0)) } ?? ""
+                if 名称 == "_UIContentSwipeDismissGestureRecognizer"
+                    || 代理名称 == "_UISheetInteraction"
+                    || 代理名称.hasSuffix("SheetPresentationController") {
+                    手势.require(toFail: 上滑手势)
+                }
+            }
+        }
+
+        private static func 类名(_ 手势: UIGestureRecognizer) -> String {
+            String(describing: type(of: 手势))
+        }
+    }
+
+    final class 上滑手势代理: NSObject, UIGestureRecognizerDelegate {
+        func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            guard let pan = gestureRecognizer as? UIPanGestureRecognizer,
+                  let view = pan.view else { return false }
+            let velocity = pan.velocity(in: view)
+            return velocity.y < 0 && abs(velocity.y) > abs(velocity.x)
+        }
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            true
+        }
     }
 }
 

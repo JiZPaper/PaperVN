@@ -948,4 +948,35 @@ struct 搜索筛选冲突Tests {
 
     #expect(conflict?.ruleIndices == [0, 1])
   }
+
+  @Test
+  @MainActor
+  func 详情页类型与标签的筛选值() {
+    // AniList 的类型与标签原样使用
+    #expect(作品浏览筛选.筛选值(类型或标签: "Action") == "Action")
+    #expect(作品浏览筛选.筛选值(类型或标签: "Isekai") == "Isekai")
+    #expect(作品浏览筛选.筛选值(类型或标签: "Shounen") == "Shounen")
+    // MAL 的类型换成意思相同的 AniList 类型或标签
+    #expect(作品浏览筛选.筛选值(类型或标签: "Suspense") == "Thriller")
+    #expect(作品浏览筛选.筛选值(类型或标签: "Girls Love") == "Yuri")
+    #expect(作品浏览筛选.筛选值(类型或标签: "Boys Love") == "Boys' Love")
+    // 对不上的不能筛选：MAL 独有的类型、Bangumi 的用户标签
+    #expect(作品浏览筛选.筛选值(类型或标签: "Award Winning") == nil)
+    #expect(作品浏览筛选.筛选值(类型或标签: "奇幻") == nil)
+  }
+
+  @Test
+  @MainActor
+  func MAL类型对应的都是AniList能筛选的值() {
+    let names = ["Adult Cast", "Anthropomorphic", "CGDCT", "Childcare", "Gourmet", "Harem",
+                 "Idols (Female)", "Idols (Male)", "Love Polygon", "Magical Sex Shift", "Medical",
+                 "Organized Crime", "Reverse Harem", "Time Travel", "Video Game", "Workplace"]
+    for name in names {
+      let value = 作品浏览筛选.筛选值(类型或标签: name)
+      #expect(value != nil, "\(name)")
+      if let value {
+        #expect(作品浏览筛选.筛选值(类型或标签: value) == value, "\(name) → \(value)")
+      }
+    }
+  }
 }

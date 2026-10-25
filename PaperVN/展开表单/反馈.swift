@@ -687,7 +687,7 @@ struct 反馈页面: View {
                         ProgressView()
                             .controlSize(.small)
                     } else {
-                        Label("新建反馈", systemImage: "bubble.and.pencil")
+                        工具栏圆形图标标签("新建反馈", systemImage: "bubble.and.pencil")
                     }
                 }
                 .matchedTransitionSource(
@@ -1306,7 +1306,7 @@ private struct 反馈详情页面: View {
             Button("关闭反馈", action: closeFeedback)
             Button("取消", role: .cancel) {}
         } message: {
-            Text("关闭后无法重新开启，也无法再添加更多信息。")
+            Text("此反馈将无法重新打开，也无法再添加更多信息。")
         }
         .alert(item: $alert) { alert in
             Alert(

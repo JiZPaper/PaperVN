@@ -8,9 +8,6 @@ extension Notification.Name {
     static let paperVNLibraryDidChange = Notification.Name(
         "PaperVN.libraryDidChange"
     )
-    static let paperVNRecommendationsDidUpdate = Notification.Name(
-        "PaperVN.recommendationsDidUpdate"
-    )
 }
 
 @MainActor
@@ -628,9 +625,11 @@ private struct PremiumMark: View {
     }
 }
 
-private struct PaperVNPremiumSuccessView: View {
+/// 购买成功的动画页面。PaperVN Senkou 订阅成功也用它。
+struct PaperVNPremiumSuccessView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    var 徽章: LocalizedStringResource = "已购买PaperVN Premium"
     let onDone: () -> Void
 
     @State private var hasAppeared = false
@@ -671,7 +670,7 @@ private struct PaperVNPremiumSuccessView: View {
                     )
 
                 Label(
-                    "已购买PaperVN Premium",
+                    String(localized: 徽章),
                     systemImage: "checkmark.seal.fill"
                 )
                 .font(.headline)

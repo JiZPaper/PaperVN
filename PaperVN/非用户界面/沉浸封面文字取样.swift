@@ -40,6 +40,17 @@ nonisolated enum 沉浸取样校准常量 {
         case (.提亮材质, .dark): 0
         }
     }
+
+    /// 表面对背景线性亮度的放大倍数，在提亮之后计算。
+    /// 2026-10-24 用真机截图拟合（AniList 封面原图按 393pt 页面几何合成，7 处空白玻璃逐点比对）：
+    /// 浅色模式的透明玻璃会随背景变亮，线性亮度约为合成值的 1.4 倍，编码空间误差由 0.10 降到 0.02；
+    /// 向白色混合最好也只到 0.04，而且暗背景几乎不变，所以之前用暗封面拟合出的提亮是 0。
+    static func 表面增益(_ surface: 沉浸取样表面, background: 沉浸详情背景色调) -> Double {
+        switch (surface, background) {
+        case (.透明玻璃, .light): 1.4
+        default: 1
+        }
+    }
 }
 
 nonisolated struct 沉浸封面遮罩节点: Equatable, Sendable {
@@ -224,8 +235,8 @@ nonisolated struct 沉浸封面文字取样请求: Sendable, Equatable {
     }
 }
 
-nonisolated struct 沉浸详情玻璃色调: Equatable, Sendable {
-    enum 基色: Equatable, Sendable {
+nonisolated struct 沉浸详情玻璃色调: Hashable, Sendable {
+    enum 基色: Hashable, Sendable {
         case black
         case white
     }
@@ -560,6 +571,28 @@ nonisolated enum 沉浸文字配色判定 {
                 亮度统计: stats,
                 表面: surfaces[key] ?? .透明玻璃
             )
+        }
+
+        // 统一颜色的一组连同胶囊着色与阴影也一致，不让某一项单独变色。
+        for keys in unifiedSets.values {
+            let members = keys.compactMap { results[$0] }
+            guard members.count > 1 else { continue }
+            let tints = members.map(\.glassTint)
+            let sharedTint = Set(tints).count == 1
+                ? tints[0]
+                : tints.compactMap { $0 }.filter { $0.不透明度 < 1 }.max { $0.不透明度 < $1.不透明度 }
+            let needsShadow = members.contains(where: \.needsContrastShadow)
+            for key in keys {
+                guard let result = results[key] else { continue }
+                results[key] = 沉浸玻璃文字取样结果(
+                    usesDarkText: result.usesDarkText,
+                    groupUsesDarkText: result.groupUsesDarkText,
+                    needsContrastShadow: needsShadow,
+                    glassTint: canTint(key) ? sharedTint : nil,
+                    亮度统计: result.亮度统计,
+                    表面: result.表面
+                )
+            }
         }
         return results
     }
@@ -952,6 +985,7 @@ nonisolated struct 沉浸封面合成模型: Sendable {
         let rows = max(4, min(48, Int((region.height / 4).rounded(.up))))
         let lift = 沉浸取样校准常量.表面提亮(surface, background: background)
         let liftTarget = SIMD3<Float>(repeating: lift >= 0 ? 1 : 0)
+        let gain = 沉浸取样校准常量.表面增益(surface, background: background)
         // 每列的插值位置对所有行相同，先算好。
         let xs = (0..<columns).map {
             region.minX + (CGFloat($0) + 0.5) / CGFloat(columns) * region.width
@@ -977,7 +1011,7 @@ nonisolated struct 沉浸封面合成模型: Sendable {
                 if lift != 0 {
                     color += (liftTarget - color) * abs(lift)
                 }
-                luminances.append(Self.luminance(color))
+                luminances.append(min(Self.luminance(color) * gain, 1))
             }
         }
         return 沉浸取样亮度统计(luminances: luminances)
@@ -1009,7 +1043,7 @@ nonisolated enum 沉浸封面取样区域 {
         /// 相对封面图层的归一化区域，仅在页面没有上报该元素位置时使用。
         let fallback: CGRect
         var surface: 沉浸取样表面 = .透明玻璃
-        /// 同名的元素必须使用同一种颜色（例如标题下方的几项信息）。
+        /// 同名的元素必须使用同一种颜色（例如标题与下方的几项信息、全部标签）。
         var unified: String? = nil
     }
 
@@ -1021,7 +1055,7 @@ nonisolated enum 沉浸封面取样区域 {
         case .visualNovel:
             return [
                 .init(key: "metadata", group: "metadata", fallback: .init(x: 0.04, y: 0.31, width: 0.92, height: 0.25)),
-                .init(key: "metadata.title", group: "metadata", fallback: .init(x: 0.04, y: 0.31, width: 0.92, height: 0.11)),
+                .init(key: "metadata.title", group: "metadata", fallback: .init(x: 0.04, y: 0.31, width: 0.92, height: 0.11), unified: "metadata.stats"),
                 .init(key: "metadata.rating", group: "metadata", fallback: .init(x: 0.04, y: 0.42, width: 0.44, height: 0.08), unified: "metadata.stats"),
                 .init(key: "metadata.length", group: "metadata", fallback: .init(x: 0.04, y: 0.50, width: 0.44, height: 0.09), unified: "metadata.stats"),
                 .init(key: "metadata.release", group: "metadata", fallback: .init(x: 0.52, y: 0.42, width: 0.44, height: 0.08), unified: "metadata.stats"),
@@ -1029,7 +1063,15 @@ nonisolated enum 沉浸封面取样区域 {
                 .init(key: "description", group: "description", fallback: .init(x: 0.02, y: 0.51, width: 0.96, height: 0.26)),
                 .init(key: "description.text", group: "description", fallback: .init(x: 0.02, y: 0.51, width: 0.82, height: 0.26)),
                 .init(key: "tags", group: "tags", fallback: .init(x: 0, y: 0.57, width: 1, height: 0.41))
-            ] + 胶囊定义(
+            ] + (0..<max(itemCounts["profile"] ?? 0, 0)).map { index in
+                // AniList 人物的资料格，和标题、评分等一样必须同色。
+                .init(
+                    key: "metadata.profile.\(index)",
+                    group: "metadata",
+                    fallback: .init(x: CGFloat(index % 2) * 0.48 + 0.04, y: 0.42 + CGFloat(index / 2) * 0.08, width: 0.44, height: 0.08),
+                    unified: "metadata.stats"
+                )
+            } + 胶囊定义(
                 group: "tags",
                 startY: 0.57,
                 count: itemCounts["tags"] ?? 28,
@@ -1045,7 +1087,7 @@ nonisolated enum 沉浸封面取样区域 {
             ]
             return [
                 .init(key: "metadata", group: "metadata", fallback: .init(x: 0.04, y: 0.31, width: 0.92, height: 0.25)),
-                .init(key: "metadata.title", group: "metadata", fallback: .init(x: 0.04, y: 0.31, width: 0.92, height: 0.10))
+                .init(key: "metadata.title", group: "metadata", fallback: .init(x: 0.04, y: 0.31, width: 0.92, height: 0.10), unified: "metadata.stats")
             ] + metadataCells.map { name, x, y in
                 .init(key: "metadata.\(name)", group: "metadata", fallback: .init(x: x, y: y, width: 0.25, height: 0.10), unified: "metadata.stats")
             } + [
@@ -1073,7 +1115,8 @@ nonisolated enum 沉浸封面取样区域 {
                     width: 0.25,
                     height: rowHeight + 0.035
                 ),
-                surface: surface
+                surface: surface,
+                unified: "\(group).items"
             )
         }
     }

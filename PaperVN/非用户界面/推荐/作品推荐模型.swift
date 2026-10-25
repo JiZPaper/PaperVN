@@ -2,117 +2,100 @@ import Foundation
 
 /// “为你推荐”的动画、漫画与轻小说模型（`PaperVNWorkRecommendation.pvwr`，预装在 App 里）。
 ///
-/// 每部作品是一个稀疏向量（已归一化），资料库里的视觉小说也有向量，可以用来推荐其他类型。
+/// 每部作品（含视觉小说）有一个低维向量；App 按资料库解出用户的向量，和作品向量的内积就是推荐分数。
+/// 资料库里的视觉小说也会用来推荐其他类型。
 ///
 /// 文件：“PVWR”、UInt32 标识长度、标识（UTF-8）、UInt32 原文长度、raw DEFLATE 压缩的 JSON。
-/// 作品编号与 Hiro智能一致（见 `作品搜索结果.编号`），视觉小说用 VNDB ID。
+/// 作品编号与智能搜索模型一致（见 `作品搜索结果.编号`），视觉小说用 VNDB ID。
 nonisolated struct 作品推荐模型: Sendable {
     nonisolated struct 模型参数: Codable, Hashable, Sendable {
-        let personWeight: Double
-        let qualityWeight: Double
-        let popularityWeight: Double
-        /// 评分太少、算不出个人尺度时用的尺度（10–100 分制）。
-        let ratingScale: Double
-    }
-
-    /// 稀疏向量：第 i 个向量的特征是 `特征[偏移[i]..<偏移[i+1]]`，值已经 L2 归一化。
-    nonisolated struct 向量组: Sendable {
-        let 偏移: [Int32]
-        let 特征: [Int32]
-        let 值: [Float]
-
-        init(_ vectors: [[Int]]) {
-            var offsets: [Int32] = [0]
-            var features: [Int32] = []
-            var values: [Float] = []
-            offsets.reserveCapacity(vectors.count + 1)
-            features.reserveCapacity(vectors.count * 24)
-            values.reserveCapacity(vectors.count * 24)
-            for vector in vectors {
-                // [特征, 量化值, 特征, 量化值, …]；量化后不再严格归一化，载入时重新归一化
-                var squared: Float = 0
-                var index = 1
-                while index < vector.count {
-                    let value = Float(vector[index])
-                    squared += value * value
-                    index += 2
-                }
-                let length = squared > 0 ? squared.squareRoot() : 1
-                index = 0
-                while index + 1 < vector.count {
-                    features.append(Int32(vector[index]))
-                    values.append(Float(vector[index + 1]) / length)
-                    index += 2
-                }
-                offsets.append(Int32(features.count))
-            }
-            偏移 = offsets
-            特征 = features
-            值 = values
-        }
-
-        func 范围(_ index: Int) -> Range<Int> {
-            Int(偏移[index])..<Int(偏移[index + 1])
-        }
+        let factors: Int
+        let regularization: Double
+        let alpha: Double
+        /// 视觉小说的置信度强度；没有时和其他作品一样用 alpha。
+        let alphaVN: Double?
+        let ratingBoost: Double
+        let wishWeight: Double
+        /// 相似作品的权重；没有时不使用。
+        let neighborWeight: Double?
+        let relatedWeight: Double
     }
 
     let 标识: String
     let 参数: 模型参数
-    let 特征数: Int
-    let 作品键: [String]
-    let 作品下标: [String: Int]
-    let 作品系列: [Int32]
-    let 质量: [Float]
-    let 热度: [Float]
+    let 维数: Int
+    let 编号: [String]
+    let 下标: [String: Int]
+    let 系列: [Int32]
     let 成人: [Bool]
     let 可推荐: [Bool]
-    let 作品向量: 向量组
-    let 视觉小说下标: [String: Int]
-    let 视觉小说系列: [Int32]
-    let 视觉小说向量: 向量组
+    /// 条目数 × 维数，行优先。
+    let 向量: [Float]
+    /// 向量ᵀ向量（维数 × 维数），解用户向量时用。
+    let 格拉姆: [Double]
+    /// 第 i 部作品的相关作品是 `相关下标[相关偏移[i]..<相关偏移[i+1]]`，权重之和不超过 1。
+    let 相关偏移: [Int32]
+    let 相关下标: [Int32]
+    let 相关权重: [Float]
+    /// 第 i 部作品最相似的作品，格式同上。
+    let 相似偏移: [Int32]
+    let 相似下标: [Int32]
+    let 相似权重: [Float]
 }
 
-nonisolated enum 作品推荐模型错误: Error {
+nonisolated enum 作品推荐模型错误: LocalizedError {
     case 文件无效
     case 版本不受支持
+    case 服务器响应无效
+
+    var errorDescription: String? {
+        switch self {
+        case .文件无效:
+            String(localized: "“为你推荐”模型文件已损坏，请重新下载。")
+        case .版本不受支持:
+            String(localized: "此版本的PaperVN无法使用这个“为你推荐”模型，请更新App。")
+        case .服务器响应无效:
+            String(localized: "无法从服务器下载“为你推荐”模型。")
+        }
+    }
 }
 
 nonisolated extension 作品推荐模型 {
-    static let 当前格式版本 = 1
+    static let 支持的格式版本 = 2...3
     static let 资源名 = "PaperVNWorkRecommendation"
     static let 扩展名 = "pvwr"
 
     private struct 文件: Decodable {
-        struct 作品: Decodable {
-            let keys: [String]
-            let series: [Int32]
-            let quality: [Float]
-            let popularity: [Float]
-            let adult: [UInt8]
-            let recommendable: [UInt8]
-            let vectors: [[Int]]
-        }
-        struct 视觉小说: Decodable {
-            let ids: [String]
-            let series: [Int32]
-            let vectors: [[Int]]
-        }
         let formatVersion: Int
         let parameters: 模型参数
-        let featureCount: Int
-        let works: 作品
-        let visualNovels: 视觉小说
+        let keys: [String]
+        let series: [Int32]
+        let adult: [UInt8]
+        let recommendable: [UInt8]
+        let scales: [Float]
+        let factors: String
+        /// 向量ᵀ向量（维数 × 维数，行优先），由构建脚本算好；没有时载入后自己算。
+        let gram: [Double]?
+        /// 每部作品：[下标, 权重, 下标, 权重, …]
+        let related: [[Double]]
+        /// 每部作品最相似的作品，格式同 related（格式 3 起）。
+        let neighbors: [[Double]]?
     }
 
     /// 只读出标识，不解压。
     static func 标识(of url: URL) -> String? {
         guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
         defer { try? handle.close() }
-        guard let header = try? handle.read(upToCount: 8), header.count == 8,
-              header.prefix(4) == Data("PVWR".utf8) else { return nil }
+        return (try? handle.read(upToCount: 264)).flatMap(标识(头:))
+    }
+
+    /// 从文件开头（至少 8 字节加标识长度）读取模型标识，用于只下载文件开头比较版本。
+    static func 标识(头 header: Data) -> String? {
+        guard header.count >= 8, header.prefix(4) == Data("PVWR".utf8) else { return nil }
         let length = Int(读取UInt32(header, at: 4))
-        guard length > 0, length < 256, let id = try? handle.read(upToCount: length), id.count == length else { return nil }
-        return String(data: id, encoding: .utf8)
+        guard length > 0, length < 256, header.count >= 8 + length else { return nil }
+        let start = header.startIndex + 8
+        return String(data: header[start..<start + length], encoding: .utf8)
     }
 
     init(url: URL) throws {
@@ -136,32 +119,87 @@ nonisolated extension 作品推荐模型 {
             throw 作品推荐模型错误.文件无效
         }
         let file = try JSONDecoder().decode(文件.self, from: json)
-        guard file.formatVersion == Self.当前格式版本 else { throw 作品推荐模型错误.版本不受支持 }
-        let works = file.works
-        let count = works.keys.count
-        guard works.series.count == count, works.quality.count == count, works.popularity.count == count,
-              works.adult.count == count, works.recommendable.count == count, works.vectors.count == count,
-              file.visualNovels.series.count == file.visualNovels.ids.count,
-              file.visualNovels.vectors.count == file.visualNovels.ids.count else {
+        guard Self.支持的格式版本.contains(file.formatVersion) else { throw 作品推荐模型错误.版本不受支持 }
+        let count = file.keys.count
+        let k = file.parameters.factors
+        guard k > 0, file.series.count == count, file.adult.count == count, file.recommendable.count == count,
+              file.scales.count == count, file.related.count == count,
+              let bytes = Data(base64Encoded: file.factors), bytes.count == count * k else {
             throw 作品推荐模型错误.文件无效
         }
+        var vectors = [Float](repeating: 0, count: count * k)
+        bytes.withUnsafeBytes { raw in
+            let values = raw.bindMemory(to: Int8.self)
+            for i in 0..<count {
+                let scale = file.scales[i]
+                for j in 0..<k {
+                    vectors[i * k + j] = Float(values[i * k + j]) * scale
+                }
+            }
+        }
+        var gram = file.gram ?? []
+        if gram.count != k * k {
+            gram = Self.计算格拉姆(vectors, count: count, k: k)
+        }
+        let related = Self.展开(file.related, count: count)
+        let similar = Self.展开(file.neighbors ?? Array(repeating: [], count: count), count: count)
         标识 = id
         参数 = file.parameters
-        特征数 = file.featureCount
-        作品键 = works.keys
-        作品下标 = Dictionary(works.keys.enumerated().map { ($1, $0) }, uniquingKeysWith: { first, _ in first })
-        作品系列 = works.series
-        质量 = works.quality
-        热度 = works.popularity
-        成人 = works.adult.map { $0 != 0 }
-        可推荐 = works.recommendable.map { $0 != 0 }
-        作品向量 = 向量组(works.vectors)
-        视觉小说下标 = Dictionary(
-            file.visualNovels.ids.enumerated().map { ($1.lowercased(), $0) },
-            uniquingKeysWith: { first, _ in first }
-        )
-        视觉小说系列 = file.visualNovels.series
-        视觉小说向量 = 向量组(file.visualNovels.vectors)
+        维数 = k
+        编号 = file.keys
+        下标 = Dictionary(file.keys.enumerated().map { ($1.lowercased(), $0) }, uniquingKeysWith: { first, _ in first })
+        系列 = file.series
+        成人 = file.adult.map { $0 != 0 }
+        可推荐 = file.recommendable.map { $0 != 0 }
+        向量 = vectors
+        格拉姆 = gram
+        相关偏移 = related.offsets
+        相关下标 = related.indices
+        相关权重 = related.weights
+        相似偏移 = similar.offsets
+        相似下标 = similar.indices
+        相似权重 = similar.weights
+    }
+
+    /// [[下标, 权重, …]] → 偏移、下标、权重三个平铺数组。
+    private static func 展开(_ rows: [[Double]], count: Int) -> (offsets: [Int32], indices: [Int32], weights: [Float]) {
+        var offsets: [Int32] = [0]
+        var indices: [Int32] = []
+        var weights: [Float] = []
+        for row in rows {
+            var index = 0
+            while index + 1 < row.count {
+                let neighbor = Int(row[index])
+                if neighbor >= 0, neighbor < count {
+                    indices.append(Int32(neighbor))
+                    weights.append(Float(row[index + 1]))
+                }
+                index += 2
+            }
+            offsets.append(Int32(indices.count))
+        }
+        while offsets.count < count + 1 { offsets.append(Int32(indices.count)) }
+        return (offsets, indices, weights)
+    }
+
+    private static func 计算格拉姆(_ vectors: [Float], count: Int, k: Int) -> [Double] {
+        var gram = [Double](repeating: 0, count: k * k)
+        for i in 0..<count {
+            let base = i * k
+            for a in 0..<k {
+                let va = Double(vectors[base + a])
+                guard va != 0 else { continue }
+                for b in a..<k {
+                    gram[a * k + b] += va * Double(vectors[base + b])
+                }
+            }
+        }
+        for a in 0..<k {
+            for b in 0..<a {
+                gram[a * k + b] = gram[b * k + a]
+            }
+        }
+        return gram
     }
 
     private static func 读取UInt32(_ data: Data, at offset: Int) -> UInt32 {
@@ -211,25 +249,27 @@ nonisolated extension 作品推荐模型 {
         return prefixes.map { "\($0)\(number)" }
     }
 
-    /// 资料库状态在没有评分时的信号，与视觉小说推荐一致。
-    static func 状态信号(_ status: 资料库状态?) -> Double {
+    /// 资料库状态 → 模型使用的类型编号（1 计划 2 已完成 3 进行中 4 搁置 5 抛弃）。
+    static func 收藏类型(_ status: 资料库状态?) -> Int {
         switch status {
-        case .completed: 0.20
-        case .inProgress: 0.12
-        case .planning: 0.05
-        case .onHold: -0.08
-        case .dropped: -0.45
+        case .planning: 1
+        case .completed: 2
+        case .inProgress: 3
+        case .onHold: 4
+        case .dropped: 5
         case nil: 0
         }
     }
 
-    /// 评分的中心与尺度：中位数和 1.4826×MAD（至少 10）；评分少于 5 个时用 70 和模型参数里的尺度。
-    func 评分中心与尺度(_ ratings: [Int]) -> (center: Double, scale: Double) {
-        guard ratings.count >= 5 else { return (70, 参数.ratingScale) }
-        let sorted = ratings.map(Double.init).sorted()
-        let median = Self.中位数(sorted)
-        let deviations = sorted.map { abs($0 - median) }.sorted()
-        return (median, max(10, 1.4826 * deviations[deviations.count / 2]))
+    static func 状态信号(_ type: Int) -> Double {
+        switch type {
+        case 1: 0.05
+        case 2: 0.20
+        case 3: 0.12
+        case 4: -0.08
+        case 5: -0.45
+        default: 0
+        }
     }
 
     private static func 中位数(_ sorted: [Double]) -> Double {
@@ -237,79 +277,157 @@ nonisolated extension 作品推荐模型 {
         return count % 2 == 1 ? sorted[count / 2] : (sorted[count / 2 - 1] + sorted[count / 2]) / 2
     }
 
-    /// 按资料库推荐作品。
-    /// 资料库里已有的作品和它们所在的系列不推荐，每个系列最多一部。资料库没有任何可用的作品时返回空。
+    /// 每条资料库记录的偏好（1 选过 / 0 不喜欢）与置信度。
+    /// 评分按用户自己的中位数和尺度换成信号；没有评分也没有状态的记录不参与。
+    func 偏好与置信(_ items: [(评分: Int?, 类型: Int, 视觉小说: Bool)]) -> [(偏好: Double, 置信: Double)?] {
+        let ratings = items.compactMap(\.评分).map(Double.init).sorted()
+        var center = 70.0, scale = 15.0
+        if ratings.count >= 5 {
+            center = Self.中位数(ratings)
+            scale = max(10, 1.4826 * Self.中位数(ratings.map { abs($0 - center) }.sorted()))
+        }
+        return items.map { item in
+            // 有评分但没有状态时当作看过
+            let type = item.类型 == 0 && item.评分 != nil ? 2 : item.类型
+            guard type != 0 else { return nil }
+            let status = Self.状态信号(type)
+            let signal = item.评分.map { 0.9 * tanh((Double($0) - center) / scale) + 0.1 * status } ?? status
+            let disliked = type == 5 || (item.评分 != nil && signal < -0.3)
+            let typeWeight: Double = switch type {
+            case 1: 参数.wishWeight
+            case 3: 0.8
+            case 4: 0.5
+            default: 1.0
+            }
+            let strength = disliked ? 1 + abs(signal) : typeWeight * (1 + 参数.ratingBoost * max(signal, 0))
+            let alpha = item.视觉小说 ? 参数.alphaVN ?? 参数.alpha : 参数.alpha
+            return (disliked ? 0 : 1, 1 + alpha * strength)
+        }
+    }
+
+    /// 按资料库推荐作品。资料库里已有的作品和它们所在的系列不推荐，每个系列最多一部。
+    /// 资料库没有任何一部作品在模型里时返回空。
     func 推荐(
         资料库 feedback: [作品推荐反馈],
         类型 types: Set<作品类型>,
         包含成人内容: Bool,
         数量 limit: Int
     ) -> [作品推荐分数] {
-        let center = 评分中心与尺度(feedback.compactMap(\.评分))
-        var profile = [Float](repeating: 0, count: 特征数)
+        let k = 维数
+        var rows: [Int] = []
+        var raw: [(评分: Int?, 类型: Int, 视觉小说: Bool)] = []
         var librarySeries: Set<Int32> = []
-        var libraryWorks: Set<Int> = []
-        var hasEvidence = false
-
-        func add(_ vectors: 向量组, _ index: Int, weight: Float) {
-            for position in vectors.范围(index) {
-                let feature = Int(vectors.特征[position])
-                guard feature < profile.count else { continue }
-                profile[feature] += weight * vectors.值[position]
-            }
-        }
-
         for item in feedback {
-            let weight: Double
-            if let rating = item.评分 {
-                weight = 0.9 * tanh((Double(rating) - center.center) / center.scale) + 0.1 * Self.状态信号(item.状态)
-            } else {
-                weight = Self.状态信号(item.状态)
-            }
-            for id in item.候选编号 {
-                if let index = 作品下标[id] {
-                    librarySeries.insert(作品系列[index])
-                    libraryWorks.insert(index)
-                    if weight != 0 { add(作品向量, index, weight: Float(weight)); hasEvidence = true }
-                    break
-                }
-                if let index = 视觉小说下标[id] {
-                    librarySeries.insert(视觉小说系列[index])
-                    if weight != 0 { add(视觉小说向量, index, weight: Float(weight)); hasEvidence = true }
-                    break
-                }
-            }
+            guard let index = item.候选编号.lazy.compactMap({ 下标[$0.lowercased()] }).first else { continue }
+            rows.append(index)
+            raw.append((item.评分, Self.收藏类型(item.状态), 编号[index].hasPrefix("v")))
+            librarySeries.insert(系列[index])
         }
-        let length = profile.reduce(Float(0)) { $0 + $1 * $1 }.squareRoot()
-        guard hasEvidence, length > 0 else { return [] }
+        let weights = 偏好与置信(raw)
+        // A = YᵀY + Σ (c−1) y yᵀ + λI，b = Σ c·p·y
+        var A = 格拉姆
+        for i in 0..<k { A[i * k + i] += 参数.regularization }
+        var b = [Double](repeating: 0, count: k)
+        var liked = [Int: Double]()
+        var used = 0
+        for (row, weight) in zip(rows, weights) {
+            guard let weight else { continue }
+            used += 1
+            let base = row * k
+            let extra = weight.置信 - 1
+            for a in 0..<k {
+                let va = Double(向量[base + a])
+                b[a] += weight.置信 * weight.偏好 * va
+                guard va != 0 else { continue }
+                for c in a..<k {
+                    A[a * k + c] += extra * va * Double(向量[base + c])
+                }
+            }
+            liked[row, default: 0] += weight.偏好 * extra
+        }
+        guard used > 0 else { return [] }
+        for a in 0..<k {
+            for c in 0..<a { A[a * k + c] = A[c * k + a] }
+        }
+        guard let user = Self.解正定方程组(A, b, size: k) else { return [] }
+        let userVector = user.map(Float.init)
 
-        let qualityWeight = Float(参数.qualityWeight)
-        let popularityWeight = Float(参数.popularityWeight)
-        var scored: [(index: Int, type: 作品类型, score: Float)] = []
-        scored.reserveCapacity(4_096)
-        for index in 作品键.indices where 可推荐[index] {
-            guard let type = Self.类型(of: 作品键[index]), types.contains(type),
-                  包含成人内容 || !成人[index],
-                  !libraryWorks.contains(index),
-                  !librarySeries.contains(作品系列[index]) else { continue }
+        let count = 编号.count
+        var scores = [Float](repeating: 0, count: count)
+        var absoluteSum: Float = 0
+        for i in 0..<count {
             var dot: Float = 0
-            for position in 作品向量.范围(index) {
-                let feature = Int(作品向量.特征[position])
-                guard feature < profile.count else { continue }
-                dot += profile[feature] * 作品向量.值[position]
-            }
-            scored.append((index, type, dot / length + qualityWeight * 质量[index] + popularityWeight * 热度[index]))
+            let base = i * k
+            for a in 0..<k { dot += 向量[base + a] * userVector[a] }
+            scores[i] = dot
+            absoluteSum += abs(dot)
         }
-        scored.sort { $0.score != $1.score ? $0.score > $1.score : $0.index < $1.index }
+        // 相似作品与作品间社区推荐的加成，都缩放到和协同分相当的量级
+        let scale = absoluteSum / Float(count)
+        func 加成(_ weight: Double?, _ offsets: [Int32], _ indices: [Int32], _ weights: [Float]) {
+            guard let weight, weight > 0, !liked.isEmpty else { return }
+            var bonus = [Float](repeating: 0, count: count)
+            for (row, value) in liked where value > 0 {
+                for position in Int(offsets[row])..<Int(offsets[row + 1]) {
+                    bonus[Int(indices[position])] += Float(value) * weights[position]
+                }
+            }
+            guard let maximum = bonus.max(), maximum > 0 else { return }
+            let factor = Float(weight) * scale / maximum
+            for i in 0..<count where bonus[i] > 0 { scores[i] += factor * bonus[i] }
+        }
+        加成(参数.neighborWeight, 相似偏移, 相似下标, 相似权重)
+        加成(参数.relatedWeight, 相关偏移, 相关下标, 相关权重)
 
+        let libraryRows = Set(rows)
+        var candidates: [(index: Int, type: 作品类型, score: Float)] = []
+        candidates.reserveCapacity(8_192)
+        for i in 0..<count where 可推荐[i] {
+            guard let type = Self.类型(of: 编号[i]), types.contains(type),
+                  包含成人内容 || !成人[i],
+                  !libraryRows.contains(i),
+                  !librarySeries.contains(系列[i]) else { continue }
+            candidates.append((i, type, scores[i]))
+        }
+        candidates.sort { $0.score != $1.score ? $0.score > $1.score : $0.index < $1.index }
         var usedSeries: Set<Int32> = []
         var result: [作品推荐分数] = []
-        for entry in scored {
-            guard usedSeries.insert(作品系列[entry.index]).inserted else { continue }
-            result.append(作品推荐分数(编号: 作品键[entry.index], 类型: entry.type, 分数: Double(entry.score)))
+        for entry in candidates {
+            guard usedSeries.insert(系列[entry.index]).inserted else { continue }
+            result.append(作品推荐分数(编号: 编号[entry.index], 类型: entry.type, 分数: Double(entry.score)))
             if result.count >= limit { break }
         }
         return result
+    }
+
+    /// Cholesky 分解解对称正定方程组。
+    private static func 解正定方程组(_ matrix: [Double], _ vector: [Double], size n: Int) -> [Double]? {
+        var L = [Double](repeating: 0, count: n * n)
+        for i in 0..<n {
+            for j in 0...i {
+                var sum = matrix[i * n + j]
+                for p in 0..<j { sum -= L[i * n + p] * L[j * n + p] }
+                if i == j {
+                    guard sum > 0 else { return nil }
+                    L[i * n + i] = sum.squareRoot()
+                } else {
+                    L[i * n + j] = sum / L[j * n + j]
+                }
+            }
+        }
+        var y = [Double](repeating: 0, count: n)
+        for i in 0..<n {
+            var sum = vector[i]
+            for p in 0..<i { sum -= L[i * n + p] * y[p] }
+            y[i] = sum / L[i * n + i]
+        }
+        var x = [Double](repeating: 0, count: n)
+        for i in stride(from: n - 1, through: 0, by: -1) {
+            var sum = y[i]
+            for p in (i + 1)..<n { sum -= L[p * n + i] * x[p] }
+            x[i] = sum / L[i * n + i]
+        }
+        return x
     }
 
     static func 类型(of key: String) -> 作品类型? {
@@ -317,6 +435,7 @@ nonisolated extension 作品推荐模型 {
         case "a": .anime
         case "m": .manga
         case "n": .lightNovel
+        case "v": .visualNovel
         default: nil
         }
     }

@@ -24,7 +24,8 @@ TMDB（只有动画）
 用法：
   python3 Tools/构建作品映射.py download <数据目录>   下载 arm、bangumi-data、anime-offline-database、
                                                      Bangumi Archive 和 AniList 的数据（AniList 约 1 小时，可断点续传）
-  python3 Tools/构建作品映射.py build <数据目录>      生成映射文件
+  python3 Tools/构建作品映射.py build <数据目录>      生成映射文件（最后会补上中文名）
+  python3 Tools/构建作品映射.py chinese <数据目录>    只给现有的映射文件补上 Bangumi 主条目的简体中文名
 """
 
 import base64
@@ -889,6 +890,30 @@ def original_languages(path):
     return {language: sorted(ids) for language, ids in sorted(languages.items())}
 
 
+def chinese_titles(directory, document):
+    """各作品 Bangumi 主条目的简体中文名：{"anime": {Bangumi ID: 中文名}, "manga": {…}}。
+    资料库显示中文副标题时直接查这里，不必逐部向 Bangumi 请求。没有中文名或中文名和原名相同的不写入。"""
+    wanted = {group: {row[4] for row in document[group]["works"] if row[4] is not None} for group in ("anime", "manga")}
+    titles = {"anime": {}, "manga": {}}
+    for subject in read_jsonl(directory / "bgm" / "subject.jsonlines"):
+        name_cn = (subject.get("name_cn") or "").strip()
+        if not name_cn or name_cn == (subject.get("name") or "").strip():
+            continue
+        for group, ids in wanted.items():
+            if subject["id"] in ids:
+                titles[group][str(subject["id"])] = name_cn
+    return {group: dict(sorted(values.items(), key=lambda item: int(item[0]))) for group, values in titles.items()}
+
+
+def add_chinese_titles(directory):
+    """只给现有的映射文件补上（或更新）中文名，作品对应关系不变。"""
+    document = json.loads(OUTPUT.read_text(encoding="utf-8"))
+    document["chineseTitles"] = chinese_titles(directory, document)
+    OUTPUT.write_text(json.dumps(document, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    counts = "，".join(f"{group} {len(values)}" for group, values in document["chineseTitles"].items())
+    print(f"中文名：{counts}；写入 {OUTPUT.relative_to(ROOT)}（{OUTPUT.stat().st_size // 1024} KB）")
+
+
 def build(directory):
     stats = {}
     anime = build_anime(directory, stats)
@@ -910,11 +935,12 @@ def build(directory):
     for name, value in stats.items():
         print(f"{name}：{value}")
     print(f"写入 {OUTPUT.relative_to(ROOT)}（{OUTPUT.stat().st_size // 1024} KB）")
+    add_chinese_titles(directory)
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3 or sys.argv[1] not in ("download", "build"):
+    commands = {"download": download, "build": build, "chinese": add_chinese_titles}
+    if len(sys.argv) != 3 or sys.argv[1] not in commands:
         print(__doc__)
         sys.exit(64)
-    target = pathlib.Path(sys.argv[2]).resolve()
-    download(target) if sys.argv[1] == "download" else build(target)
+    commands[sys.argv[1]](pathlib.Path(sys.argv[2]).resolve())

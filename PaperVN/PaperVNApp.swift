@@ -4,8 +4,6 @@ import UIKit
 @main
 struct PaperVNApp: App {
     @Environment(\.scenePhase) private var scenePhase
-    @AppStorage(为你推荐偏好分析设置.启用键)
-    private var recommendationPreferenceAnalysisEnabled = true
     @StateObject private var premiumStore = PaperVNPremiumStore()
     @StateObject private var auth = 用户登录()
     @StateObject private var kunAccount = 鲲Galgame账户()
@@ -18,10 +16,7 @@ struct PaperVNApp: App {
     @StateObject private var emergencyAvoidance = 紧急回避中心.shared
     @StateObject private var feedbackUpdateNotifier = 反馈更新提醒中心()
     @StateObject private var urlRouter = PaperVNURLRouter()
-    @State private var showsRecommendationModelPrompt = false
-    @State private var showsWhatsNew = false
-    @State private var showsSurvey = false
-    @State private var recommendationModelDownloadState = 推荐模型下载状态.shared
+    @State private var showsDelayedFreeNotice = false
 
     init() {
         guard ProcessInfo.processInfo.environment[
@@ -35,8 +30,8 @@ struct PaperVNApp: App {
         PaperVNConnect自动策略.准备初始状态()
         紧急回避中心.shared.startMonitoring()
         强制内容安全策略.应用到用户设置()
-        为你推荐偏好分析设置.应用设备限制()
-        推荐后台分析中心.shared.注册后台任务()
+        为你推荐设置.移除设备限制()
+        为你推荐设置.清除旧版数据()
 
         缓存策略.应用URLCache配置()
     }
@@ -64,32 +59,14 @@ struct PaperVNApp: App {
         .environmentObject(urlRouter)
         .平台柔和滚动边缘(for: .top)
         .modifier(同步待处理弹出())
-        .sheet(isPresented: $showsWhatsNew, onDismiss: {
-            新功能介绍.标记已读()
-            presentSurveyOrRecommendationModelPrompt()
+        .sheet(isPresented: $showsDelayedFreeNotice, onDismiss: {
+            延迟免费说明.标记已读()
+            开屏弹窗状态.shared.进行中 = false
         }) {
-            // 弹窗挂在 environmentObject 外层，需要再注入一次
-            新功能介绍页面 {
-                showsWhatsNew = false
+            延迟免费说明页面 {
+                showsDelayedFreeNotice = false
             }
-            .environmentObject(premiumStore)
-            .environmentObject(auth)
-            .environmentObject(kunAccount)
-            .environmentObject(bangumiAccount)
-            .environmentObject(myAnimeListAccount)
-            .environmentObject(aniListAccount)
-            .environmentObject(annictAccount)
-            .environmentObject(tmdbAccount)
-            .environmentObject(parentalControls)
-            .environmentObject(urlRouter)
-        }
-        .sheet(isPresented: $showsSurvey, onDismiss: {
-            进路调查.标记已完成()
-            presentRecommendationModelPromptIfNeeded()
-        }) {
-            进路调查页面 {
-                showsSurvey = false
-            }
+            .平台近全屏弹窗()
         }
         .alert(item: $feedbackUpdateNotifier.alert) { alert in
             Alert(
@@ -100,28 +77,8 @@ struct PaperVNApp: App {
                 }
             )
         }
-        .alert(
-            "下载偏好分析所需模型",
-            isPresented: $showsRecommendationModelPrompt
-        ) {
-            Button("关闭“为你推荐”") {
-                recommendationPreferenceAnalysisEnabled = false
-                推荐后台分析中心.shared.停止分析()
-            }
-            if let size = recommendationModelDownloadState.serverFileSizeText {
-                Button("下载（\(size)）") {
-                    Task { await recommendationModelDownloadState.download() }
-                }
-            } else {
-                Button("下载") {
-                    Task { await recommendationModelDownloadState.download() }
-                }
-            }
-        } message: {
-            Text("从此版本开始，偏好分析所需的模型不再包含在PaperVN App中，偏好分析将用于Today页面的“为你推荐”部分。")
-        }
         .简介翻译更新提示()
-        .偏好分析模型更新提示()
+        .为你推荐模型更新提示()
         .智能搜索模型更新提示()
         .environment(
             \.openURL,
@@ -139,27 +96,21 @@ struct PaperVNApp: App {
                 try? await Task.sleep(nanoseconds: 300_000_000)
                 emergencyAvoidance.startMonitoring()
             }
-            推荐后台分析中心.shared.启动需要的分析()
-            if 新功能介绍.应显示 {
+            if 延迟免费说明.应显示 {
                 // 启动时窗口还没准备好，立即呈现会被系统忽略
                 Task { @MainActor in
                     try? await Task.sleep(for: .milliseconds(600))
-                    showsWhatsNew = true
+                    showsDelayedFreeNotice = true
                 }
-            } else {
-                presentSurveyOrRecommendationModelPrompt()
             }
-            进路调查.发送待提交答案()
         }
         .onOpenURL { url in
             _ = urlRouter.handle(url)
         }
-        .onChange(of: recommendationPreferenceAnalysisEnabled) { _, enabled in
-            if enabled && 为你推荐偏好分析设置.此设备支持 {
-                推荐后台分析中心.shared.启动需要的分析()
-            } else {
-                推荐后台分析中心.shared.停止分析()
-            }
+        // 启动后马上从磁盘读出资料库，Today的为你推荐、今日更新等不必等打开资料库页面
+        .onChange(of: auth.userID, initial: true) { _, userID in
+            guard auth.isLoggedIn, !userID.isEmpty else { return }
+            本地资料库.shared.切换所有者(userID)
         }
         .task {
             await parentalControls.synchronizeFamilyAuthorizationAtLaunch()
@@ -168,7 +119,7 @@ struct PaperVNApp: App {
             await 简介翻译下载状态.shared.checkForUpdate()
         }
         .task {
-            await recommendationModelDownloadState.checkForUpdate()
+            await 推荐模型下载状态.shared.checkForUpdate()
         }
         .task {
             await 智能搜索模型下载状态.shared.checkForUpdate()
@@ -177,7 +128,6 @@ struct PaperVNApp: App {
             if !auth.isLoggedIn && !auth.isRestoringSession {
                 PaperVNSync中心.shared.重置()
             }
-            推荐后台分析中心.shared.启动需要的分析()
             await feedbackUpdateNotifier.refresh(
                 token: auth.isLoggedIn ? auth.token : nil,
                 userID: auth.isLoggedIn ? auth.userID : ""
@@ -194,7 +144,6 @@ struct PaperVNApp: App {
                 }
             }
             guard phase == .active else { return }
-            推荐后台分析中心.shared.启动需要的分析()
             Task { await 敏感内容网页设置.同步() }
             Task {
                 await premiumStore.refreshForActiveScene()
@@ -207,7 +156,7 @@ struct PaperVNApp: App {
                 await 简介翻译下载状态.shared.checkForUpdate()
             }
             Task {
-                await recommendationModelDownloadState.checkForUpdate()
+                await 推荐模型下载状态.shared.checkForUpdate()
             }
         }
 
@@ -228,32 +177,6 @@ struct PaperVNApp: App {
         for case let scene as UIWindowScene in UIApplication.shared.connectedScenes {
             scene.sizeRestrictions?.minimumSize =
                 PaperVN窗口布局.iPad最小尺寸
-        }
-    }
-
-    /// 进路调查排在新功能介绍之后、模型下载提示之前，一次只弹一个。
-    private func presentSurveyOrRecommendationModelPrompt() {
-        guard 进路调查.应显示 else {
-            presentRecommendationModelPromptIfNeeded()
-            return
-        }
-        // 刚关掉上一个弹窗或刚启动时立即呈现会被系统忽略
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(600))
-            showsSurvey = true
-        }
-    }
-
-    private func presentRecommendationModelPromptIfNeeded() {
-        recommendationModelDownloadState.refresh()
-        guard 为你推荐偏好分析设置.已启用,
-              !recommendationModelDownloadState.hasDownloadedModel,
-              !recommendationModelDownloadState.isDownloading else {
-            return
-        }
-        Task {
-            await recommendationModelDownloadState.refreshServerFileSize()
-            showsRecommendationModelPrompt = true
         }
     }
 

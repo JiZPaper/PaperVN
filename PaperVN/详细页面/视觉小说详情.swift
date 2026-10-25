@@ -436,7 +436,7 @@ struct 上拉查看全部评论提示: View {
                 Text(
                     已到阈值
                         ? "松手查看所有评论"
-                        : "上拉查看剩余\(剩余条数)条评论"
+                        : "向上轻扫以查看剩余\(剩余条数)条评论"
                 )
             } icon: {
                 Image(systemName: 已到阈值 ? "checkmark.circle.fill" : "chevron.up")
@@ -652,6 +652,7 @@ struct 视觉小说详情: View {
     @Namespace private var editNamespace
     @Namespace private var descriptionNamespace
     @Namespace private var infoNamespace
+    @Namespace private var cardNamespace
 
     @ObservedObject private var auth: 用户登录
     @EnvironmentObject private var bangumiAccount: Bangumi账户
@@ -708,6 +709,7 @@ struct 视觉小说详情: View {
     @State private var showInfoSheet = false
     @State private var showLoginRequiredAlert = false
     @State private var showAllTags = false
+    @State private var 标签浏览目标: 标签浏览?
     @State private var tagsContentOpacity = 1.0
     @State private var isSwitchingTagLanguage = false
     @State private var expandedStaffRoles: Set<String> = []
@@ -763,10 +765,10 @@ struct 视觉小说详情: View {
     private var descriptionTranslationMode: VNDB简介翻译模式 = .openSourceFetch
     @AppStorage("blurAverageRating") private var blurAverageRating = false
     @AppStorage("blurDescription") private var blurDescription = false
-    @AppStorage(评分数据来源.设置键)
-    private var ratingSource = 评分数据来源.combined.rawValue
-    @AppStorage("combinedRatingVNDBWeight")
-    private var combinedRatingVNDBWeight = 0.5
+    @AppStorage(评分设置.来源键(.visualNovel))
+    private var ratingSources = ""
+    @AppStorage(评分设置.方式键(.visualNovel))
+    private var ratingMethod = 评分计算方式.weighted.rawValue
     @AppStorage(沉浸详情外观.设置键)
     private var 已存沉浸详情外观: 沉浸详情外观 = .clear
     private var immersiveDetailAppearance: 沉浸详情外观 {
@@ -902,7 +904,7 @@ struct 视觉小说详情: View {
                 relatedTerms: eventRelatedTerms
             )
         }
-        .task(id: "rating|\(vnID)|\(ratingSource)|\(combinedRatingVNDBWeight)|\(detail?.rating ?? -1)") {
+        .task(id: "rating|\(vnID)|\(ratingSources)|\(ratingMethod)|\(detail?.rating ?? -1)") {
             let value = detail ?? displayedDetail
             unifiedRating = await 视觉小说外部数据服务.shared.rating(
                 vndbID: vnID,
@@ -914,8 +916,8 @@ struct 视觉小说详情: View {
             await loadUserListItem()
         }
         .onAppear {
-            guard isFromRecommendation else { return }
-            推荐反馈中心.shared.记录打开(vnID, userID: auth.userID)
+            guard isFromRecommendation, let owner = 本地资料库.shared.所有者 else { return }
+            推荐反馈中心.shared.记录打开(vnID, userID: 推荐反馈中心.作品曝光用户(owner))
         }
         .onChange(of: colorScheme) { _, _ in
             immersiveTextSamples = [:]
@@ -974,6 +976,9 @@ struct 视觉小说详情: View {
         }
         .navigationDestination(isPresented: $showAllTags) {
             allTagsDestination
+        }
+        .navigationDestination(item: $标签浏览目标) { 浏览 in
+            搜索(showsSearchField: false, 标签浏览: 浏览)
         }
         .navigationDestination(isPresented: $showAllComments) {
             评论列表页面(vndbID: vnID)
@@ -2582,6 +2587,14 @@ struct 视觉小说详情: View {
             .视觉小说沉浸取样框([sampleKey])
             .blur(radius: blurred ? 5 : 0)
             .contentShape(Capsule())
+            .标签浏览菜单(
+                blurred ? nil : 标签浏览.标签(值: tag.id, 名称: displayedTagName(tag)),
+                对象: .视觉小说,
+                全部: allTags
+                    .filter { !shouldHideTag($0) && !shouldBlurTag($0) }
+                    .map { 标签浏览.标签(值: $0.id, 名称: displayedTagName($0)) },
+                目标: $标签浏览目标
+            )
             .onTapGesture {
                 guard blurred,
                       内容安全限制判定.允许手动解除模糊(
@@ -2672,8 +2685,10 @@ struct 视觉小说详情: View {
                                     auth: auth,
                                     relationships: merged.relationships
                                 )
+                                .navigationTransition(.zoom(sourceID: "character-\(merged.id)", in: cardNamespace))
                             } label: {
                                 immersiveCharacterCard(merged)
+                                    .matchedTransitionSource(id: "character-\(merged.id)", in: cardNamespace)
                             }
                             .buttonStyle(.plain)
                         }
@@ -2706,8 +2721,10 @@ struct 视觉小说详情: View {
                                     initialImageViolence: relation.image?.violence,
                                     initialImageDimensions: relation.image?.dims
                                 )
+                                .navigationTransition(.zoom(sourceID: "relation-\(relation.id)", in: cardNamespace))
                             } label: {
                                 immersiveRelationCard(relation)
+                                    .matchedTransitionSource(id: "relation-\(relation.id)", in: cardNamespace)
                             }
                             .buttonStyle(.plain)
                         }
@@ -4646,7 +4663,7 @@ struct 视觉小说详情: View {
                     .textSelection(.enabled)
                     .padding()
             }
-            .navigationTitle("视觉小说简介")
+            .navigationTitle("简介")
             .仅顶部可下拉关闭()
             .平台柔和滚动边缘(for: .top)
             .平台内联导航标题()
@@ -5149,3 +5166,4 @@ struct 视觉小说详情: View {
     }
 }
 #endif
+

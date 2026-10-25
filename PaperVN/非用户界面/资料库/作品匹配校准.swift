@@ -116,6 +116,20 @@ final class 作品匹配校准 {
         return nil
     }
 
+    /// 这部作品在目标平台上没有自己的条目，并在另一部作品的条目里（例如 Bangumi 把 OVA 算在 TV 版里）：
+    /// 校准表或手动匹配把它在其他平台上的条目列为附属，而所属作品在目标平台上有主条目。这时不写入目标平台，也不算找不到。
+    func 并入(_ platform: 资料库平台, 类型 type: 作品类型, 已知 known: [资料库平台: String], 手动 manual: [作品对应组]) -> Bool {
+        let kind = 作品对应组.分组(type)
+        for group in manual where group.type == kind && group.ids[platform.rawValue] != nil {
+            if known.contains(where: { group.attached?[$0.key.rawValue]?.contains($0.value) == true }) { return true }
+        }
+        for (knownPlatform, id) in known {
+            if let entry = 索引[Self.索引键(knownPlatform.rawValue, kind, id)], entry.附属,
+               entry.group.ids[platform.rawValue] != nil { return true }
+        }
+        return false
+    }
+
     /// 平台条目属于哪部作品、是否为附属条目：先看用户自己手动匹配的，再看校准表。
     func 查找(_ platform: 资料库平台, 平台ID id: String, 类型 type: 作品类型, 手动 manual: [作品对应组]) -> 作品映射.结果? {
         let kind = 作品对应组.分组(type)

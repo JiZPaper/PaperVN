@@ -97,7 +97,7 @@ private enum Bangumi账户错误: LocalizedError {
         case .invalidResponse:
             return String(localized: "返回的内容无效。")
         case .missingMapping:
-            return String(localized: "没有找到该视觉小说对应的Bangumi番组计划条目。")
+            return String(localized: "没有找到此视觉小说对应的Bangumi番组计划条目。")
         case .insufficientScope:
             return String(localized: "Bangumi番组计划登录缺少发布权限，请退出账户后重新登录。")
         case .keychain:

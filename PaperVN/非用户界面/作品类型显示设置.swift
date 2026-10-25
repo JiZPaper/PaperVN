@@ -1,7 +1,6 @@
 import Foundation
 
-/// 设置里“作品类型”的开关：关闭的类型不在 Today 中显示（为你推荐、Today 故事与推荐、随机语录），
-/// 搜索也不会搜到。资料库不受影响。至少保留一种类型。
+/// 设置里“搜索”→“显示类型”的勾选：只影响搜索结果，关闭的类型搜索不到。Today 和资料库不受影响。至少保留一种类型。
 nonisolated enum 作品类型显示设置 {
     static func 键(_ type: 作品类型) -> String {
         "contentTypes.\(type.rawValue).enabled"

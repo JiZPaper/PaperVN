@@ -22,24 +22,80 @@ struct 作品推荐模型Tests {
         return try 作品推荐模型(data: data)
     }
 
-    /// a1、a2、a4、m5、n6 的向量相近，a3 和它们不同。
-    private let 示例 = """
-    {"formatVersion":1,"generatedAt":"2026-10-21T00:00:00Z",
-     "parameters":{"personWeight":1,"qualityWeight":0.1,"popularityWeight":0.2,"ratingScale":15},
-     "featureCount":5,
-     "works":{
-       "keys":["a1","a2","a3","a4","m5","n6","a7"],
-       "series":[0,1,2,1,3,4,5],
-       "quality":[0.5,0.5,0.5,0.5,0.5,0.5,0.9],
-       "popularity":[0.5,0.5,0.5,0.5,0.5,0.5,0.5],
-       "adult":[0,0,0,0,0,0,1],
-       "year":[2000,2001,2002,2003,2004,2005,2006],
-       "recommendable":[1,1,1,1,1,1,1],
-       "vectors":[[0,200,1,200],[0,200,1,180,4,100],[2,200,3,200],[0,150,1,200],[0,200,1,150],[0,180,1,200],[0,255]]
-     },
-     "visualNovels":{"ids":["v4"],"series":[6],"vectors":[[0,255,1,100]]}
+    /// 二维向量：a1、a2、a4、m5、n6、a7、v4 都在 (1, 0) 方向，a3 在 (0, 1) 方向。a2、a4 同一系列，a7 是成人作品。
+    private var 示例: String {
+        let keys = ["a1", "a2", "a3", "a4", "m5", "n6", "a7", "v4"]
+        let vectors: [[Int8]] = [[127, 0], [127, 12], [0, 127], [114, 0], [127, 6], [120, 0], [127, 0], [127, 3]]
+        let bytes = Data(vectors.flatMap { $0 }.map { UInt8(bitPattern: $0) })
+        let keyList = keys.map { "\"\($0)\"" }.joined(separator: ",")
+        return """
+        {"formatVersion":2,"generatedAt":"2026-10-22T00:00:00Z",
+         "parameters":{"factors":2,"regularization":0.1,"alpha":10,"ratingBoost":1,"wishWeight":0.3,"relatedWeight":0},
+         "keys":[\(keyList)],
+         "series":[0,1,2,1,3,4,5,6],
+         "adult":[0,0,0,0,0,0,1,0],
+         "recommendable":[1,1,1,1,1,1,1,0],
+         "scales":[\(Array(repeating: "0.007874", count: keys.count).joined(separator: ","))],
+         "factors":"\(bytes.base64EncodedString())",
+         "related":[[],[],[],[],[],[],[],[]]}
+        """
     }
-    """
+
+    /// 格式 3：视觉小说与其他类型在同一个模型里，另外带每部作品的相似作品。
+    private func 合并示例(相似作品权重: Double) -> String {
+        let vectors: [[Int8]] = [[127, 0], [127, 0], [100, 60]]
+        let bytes = Data(vectors.flatMap { $0 }.map { UInt8(bitPattern: $0) })
+        return """
+        {"formatVersion":3,"generatedAt":"2026-10-22T00:00:00Z",
+         "parameters":{"factors":2,"regularization":0.1,"alpha":2,"alphaVN":8,"ratingBoost":1,"wishWeight":0.3,
+                       "neighborWeight":\(相似作品权重),"relatedWeight":0},
+         "keys":["a1","v2","v3"],
+         "series":[0,1,2],
+         "adult":[0,0,0],
+         "recommendable":[1,1,1],
+         "scales":[0.007874,0.007874,0.007874],
+         "factors":"\(bytes.base64EncodedString())",
+         "related":[[],[],[]],
+         "neighbors":[[2,1.0],[],[]]}
+        """
+    }
+
+    @Test
+    func 合并模型推荐视觉小说并加上相似作品() throws {
+        let liked = 作品推荐反馈(候选编号: ["a1"], 评分: nil, 状态: .completed)
+        let plain = try 模型(合并示例(相似作品权重: 0))
+            .推荐(资料库: [liked], 类型: [.visualNovel], 包含成人内容: false, 数量: 10)
+        #expect(plain.map(\.编号) == ["v2", "v3"])
+        #expect(plain.allSatisfy { $0.类型 == .visualNovel })
+        let boosted = try 模型(合并示例(相似作品权重: 5))
+            .推荐(资料库: [liked], 类型: [.visualNovel], 包含成人内容: false, 数量: 10)
+        #expect(boosted.map(\.编号) == ["v3", "v2"])
+    }
+
+    @Test
+    func 只读文件开头就能取得模型标识() {
+        var data = Data("PVWR".utf8)
+        let id = Data("20261022-abc".utf8)
+        withUnsafeBytes(of: UInt32(id.count).littleEndian) { data.append(contentsOf: $0) }
+        data.append(id)
+        #expect(作品推荐模型.标识(头: data) == "20261022-abc")
+        #expect(作品推荐模型.标识(头: data.prefix(10)) == nil)
+        #expect(作品推荐模型.标识(头: Data("PVSS".utf8) + data.dropFirst(4)) == nil)
+        #expect(推荐模型存储.日期("20261022-abc") == "20261022")
+    }
+
+    @Test
+    func 旧版内存限制关闭的为你推荐恢复默认() throws {
+        let defaults = try #require(UserDefaults(suiteName: "作品推荐模型Tests.\(UUID().uuidString)"))
+        defaults.set(false, forKey: 为你推荐设置.启用键)
+        为你推荐设置.移除设备限制(defaults: defaults, 物理内存: 3 * 1_024 * 1_024 * 1_024)
+        #expect(defaults.object(forKey: 为你推荐设置.启用键) == nil)
+
+        let other = try #require(UserDefaults(suiteName: "作品推荐模型Tests.\(UUID().uuidString)"))
+        other.set(false, forKey: 为你推荐设置.启用键)
+        为你推荐设置.移除设备限制(defaults: other, 物理内存: 8 * 1_024 * 1_024 * 1_024)
+        #expect(other.bool(forKey: 为你推荐设置.启用键) == false)
+    }
 
     @Test
     func 按喜欢的作品推荐相似作品并排除同一系列() throws {
@@ -78,17 +134,20 @@ struct 作品推荐模型Tests {
     @Test
     func 低分作品让相似作品排到后面() throws {
         let model = try 模型(示例)
-        // 评分足够多时按个人中位数判断：a1 是这位用户打分最低的作品
-        let feedback = [
-            作品推荐反馈(候选编号: ["a1"], 评分: 20, 状态: .completed),
-            作品推荐反馈(候选编号: ["a3"], 评分: 90, 状态: .completed),
-            作品推荐反馈(候选编号: ["x1"], 评分: 80, 状态: .completed),
-            作品推荐反馈(候选编号: ["x2"], 评分: 80, 状态: .completed),
-            作品推荐反馈(候选编号: ["x3"], 评分: 70, 状态: .completed),
-        ]
-        let result = model.推荐(资料库: feedback, 类型: [.anime, .manga, .lightNovel], 包含成人内容: false, 数量: 10)
-        #expect(!result.isEmpty)
-        #expect(result.allSatisfy { $0.分数 < 0.5 })
+        // 评分足够多时按个人中位数判断：给 a1 打低分（明显不喜欢）时，和 a1 相近的作品分数比给 a1 打高分时低
+        func 分数(a1评分: Int) -> Double? {
+            let feedback = [
+                作品推荐反馈(候选编号: ["a1"], 评分: a1评分, 状态: .completed),
+                作品推荐反馈(候选编号: ["a3"], 评分: 90, 状态: .completed),
+                作品推荐反馈(候选编号: ["x1"], 评分: 80, 状态: .completed),
+                作品推荐反馈(候选编号: ["x2"], 评分: 80, 状态: .completed),
+                作品推荐反馈(候选编号: ["x3"], 评分: 70, 状态: .completed),
+            ]
+            return model.推荐(资料库: feedback, 类型: [.manga], 包含成人内容: false, 数量: 10).first?.分数
+        }
+        let 不喜欢 = try #require(分数(a1评分: 20))
+        let 喜欢 = try #require(分数(a1评分: 100))
+        #expect(不喜欢 < 喜欢)
     }
 
     @Test

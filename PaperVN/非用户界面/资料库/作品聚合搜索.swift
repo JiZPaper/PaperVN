@@ -3,7 +3,7 @@ import Foundation
 /// 搜索页里的一部动画、漫画或轻小说。作品的划分和资料库一致（动画以 Annict 为准、漫画与轻小说以 MAL 为准），
 /// 不同平台搜到的同一部作品合成一条。数据源是综合的：没有 MAL ID 的作品用 AniList 或 Bangumi 的 ID。
 struct 作品搜索结果: Identifiable, Hashable, Sendable, Codable {
-    /// 和 Hiro智能的条目编号一致：“a”“m”“n”加编号，例如“a10495”。编号是 MAL ID；
+    /// 和智能搜索模型的条目编号一致：“a”“m”“n”加编号，例如“a10495”。编号是 MAL ID；
     /// 没有 MAL ID 时最高位标出来源：0x8000_0000 | AniList ID，0x4000_0000 | Bangumi ID。
     let id: String
     let 类型: 作品类型
@@ -20,7 +20,7 @@ struct 作品搜索结果: Identifiable, Hashable, Sendable, Codable {
     var 成人内容 = false
 
     var 详情目标: 作品详情目标 {
-        作品详情目标(kind: 类型 == .anime ? .anime : .manga, malID: malID, 标题: 标题, 封面: 封面, aniListID: aniListID, bangumiID: bangumiID)
+        作品详情目标(kind: 类型 == .anime ? .anime : .manga, malID: malID, 标题: 标题, 封面: 封面, aniListID: aniListID, bangumiID: bangumiID, 多语言标题: 多语言标题)
     }
 
     /// 资料库与作品映射里的编号，例如“mal-anime:10495”“aniList-manga:101444”。
@@ -64,7 +64,7 @@ struct 作品搜索结果: Identifiable, Hashable, Sendable, Codable {
 }
 
 /// 动画、漫画与轻小说的搜索：
-/// - Hiro智能在设备上找到的作品，用 MAL ID 向 AniList 批量读取标题和封面；
+/// -智能搜索模型在设备上找到的作品，用 MAL ID 向 AniList 批量读取标题和封面；
 /// - 同时在各平台（AniList、Bangumi，以及已登录的 MyAnimeList、Annict、TMDB）上按关键词搜索，
 ///   用预装的作品映射把各平台的条目归到同一部作品，多个平台都搜到的排在前面。
 @MainActor
@@ -74,7 +74,7 @@ final class 作品聚合搜索 {
     private var 详情缓存: [String: 作品搜索结果] = [:]
     nonisolated private static let 等待秒数: Double = 4
 
-    /// Hiro智能找到的作品的标题和封面：有 MAL ID 或 AniList ID 的向 AniList 批量读取，只在 Bangumi 上的读 Bangumi。
+    ///智能搜索模型找到的作品的标题和封面：有 MAL ID 或 AniList ID 的向 AniList 批量读取，只在 Bangumi 上的读 Bangumi。
     /// AniList 上没有的 MAL 作品（例如一些总集篇）再向 Bangumi 读（按作品映射里的 Bangumi 条目）。
     func 详情(_ 编号: [String]) async -> [String: 作品搜索结果] {
         var 结果: [String: 作品搜索结果] = [:]
@@ -181,20 +181,31 @@ final class 作品聚合搜索 {
         ))
     }
 
-    /// 搜索页没有搜索词时的列表：AniList 上按热度排列的动画、漫画或轻小说（不含成人作品）。
+    /// 搜索页没有搜索词时的列表：AniList 上的动画、漫画或轻小说（不含成人作品），默认按热度排列。
     /// 作品的划分和资料库一致：并入别的作品的条目（例如并入正篇的特别篇）不单独列出。
-    func 热门(类型 type: 作品类型, 页码 page: Int, 每页 perPage: Int = 平台列表分页.每页) async throws -> (结果: [作品搜索结果], 还有更多: Bool) {
+    func 热门(
+        类型 type: 作品类型,
+        页码 page: Int,
+        每页 perPage: Int = 平台列表分页.每页,
+        排序 sort: 作品浏览排序选择 = 作品浏览排序选择(),
+        筛选 filter: 作品浏览筛选 = 作品浏览筛选(),
+        有开始日期 hasStartDate: Bool? = nil
+    ) async throws -> (结果: [作品搜索结果], 还有更多: Bool) {
         struct 响应: Decodable {
             struct 页信息: Decodable { let hasNextPage: Bool? }
             struct 页: Decodable { let pageInfo: 页信息?; let media: [AniList作品] }
             struct 数据: Decodable { let Page: 页 }
             let data: 数据
         }
-        let 格式条件 = switch type {
-        case .lightNovel: ", format: NOVEL"
-        case .manga: ", format_not: NOVEL"
-        default: ""
+        // 按开始日期排序时分两段：先有日期的，再是没定日期的（AniList 会把没有日期的排在最前面）
+        let 日期条件 = switch hasStartDate {
+        case true?: ", startDate_greater: 1"
+        case false?: ", startDate_lesser: 1"
+        case nil: ""
         }
+        let 筛选条件 = filter.适用于(type).aniList参数(类型: type) + 日期条件
+        // 同分时按 ID 排，翻页时顺序稳定
+        let 排序条件 = "[\(sort.sort.aniList(降序: sort.isDescending)), ID]"
         let data = try await 平台账户工具.graphQL(
             endpoint: AniListOAuth配置.endpoint,
             platform: "AniList",
@@ -203,7 +214,7 @@ final class 作品聚合搜索 {
             query ($page: Int, $perPage: Int) {
               Page(page: $page, perPage: $perPage) {
                 pageInfo { hasNextPage }
-                media(type: \(type == .anime ? "ANIME" : "MANGA"), sort: [POPULARITY_DESC], isAdult: false\(格式条件)) { \(AniList作品.字段) }
+                media(type: \(type == .anime ? "ANIME" : "MANGA"), sort: \(排序条件), isAdult: false\(筛选条件)) { \(AniList作品.字段) }
               }
             }
             """,
@@ -341,12 +352,12 @@ final class 作品聚合搜索 {
 }
 
 /// AniList 按 MAL ID 批量读取时的一部作品。
-private struct AniList作品: Decodable {
-    static let 字段 = "id idMal type format isAdult countryOfOrigin startDate { year } title { native romaji english } coverImage { large medium }"
+struct AniList作品: Decodable {
+    static let 字段 = "id idMal type format isAdult countryOfOrigin startDate { year } title { native romaji english } coverImage { extraLarge large medium }"
 
     struct 标题: Decodable { let native: String?; let romaji: String?; let english: String? }
     struct 日期: Decodable { let year: Int? }
-    struct 封面: Decodable { let large: String?; let medium: String? }
+    struct 封面: Decodable { let extraLarge: String?; let large: String?; let medium: String? }
     let id: Int
     let idMal: Int?
     let type: String?
@@ -386,7 +397,8 @@ private struct AniList作品: Decodable {
                 罗马字: title.romaji,
                 英文: title.english
             ),
-            封面: coverImage?.large ?? coverImage?.medium,
+            // 列表也用完整大小的封面，和详情页是同一张图
+            封面: coverImage?.extraLarge ?? coverImage?.large ?? coverImage?.medium,
             年份: startDate?.year,
             格式: format?.replacingOccurrences(of: "_", with: " "),
             成人内容: isAdult ?? false

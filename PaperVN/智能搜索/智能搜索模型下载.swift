@@ -1,14 +1,6 @@
 import Foundation
 import Observation
 
-nonisolated enum 智能搜索设置 {
-    static let 启用键 = "smartSearchEnabled"
-
-    static var 已启用: Bool {
-        UserDefaults.standard.object(forKey: 启用键) as? Bool ?? true
-    }
-}
-
 /// 服务器上比本地新的智能搜索模型。
 nonisolated struct 智能搜索模型更新: Sendable, Equatable {
     let modelIdentifier: String
@@ -78,8 +70,7 @@ final class 智能搜索模型下载状态 {
         guard isModelAvailable,
               !isDownloading,
               !isCheckingForUpdate,
-              availableUpdate == nil,
-              智能搜索设置.已启用 else {
+              availableUpdate == nil else {
             return
         }
         if let lastUpdateCheck,

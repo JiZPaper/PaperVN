@@ -18,7 +18,7 @@ struct 综合搜索合并Tests {
     }
 
     @Test
-    func Hiro智能找到的作品在前_平台搜到的接在后面且不重复() {
+    func 智能搜索模型找到的作品在前_平台搜到的接在后面且不重复() {
         var 输入 = 综合搜索合并.输入()
         输入.智能搜索命中 = [命中("n9115", .轻小说), 命中("a10495", .动画)]
         for item in [作品(9115, .lightNovel), 作品(10495), 作品(20)] { 输入.动画漫画[item.id] = item }
@@ -102,7 +102,7 @@ struct 综合搜索合并Tests {
     }
 }
 
-struct Hiro智能动画漫画Tests {
+struct 智能搜索模型动画漫画Tests {
     @Test
     func 内置模型能找到动画漫画与轻小说() async throws {
         let 引擎 = 智能搜索引擎.shared

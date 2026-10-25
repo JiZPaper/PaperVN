@@ -187,8 +187,28 @@ struct 资料库: View {
     private var allowUnofficialTitles = false
 
     @State private var selectedStatus: 资料库状态?
+    /// 选中的VNDB标签：作品带有任一选中的标签就显示。只用于视觉小说。
+    @State private var selectedTagIDs: Set<Int> = []
+    /// VNDB账户里的标签（来自 PaperVN Sync），以及当前类型、状态下带有各个标签的作品数。
+    @State private var vndb标签: [用户列表标签信息] = []
+    @State private var 标签作品数: [Int: Int] = [:]
     /// 资料库一次只显示一种作品类型。
     @AppStorage("libraryWorkType") private var selectedType: 作品类型 = .visualNovel
+    @ObservedObject private var senkou = PaperVNSenkou中心.shared
+    /// 选择动画、漫画、轻小说但没有 PaperVN Senkou 时弹出订阅页面，记下想切换到的类型。
+    @State private var Senkou订阅类型: 作品类型?
+    /// 动画、漫画、轻小说的列表与同步需要 PaperVN Senkou。
+    private var 类型选择: Binding<作品类型> {
+        Binding {
+            selectedType
+        } set: { type in
+            if type != .visualNovel, senkou.已确认, !senkou.已解锁 {
+                Senkou订阅类型 = type
+            } else {
+                selectedType = type
+            }
+        }
+    }
     @State private var selectedSort = 资料库排序选择()
     @State private var statusPickerHeight: CGFloat = 44
     @State private var listIsAtTop = true
@@ -198,7 +218,21 @@ struct 资料库: View {
         self.sidebarFilter = sidebarFilter
         if let sidebarFilter {
             _selectedStatus = State(initialValue: 资料库状态(sidebarFilter))
+        } else {
+            let type = UserDefaults.standard.string(forKey: "libraryWorkType")
+                .flatMap(作品类型.init(rawValue:)) ?? .visualNovel
+            _selectedStatus = State(initialValue: Self.已存状态(for: type))
         }
+    }
+
+    /// 每种作品类型各自记住上次选择的状态，退出App或切换类型后回来仍保持。侧边栏里固定状态的资料库不记。
+    private static func 已存状态键(_ type: 作品类型) -> String {
+        "libraryStatus.\(type.rawValue)"
+    }
+
+    private static func 已存状态(for type: 作品类型) -> 资料库状态? {
+        UserDefaults.standard.string(forKey: 已存状态键(type))
+            .flatMap(资料库状态.init(rawValue:))
     }
     /// 按类型、状态筛选并排序后的作品（从本地资料库计算）。
     @State private var listItems: [用户列表项目] = []
@@ -448,9 +482,20 @@ struct 资料库: View {
                     .onChange(of: searchText) { _, _ in 刷新索引段() }
                     .onChange(of: selectedSort) { _, _ in 刷新索引段() }
                     .onChange(of: library.修订号) { _, _ in 刷新列表() }
-                    .onChange(of: selectedStatus) { _, _ in 刷新列表() }
-                    .onChange(of: selectedType) { _, _ in
+                    .onChange(of: selectedStatus) { _, status in
+                        if sidebarFilter == nil {
+                            UserDefaults.standard.set(
+                                status?.rawValue ?? "all",
+                                forKey: Self.已存状态键(selectedType)
+                            )
+                        }
+                        刷新列表()
+                    }
+                    .onChange(of: selectedTagIDs) { _, _ in 刷新列表() }
+                    .onChange(of: selectedType) { _, type in
                         selectedStatus = sidebarFilter.flatMap(资料库状态.init)
+                            ?? Self.已存状态(for: type)
+                        selectedTagIDs = []
                         刷新列表()
                     }
                     .onChange(of: selectedSort) { _, _ in 刷新列表() }
@@ -459,6 +504,10 @@ struct 资料库: View {
                     .onChange(of: fallbackTitleLang) { _, _ in 刷新列表() }
                     .onChange(of: allowUnofficialTitles) { _, _ in 刷新列表() }
                     .onAppear { 刷新列表() }
+                    .onReceive(sync.$VNDB标签.removeDuplicates()) { labels in
+                        vndb标签 = labels
+                        刷新列表()
+                    }
                     .onReceive(
                         sync.$任务
                             .map { tasks -> Bool in
@@ -492,7 +541,13 @@ struct 资料库: View {
                         )
                     )
                     .overlay {
-                        if !有作品 && !isShowingListPlaceholders {
+                        if !有作品 && !isShowingListPlaceholders && 正在按标签筛选 {
+                            平台内容不可用视图(
+                                "无作品",
+                                systemImage: "tag",
+                                description: Text("为视觉小说添加一个标签。")
+                            )
+                        } else if !有作品 && !isShowingListPlaceholders {
                             平台内容不可用视图(
                                 "无作品",
                                 systemImage: "tray",
@@ -620,6 +675,27 @@ struct 资料库: View {
                     ))
             }
             .无法编辑资料库提示($需要登录的平台)
+            .Senkou订阅弹出(
+                isPresented: Binding {
+                    Senkou订阅类型 != nil
+                } set: { isPresented in
+                    if !isPresented { Senkou订阅类型 = nil }
+                }
+            ) {
+                // 订阅或恢复成功后切换到选择的类型
+                if let type = Senkou订阅类型 { selectedType = type }
+            }
+            // 订阅到期后回到视觉小说
+            .onChange(of: senkou.已解锁, initial: true) { _, unlocked in
+                if senkou.已确认, !unlocked, selectedType != .visualNovel {
+                    selectedType = .visualNovel
+                }
+            }
+            .onChange(of: senkou.已确认) { _, confirmed in
+                if confirmed, !senkou.已解锁, selectedType != .visualNovel {
+                    selectedType = .visualNovel
+                }
+            }
             .alert(item: $otherDeleteRequest) { entry in
                 Alert(
                     title: Text("从资料库删除"),
@@ -757,21 +833,72 @@ struct 资料库: View {
 
     private var typeFilterMenu: some View {
         Menu {
-            Picker("类型", selection: $selectedType) {
+            Picker("类型", selection: 类型选择) {
                 ForEach(作品类型.allCases) { type in
                     Label(type.localizedTitle, systemImage: type.symbolName)
                         .tag(type)
+                        // 隐藏延迟免费功能时不能切换到动画、漫画、轻小说
+                        .disabled(type != .visualNovel && senkou.隐藏延迟免费功能)
                 }
             }
             .pickerStyle(.inline)
+
+            if selectedType == .visualNovel, !可选标签.isEmpty {
+                Section(String(localized: "资料库标签", defaultValue: "标签", comment: "VNDB用户列表的标签（labels），不是作品的内容标签（tags）")) {
+                    ForEach(可选标签) { tag in
+                        Toggle(isOn: tagBinding(tag.id)) {
+                            if tag.private {
+                                Label(tag.显示名称, systemImage: "lock")
+                            } else {
+                                Text(verbatim: tag.显示名称)
+                            }
+                            Text("\(标签作品数[tag.id] ?? 0)部作品")
+                        }
+                        // 可以连续选择多个标签
+                        .menuActionDismissBehavior(.disabled)
+                    }
+                }
+            }
         } label: {
-            Image(systemName: "line.3.horizontal.decrease")
+            // 筛选生效时和搜索页面一样换成实心图标
+            Image(systemName: 正在按标签筛选 ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease")
                 .font(.body.weight(.semibold))
                 .frame(width: 28, height: 28)
                 .contentShape(Circle())
         }
         .accessibilityLabel("筛选")
-        .accessibilityValue(selectedType.localizedTitle)
+        .accessibilityValue(
+            ListFormatter.localizedString(
+                byJoining: [selectedType.localizedTitle] + 可选标签
+                    .filter { selectedTagIDs.contains($0.id) }
+                    .map(\.显示名称)
+            )
+        )
+    }
+
+    private var 正在按标签筛选: Bool {
+        selectedType == .visualNovel && !selectedTagIDs.isEmpty
+    }
+
+    /// VNDB账户里的标签；还没读到时用作品上已有的标签。
+    private var 可选标签: [用户列表标签信息] {
+        guard vndb标签.isEmpty else { return vndb标签 }
+        var seen: Set<Int> = []
+        return library.条目.lazy
+            .compactMap(\.vndb?.labels)
+            .joined()
+            .filter { $0.可作为标签 && seen.insert($0.id).inserted }
+            .map { 用户列表标签信息(id: $0.id, label: $0.label, private: false) }
+            .sorted { $0.id < $1.id }
+    }
+
+    private func tagBinding(_ id: Int) -> Binding<Bool> {
+        Binding(
+            get: { selectedTagIDs.contains(id) },
+            set: { isOn in
+                if isOn { selectedTagIDs.insert(id) } else { selectedTagIDs.remove(id) }
+            }
+        )
     }
 
     private var selectedStatusTitle: String {
@@ -829,11 +956,23 @@ struct 资料库: View {
         )
     }
 
-    /// 从本地资料库按类型、状态筛选并排序。视觉小说以外的类型目前还没有资料库行。
+    /// 从本地资料库按类型、状态（视觉小说还有标签）筛选并排序。视觉小说以外的类型目前还没有资料库行。
     private func 刷新列表() {
-        let entries = library.条目.filter { entry in
+        var entries = library.条目.filter { entry in
             entry.类型 == selectedType
                 && (selectedStatus == nil || entry.状态 == selectedStatus)
+        }
+        if selectedType == .visualNovel {
+            var counts: [Int: Int] = [:]
+            for entry in entries {
+                for id in entry.vndb?.标签ID ?? [] { counts[id, default: 0] += 1 }
+            }
+            标签作品数 = counts
+        }
+        if 正在按标签筛选 {
+            entries = entries.filter { entry in
+                entry.vndb.map { !$0.标签ID.isDisjoint(with: selectedTagIDs) } ?? false
+            }
         }
         listItems = 资料库排序.排序(
             entries.compactMap(\.vndb),

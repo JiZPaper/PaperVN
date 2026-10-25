@@ -294,6 +294,8 @@ struct 综合搜索筛选页面: View {
         staffFilters: Binding<搜索扩展筛选>,
         producerFilters: Binding<搜索扩展筛选>,
         initialTarget: 搜索范围,
+        补充标签: [VNDB筛选选项] = [],
+        补充特征: [VNDB筛选选项] = [],
         onApply: @escaping () -> Void
     ) {
         _filters = visualNovelFilters
@@ -301,6 +303,12 @@ struct 综合搜索筛选页面: View {
         _staffFilters = staffFilters
         _producerFilters = producerFilters
         _筛选对象 = State(initialValue: initialTarget)
+        // 从详情页的标签进来时已经知道名称：目录里还没有（或载入的目录不含）这些标签、特征时也能显示名称而不是编号
+        if !补充标签.isEmpty || !补充特征.isEmpty {
+            _catalog = State(initialValue: VNDB搜索筛选目录.builtIn.merging(
+                VNDB搜索筛选目录(languages: [], platforms: [], tags: 补充标签, traits: 补充特征)
+            ))
+        }
         self.onApply = onApply
     }
 
@@ -2684,3 +2692,522 @@ private struct 综合搜索筛选预览: View {
     })
 }
 #endif
+
+// MARK: - 动画、漫画与轻小说
+
+private struct 作品筛选编辑上下文: Identifiable {
+    let ruleID: UUID
+    let condition: 作品筛选条件
+    let isNew: Bool
+    var id: UUID { condition.id }
+}
+
+/// 动画、漫画与轻小说列表的筛选，和视觉小说的筛选同一套设计：每组筛选条件是一句话
+/// （显示或排除满足以下所有或任一条件的动画），在组里添加筛选项，多组之间都要满足。
+struct 作品筛选页面: View {
+    let 类型: 作品类型
+    let onApply: (作品浏览筛选) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var filter: 作品浏览筛选
+    @State private var editing: 作品筛选编辑上下文?
+    @State private var conflictAlert: 筛选冲突提示?
+
+    init(类型 type: 作品类型, filter: 作品浏览筛选, onApply: @escaping (作品浏览筛选) -> Void) {
+        类型 = type
+        self.onApply = onApply
+        var initial = filter.适用于(type)
+        if initial.rules.isEmpty { initial.rules = [作品筛选规则组()] }
+        _filter = State(initialValue: initial)
+    }
+
+    var body: some View {
+        平台滚动页面 {
+            ForEach(filter.rules) { rule in
+                ruleSection(rule)
+            }
+
+            Section {
+                Button {
+                    withAnimation { filter.rules.append(作品筛选规则组()) }
+                } label: {
+                    Label("添加筛选条件", systemImage: "plus")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            } footer: {
+                if filter.rules.count > 1 {
+                    Text("需同时满足以上所有筛选条件。")
+                }
+            }
+        }
+        .平台分组列表样式()
+        .navigationTitle("筛选")
+        .平台柔和滚动边缘(for: .top)
+        .平台内联导航标题()
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button {
+                    dismiss()
+                } label: {
+                    Label("取消", systemImage: "xmark")
+                }
+            }
+
+            ToolbarItem(placement: .平台主操作) {
+                Menu {
+                    Button(role: .destructive) {
+                        withAnimation { filter.rules = [作品筛选规则组()] }
+                    } label: {
+                        Label("清除所有条件", systemImage: "trash")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                }
+                .accessibilityLabel("更多")
+                .disabled(filter.isEmpty)
+            }
+
+            ToolbarItem(placement: .confirmationAction) {
+                Button {
+                    apply()
+                } label: {
+                    Label("完成", systemImage: "checkmark")
+                }
+                .液态玻璃醒目按钮(in: Circle())
+            }
+        }
+        .sheet(item: $editing) { context in
+            NavigationStack {
+                作品筛选条件编辑页面(类型: 类型, initialCondition: context.condition) { condition in
+                    save(condition, context: context)
+                }
+            }
+            .平台近全屏弹窗(dragIndicator: .visible)
+        }
+        .alert(item: $conflictAlert) { alert in
+            Alert(title: Text(verbatim: alert.message))
+        }
+    }
+
+    // MARK: 条件组
+
+    private func binding(_ id: UUID) -> Binding<作品筛选规则组>? {
+        guard let index = filter.rules.firstIndex(where: { $0.id == id }) else { return nil }
+        return $filter.rules[index]
+    }
+
+    @ViewBuilder
+    private func ruleSection(_ rule: 作品筛选规则组) -> some View {
+        let number = (filter.rules.firstIndex { $0.id == rule.id } ?? 0) + 1
+        let conflict = rule.isConfigured ? 作品浏览筛选.冲突(rule) : nil
+
+        Section {
+            sentence(rule)
+
+            ForEach(rule.conditions) { condition in
+                conditionRow(condition) {
+                    editing = 作品筛选编辑上下文(ruleID: rule.id, condition: condition, isNew: false)
+                }
+                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                    Button(role: .destructive) {
+                        withAnimation { binding(rule.id)?.wrappedValue.conditions.removeAll { $0.id == condition.id } }
+                    } label: {
+                        Label("删除筛选项", systemImage: "trash")
+                    }
+                }
+            }
+
+            addConditionMenu(rule)
+        } header: {
+            HStack {
+                Label {
+                    Text(verbatim: "\(String(localized: "筛选条件"))\(number)")
+                } icon: {
+                    Image(systemName: conflict == nil
+                        ? "line.3.horizontal.decrease.circle"
+                        : "exclamationmark.triangle.fill")
+                }
+                .foregroundStyle(conflict == nil ? AnyShapeStyle(.secondary) : AnyShapeStyle(.red))
+                Spacer()
+                Button(role: .destructive) {
+                    withAnimation { filter.rules.removeAll { $0.id == rule.id } }
+                } label: {
+                    Image(systemName: "trash")
+                        .imageScale(.small)
+                        .frame(width: 28)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("删除筛选条件")
+            }
+            .textCase(nil)
+        } footer: {
+            if let conflict {
+                Text(verbatim: conflict)
+                    .foregroundStyle(.red)
+                    .textCase(nil)
+            }
+        }
+    }
+
+    private func sentence(_ rule: 作品筛选规则组) -> some View {
+        筛选句子布局(horizontalSpacing: 0, verticalSpacing: 6) {
+            let parts = 筛选句子片段.拆分(String(localized: "%1$@满足以下%2$@条件的%3$@。"))
+            ForEach(parts.indices, id: \.self) { index in
+                switch parts[index] {
+                case .文本(let text):
+                    Text(verbatim: text)
+                case .显示方式:
+                    choiceMenu(
+                        title: rule.isExcluded ? String(localized: "排除") : String(localized: "显示"),
+                        label: "显示方式"
+                    ) {
+                        Picker("显示方式", selection: Binding(
+                            get: { rule.isExcluded },
+                            set: { value in binding(rule.id)?.wrappedValue.isExcluded = value }
+                        )) {
+                            Text("显示").tag(false)
+                            Text("排除").tag(true)
+                        }
+                    }
+                case .匹配方式:
+                    choiceMenu(
+                        title: rule.matchMode.localizedShortTitle,
+                        label: "匹配条件"
+                    ) {
+                        Picker("匹配条件", selection: Binding(
+                            get: { rule.matchMode },
+                            set: { value in binding(rule.id)?.wrappedValue.matchMode = value }
+                        )) {
+                            Text("所有").tag(视觉小说筛选匹配方式.all)
+                            Text("任一").tag(视觉小说筛选匹配方式.any)
+                        }
+                    }
+                case .筛选对象:
+                    Text(verbatim: 类型.localizedTitle)
+                }
+            }
+        }
+        .font(.body)
+    }
+
+    private func choiceMenu<Content: View>(
+        title: String,
+        label: LocalizedStringKey,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        Menu {
+            content()
+        } label: {
+            HStack(alignment: .firstTextBaseline, spacing: 3) {
+                Text(verbatim: title)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption2)
+            }
+            .foregroundStyle(.tint)
+        }
+        .fixedSize()
+        .layoutValue(key: 筛选句子选项布局值.self, value: true)
+        .accessibilityLabel(label)
+        .accessibilityValue(Text(verbatim: title))
+    }
+
+    private func addConditionMenu(_ rule: 作品筛选规则组) -> some View {
+        Menu {
+            ForEach(作品筛选字段.可用字段(for: 类型)) { field in
+                Button {
+                    editing = 作品筛选编辑上下文(ruleID: rule.id, condition: 作品筛选条件(field: field), isNew: true)
+                } label: {
+                    Label(field.localizedTitle, systemImage: field.systemImage)
+                }
+                .disabled(rule.conditions.contains { $0.field == field } || (rule.isExcluded && !field.可以排除))
+            }
+        } label: {
+            Label("添加筛选项", systemImage: "plus")
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func conditionRow(_ condition: 作品筛选条件, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: condition.field.systemImage)
+                    .foregroundStyle(.tint)
+                    .frame(width: 24)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(verbatim: condition.field.localizedTitle)
+                        .foregroundStyle(.primary)
+                    Text(verbatim: summary(condition))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+
+                Spacer(minLength: 8)
+
+                Image(systemName: "chevron.forward")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func summary(_ condition: 作品筛选条件) -> String {
+        func titles(_ options: [作品浏览筛选.选项]) -> String {
+            ListFormatter.localizedString(byJoining: options.filter { condition.values.contains($0.值) }.map(\.标题))
+        }
+        switch condition.field {
+        case .标签:
+            return ListFormatter.localizedString(byJoining: condition.values.sorted().map(AniList标签.显示名称))
+        case .格式: return titles(作品浏览筛选.格式选项(for: 类型))
+        case .状态: return titles(作品浏览筛选.状态选项(for: 类型))
+        case .季度: return titles(作品浏览筛选.季度选项)
+        case .地区: return titles(作品浏览筛选.地区选项)
+        case .时间:
+            switch (condition.minimum, condition.maximum) {
+            case let (from?, to?): return from == to ? String(from) : "\(from)–\(to)"
+            case let (from?, nil): return String(localized: "\(String(from))年以后")
+            case let (nil, to?): return String(localized: "\(String(to))年以前")
+            case (nil, nil): return String(localized: "未设置")
+            }
+        case .评分:
+            switch (condition.minimum, condition.maximum) {
+            case let (minimum?, maximum?):
+                return String(format: "%.1f–%.1f", Double(minimum) / 10, Double(maximum) / 10)
+            case let (minimum?, nil):
+                let value = String(format: "%.1f", Double(minimum) / 10)
+                return String(localized: "不低于\(value)")
+            case let (nil, maximum?):
+                let value = String(format: "%.1f", Double(maximum) / 10)
+                return String(localized: "不高于\(value)")
+            case (nil, nil):
+                return String(localized: "未设置")
+            }
+        }
+    }
+
+    private func save(_ condition: 作品筛选条件, context: 作品筛选编辑上下文) {
+        guard let rule = binding(context.ruleID) else { return }
+        if context.isNew {
+            rule.wrappedValue.conditions.append(condition)
+        } else if let index = rule.wrappedValue.conditions.firstIndex(where: { $0.id == condition.id }) {
+            rule.wrappedValue.conditions[index] = condition
+        }
+    }
+
+    private func apply() {
+        var result = filter
+        result.rules.removeAll { !$0.isConfigured }
+        for index in result.rules.indices {
+            result.rules[index].conditions.removeAll { !$0.isConfigured }
+        }
+        if let conflict = result.第一个冲突 {
+            conflictAlert = 筛选冲突提示(message: String(localized: "筛选条件\(conflict.序号)：\(conflict.说明)"))
+            return
+        }
+        onApply(result)
+    }
+}
+
+/// 编辑动画、漫画与轻小说的一个筛选项。类型与标签可以搜索，按 AniList 的分类列出。
+private struct 作品筛选条件编辑页面: View {
+    let 类型: 作品类型
+    let onSave: (作品筛选条件) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var condition: 作品筛选条件
+    @State private var searchText = ""
+
+    init(类型 type: 作品类型, initialCondition: 作品筛选条件, onSave: @escaping (作品筛选条件) -> Void) {
+        类型 = type
+        self.onSave = onSave
+        _condition = State(initialValue: initialCondition)
+    }
+
+    private static let 年份: [Int] = Array((1960...(Calendar.current.component(.year, from: .now) + 2)).reversed())
+
+    var body: some View {
+        Group {
+            switch condition.field {
+            case .标签:
+                tagList
+                    .searchable(text: $searchText, prompt: "搜索类型与标签")
+            case .格式: optionList(作品浏览筛选.格式选项(for: 类型))
+            case .状态: optionList(作品浏览筛选.状态选项(for: 类型))
+            case .季度: optionList(作品浏览筛选.季度选项)
+            case .地区: optionList(作品浏览筛选.地区选项)
+            case .时间: yearList
+            case .评分: ratingList
+            }
+        }
+        .navigationTitle(Text(verbatim: condition.field.localizedTitle))
+        .平台柔和滚动边缘(for: .top)
+        .平台内联导航标题()
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button {
+                    dismiss()
+                } label: {
+                    Label("取消", systemImage: "xmark")
+                }
+            }
+            ToolbarItem(placement: .confirmationAction) {
+                Button {
+                    onSave(condition)
+                    dismiss()
+                } label: {
+                    Label("完成", systemImage: "checkmark")
+                }
+                .液态玻璃醒目按钮(in: Circle())
+                .disabled(!condition.isConfigured)
+            }
+        }
+    }
+
+    private func matches(_ tag: String) -> Bool {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return true }
+        return AniList标签.显示名称(tag).localizedCaseInsensitiveContains(query)
+            || tag.localizedCaseInsensitiveContains(query)
+    }
+
+    /// 类型在最前面，后面是 AniList 标签的各个分类。
+    private var tagList: some View {
+        平台滚动页面 {
+            let genres = 作品浏览筛选.类型名称.filter(matches)
+            if !genres.isEmpty {
+                Section("类型") {
+                    ForEach(genres, id: \.self) { tag in tagRow(tag) }
+                }
+            }
+            ForEach(AniList标签.目录, id: \.分类) { group in
+                let tags = group.标签.filter(matches)
+                if !tags.isEmpty {
+                    Section(AniList标签.分类名称(group.分类)) {
+                        ForEach(tags, id: \.self) { tag in tagRow(tag) }
+                    }
+                }
+            }
+        }
+        .平台分组列表样式()
+    }
+
+    private func tagRow(_ tag: String) -> some View {
+        selectionRow(title: AniList标签.显示名称(tag), selected: condition.values.contains(tag)) {
+            toggle(tag)
+        }
+    }
+
+    private func optionList(_ options: [作品浏览筛选.选项]) -> some View {
+        平台滚动页面 {
+            Section {
+                ForEach(options) { option in
+                    selectionRow(title: option.标题, selected: condition.values.contains(option.值)) {
+                        if condition.field.单选 {
+                            condition.values = condition.values.contains(option.值) ? [] : [option.值]
+                        } else {
+                            toggle(option.值)
+                        }
+                    }
+                }
+            } footer: {
+                if condition.field.单选 {
+                    Text("只能选择一个。")
+                }
+            }
+        }
+        .平台分组列表样式()
+    }
+
+    private var yearList: some View {
+        平台滚动页面 {
+            Section {
+                Picker("从", selection: Binding(
+                    get: { condition.minimum },
+                    set: { value in
+                        condition.minimum = value
+                        if let value, let maximum = condition.maximum, maximum < value { condition.maximum = value }
+                    }
+                )) {
+                    Text("不限").tag(Int?.none)
+                    ForEach(Self.年份, id: \.self) { Text(verbatim: String($0)).tag(Optional($0)) }
+                }
+                Picker("到", selection: Binding(
+                    get: { condition.maximum },
+                    set: { value in
+                        condition.maximum = value
+                        if let value, let minimum = condition.minimum, minimum > value { condition.minimum = value }
+                    }
+                )) {
+                    Text("不限").tag(Int?.none)
+                    ForEach(Self.年份, id: \.self) { Text(verbatim: String($0)).tag(Optional($0)) }
+                }
+            } footer: {
+                Text(类型 == .anime ? "按开始放送的年份筛选。" : "按开始连载的年份筛选。")
+            }
+        }
+        .平台分组列表样式()
+    }
+
+    private var ratingList: some View {
+        平台滚动页面 {
+            Section {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Label("评分范围", systemImage: "chart.bar.xaxis")
+                        Spacer()
+                        Text(verbatim: String(format: "%.1f–%.1f", Double(ratingRange.wrappedValue.lowerBound) / 10, Double(ratingRange.wrappedValue.upperBound) / 10))
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                    }
+                    评分范围滑块(value: ratingRange)
+                }
+                .padding(.vertical, 4)
+            } header: {
+                Text("评分")
+            } footer: {
+                Text("评分是AniList上的平均分，换算成10分制。")
+            }
+        }
+        .平台分组列表样式()
+    }
+
+    private var ratingRange: Binding<ClosedRange<Int>> {
+        Binding(
+            get: {
+                let minimum = min(max(condition.minimum ?? 10, 10), 100)
+                let maximum = min(max(condition.maximum ?? 100, minimum), 100)
+                return minimum...maximum
+            },
+            set: { range in
+                condition.minimum = range.lowerBound == 10 ? nil : range.lowerBound
+                condition.maximum = range.upperBound == 100 ? nil : range.upperBound
+            }
+        )
+    }
+
+    private func toggle(_ value: String) {
+        if condition.values.contains(value) { condition.values.remove(value) } else { condition.values.insert(value) }
+    }
+
+    private func selectionRow(title: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack {
+                Text(verbatim: title)
+                    .foregroundStyle(.primary)
+                Spacer()
+                Image(systemName: "checkmark")
+                    .foregroundStyle(.tint)
+                    .opacity(selected ? 1 : 0)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 3)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityValue(selected ? "已选择" : "未选择")
+    }
+}

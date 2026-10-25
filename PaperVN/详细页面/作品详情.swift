@@ -1,4 +1,6 @@
+import Combine
 import SwiftUI
+@preconcurrency import Translation
 
 /// 从资料库或相关作品打开动画、漫画、轻小说详情页时传的参数。
 nonisolated struct 作品详情目标: Hashable {
@@ -9,6 +11,8 @@ nonisolated struct 作品详情目标: Hashable {
     let 封面: String?
     var aniListID: Int? = nil
     var bangumiID: Int? = nil
+    /// 列表里已经有的各语言标题：进入详情页时直接按标题语言设置显示，不先闪一下英文或罗马字标题。
+    var 多语言标题: [用户多语言标题]? = nil
 
     /// 作品在资料库里的编号，和同步时的编号规则一致（有 MAL ID 用 MAL，否则用 AniList、Bangumi）。
     var 作品键: String {
@@ -64,6 +68,8 @@ struct 作品详情: View {
     private var 外观: 沉浸详情外观 { 已存沉浸详情外观.平台生效值 }
 
     @State private var detail: 作品详细信息?
+    @State private var 评分文字宽度: CGFloat = 0
+    @State private var 信息区宽度: CGFloat = 0
     @State private var errorMessage: String?
     @State private var isLoading = false
     @State private var comments: [视觉小说评论] = []
@@ -74,9 +80,22 @@ struct 作品详情: View {
     @State private var 需要登录的平台: PaperVNSync中心.资料库编辑限制?
     @Namespace private var editNamespace
     @State private var showsAllTags = false
+    @State private var 标签浏览目标: 标签浏览?
     @State private var showsAllComments = false
     @State private var showsDescriptionSheet = false
     @State private var isDescriptionTruncated = false
+    // 简介的显示规则与视觉小说详情相同：未看完时可模糊、设备端翻译、截断时才打开完整简介
+    @AppStorage("blurDescription") private var blurDescription = false
+    @AppStorage("descriptionTranslationLanguage")
+    private var targetLanguage: 简介翻译语言 = .simplifiedChinese
+    @StateObject private var blurRevealConfirmation = 模糊解除确认器()
+    @State private var revealDescription = false
+    @State private var translatedDescription: String?
+    @State private var showTranslatedDescription = false
+    @State private var isTranslatingDescription = false
+    @State private var descriptionTranslationConfiguration: TranslationSession.Configuration?
+    /// “简介”“评分”设置改变时刷新页面。
+    @State private var 设置版本 = 0
     @State private var isSaving = false
     @State private var actionError: String?
     @State private var moreCommentsPullDistance: CGFloat = 0
@@ -93,7 +112,7 @@ struct 作品详情: View {
     @State private var textSampleURL: URL?
     @State private var textSampleGeometry: 沉浸封面文字取样几何?
     @State private var textSamplingCoordinator =
-        沉浸封面文字取样任务协调器(校准名称: "视觉小说")
+        沉浸封面文字取样任务协调器(校准名称: "作品")
     @State private var loadedHeroImage: Image?
     @State private var loadedHeroImageURL: URL?
     @State private var loadedHeroImageSize: CGSize?
@@ -111,7 +130,12 @@ struct 作品详情: View {
 
     /// 详情与资料库记录里的标题合在一起，按标题语言设置选择。
     private var 多语言标题: [用户多语言标题] {
-        作品多语言标题.合并([detail?.多语言标题 ?? [], entry?.多语言标题 ?? []])
+        作品多语言标题.合并([detail?.多语言标题 ?? [], entry?.多语言标题 ?? [], 目标.多语言标题 ?? []])
+    }
+
+    /// 标题的各语言版本已经有了（详情读完，或者列表、资料库里带着）。没有时先不显示标题，免得先显示英文再换掉。
+    private var 标题已确定: Bool {
+        detail != nil || !(entry?.多语言标题 ?? []).isEmpty || !(目标.多语言标题 ?? []).isEmpty
     }
 
     private var 主标题: 标题工具.标题结果 {
@@ -126,11 +150,20 @@ struct 作品详情: View {
 
     private var 标题文本: String { 主标题.text }
 
+    /// 导航栏标题：标题确定之前留空。
+    private var 导航标题文本: String { 标题已确定 ? 标题文本 : "" }
+
     var body: some View {
+        PaperVNSenkou门控 {
+            详情内容
+        }
+    }
+
+    private var 详情内容: some View {
         immersiveDetail
-            .navigationTitle(Text(verbatim: 标题文本))
+            .navigationTitle(Text(verbatim: 导航标题文本))
             .平台柔和滚动边缘(for: .top)
-            .平台隐藏导航标题占位(标题文本)
+            .平台隐藏导航标题占位(导航标题文本)
             .平台内联导航标题()
             .toolbar { toolbarContent }
             .task(id: 目标) { await load(forceRefresh: false) }
@@ -141,9 +174,11 @@ struct 作品详情: View {
             }
             .sheet(isPresented: $showsMoreInfo) {
                 if let detail {
-                    作品更多信息(detail: detail) { showsMoreInfo = false }
+                    作品更多信息(detail: detail, 显示状态: 评分独占一行 && detail.开始日期 != nil) { showsMoreInfo = false }
                         .environmentObject(parentalControls)
                         .平台近全屏弹窗(dragIndicator: .visible)
+                        // 和视觉小说详情一样，从右上角的按钮放大出来
+                        .navigationTransition(.zoom(sourceID: "InfoSheet", in: editNamespace))
                 }
             }
             .无法编辑资料库提示($需要登录的平台)
@@ -155,14 +190,33 @@ struct 作品详情: View {
                 }
             }
             .sheet(isPresented: $showsDescriptionSheet) {
-                if let 简介 = detail?.简介 {
+                if let 简介 = 显示简介 {
                     作品简介页面(简介: 简介) { showsDescriptionSheet = false }
+                        .navigationTransition(.zoom(sourceID: "DescriptionSheet", in: editNamespace))
                 }
+            }
+            .translationTask(descriptionTranslationConfiguration) { session in
+                await translateDescription(using: session)
+            }
+            .onChange(of: 原始简介) { _, _ in
+                translatedDescription = nil
+                showTranslatedDescription = false
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification).receive(on: RunLoop.main)) { _ in
+                设置版本 += 1
+            }
+            .overlay(alignment: .bottom) {
+                模糊解除提示(isPresented: blurRevealConfirmation.isPromptVisible)
+                    .padding(.bottom, 18)
+            }
+            .navigationDestination(item: $标签浏览目标) { 浏览 in
+                搜索(showsSearchField: false, 标签浏览: 浏览)
             }
             .navigationDestination(isPresented: $showsAllTags) {
                 作品全部标签页面(
-                    标签: 显示标签,
-                    剧透标签: 剧透标签
+                    对象: .作品(类型),
+                    类型: detail?.类型标签 ?? [],
+                    标签: detail?.标签 ?? []
                 )
             }
             .navigationDestination(isPresented: $showsAllComments) {
@@ -190,8 +244,74 @@ struct 作品详情: View {
                 Text(verbatim: actionError ?? "")
             }
             .onDisappear {
+                blurRevealConfirmation.cancel()
                 textSamplingCoordinator.cancel()
             }
+    }
+
+    // MARK: 简介
+
+    /// 按“简介”设置选择的简介。
+    private var 当前简介: 作品详细信息.简介文本? {
+        _ = 设置版本
+        return detail?.简介(偏好: 简介来源.当前(类型))
+    }
+
+    /// 去掉结尾的来源说明（例如 MAL 的“[Written by MAL Rewrite]”），与视觉小说简介相同。
+    private var 原始简介: String? {
+        当前简介.map { 简介预览文本处理.外部显示文本($0.文本) }.flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    private var 显示简介: String? {
+        guard let 原始简介 else { return nil }
+        return showTranslatedDescription ? translatedDescription ?? 原始简介 : 原始简介
+    }
+
+    private var 已看完或抛弃: Bool {
+        entry?.状态 == .completed || entry?.状态 == .dropped
+    }
+
+    /// 简介已经是翻译目标语言时不提供翻译。
+    private var 提供简介翻译: Bool {
+        guard let language = 当前简介?.语言 else { return true }
+        let source = Locale.Language(identifier: language)
+        let target = targetLanguage.localeLanguage
+        guard source.languageCode == target.languageCode else { return true }
+        return source.maximalIdentifier.contains("Hant") != target.maximalIdentifier.contains("Hant")
+    }
+
+    private func requestDescriptionTranslation() {
+        if translatedDescription != nil {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                showTranslatedDescription.toggle()
+            }
+            return
+        }
+        showTranslatedDescription = true
+        if var configuration = descriptionTranslationConfiguration {
+            configuration.source = nil
+            configuration.target = targetLanguage.localeLanguage
+            configuration.invalidate()
+            descriptionTranslationConfiguration = configuration
+        } else {
+            descriptionTranslationConfiguration = TranslationSession.Configuration(
+                source: nil,
+                target: targetLanguage.localeLanguage
+            )
+        }
+    }
+
+    private func translateDescription(using session: TranslationSession) async {
+        guard let 原始简介, translatedDescription == nil else { return }
+        isTranslatingDescription = true
+        do {
+            let response = try await session.translate(原始简介)
+            translatedDescription = response.targetText
+            showTranslatedDescription = true
+        } catch {
+            showTranslatedDescription = false
+        }
+        isTranslatingDescription = false
     }
 
     // MARK: 载入
@@ -255,6 +375,7 @@ struct 作品详情: View {
                 工具栏圆形图标标签("更多信息", systemImage: "info.circle")
             }
             .disabled(detail == nil)
+            .matchedTransitionSource(id: "InfoSheet", in: editNamespace)
         }
         .平台可见优先级(.低)
         .平台优先纵向栏()
@@ -450,7 +571,7 @@ struct 作品详情: View {
     }
 
     private var 有简介: Bool {
-        detail?.简介?.isEmpty == false
+        原始简介 != nil
     }
 
     /// 封面渐隐延伸到简介和标签下方的长度，与视觉小说详情一致。
@@ -1051,6 +1172,9 @@ struct 作品详情: View {
             )
             .沉浸详情文字前景色(style.primary, style: style)
             .lineLimit(2)
+            // 标题确定之前占着位置但不显示，读完后淡入
+            .opacity(标题已确定 ? 1 : 0)
+            .animation(.easeOut(duration: 0.2), value: 标题已确定)
             .contextMenu {
                 ForEach(标题拷贝项目, id: \.label) { item in
                     Button {
@@ -1104,60 +1228,112 @@ struct 作品详情: View {
         .accessibilityLabel("正在载入…")
     }
 
+    /// 评分文字缩到最小（0.82）仍放不下半栏时（热门动画的评分人数很多），评分独占一行，放送状态移到“更多信息”。
+    private var 评分独占一行: Bool {
+        guard 评分文字宽度 > 0, 信息区宽度 > 0 else { return false }
+        // 两栏间距 10，每栏左侧是 18 宽的图标和 9 的间距
+        let columnTextWidth = (信息区宽度 - 10) / 2 - 18 - 9
+        return 评分文字宽度 * 0.82 > columnTextWidth
+    }
+
     private func stats(_ detail: 作品详细信息) -> some View {
         let rowSpacing: CGFloat = horizontalSizeClass == .regular ? 14 : 8
-        let 评分人数 = [detail.MAL评分人数, detail.Bangumi评分人数, detail.TMDB评分人数].compactMap { $0 }
+        // AniList 只有人气没有评分人数，不计入人数
+        let 已选平台 = 评分设置.已选平台(detail.类型)
+        let 评分人数 = [
+            已选平台.contains(.myAnimeList) && detail.MAL评分 != nil ? detail.MAL评分人数 : nil,
+            已选平台.contains(.bangumi) && detail.Bangumi评分 != nil ? detail.Bangumi评分人数 : nil,
+            已选平台.contains(.tmdb) && detail.TMDB评分 != nil ? detail.TMDB评分人数 : nil
+        ].compactMap { $0 }
         let voteText = 评分人数.isEmpty
             ? nil
             : String(localized: "\(评分人数.reduce(0, +))人评分")
-
-        return HStack(alignment: .top, spacing: 10) {
-            VStack(alignment: .leading, spacing: rowSpacing) {
-                if let score = detail.综合评分 {
-                    let ratingText = String(format: "%.2f", score)
-                    metadataItem(
-                        icon: "chart.bar.xaxis",
-                        title: "评分",
-                        text: voteText.map { "\(ratingText)（\($0)）" } ?? ratingText,
-                        valueLineLimit: 1,
-                        valueMinimumScaleFactor: 0.82,
-                        style: textStyle(for: "metadata.rating"),
-                        sampleKey: "metadata.rating"
-                    )
-                }
-
-                metadataItem(
-                    icon: "clock",
-                    title: "篇幅",
-                    text: Self.篇幅(detail) ?? String(localized: "未知"),
-                    style: textStyle(for: "metadata.length"),
-                    sampleKey: "metadata.length"
-                )
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            VStack(alignment: .leading, spacing: rowSpacing) {
-                if let 日期 = detail.开始日期 {
-                    metadataItem(
-                        icon: "calendar",
-                        title: detail.kind == .anime ? "放送开始" : "连载开始",
-                        text: 日期,
-                        style: textStyle(for: "metadata.release"),
-                        sampleKey: "metadata.release"
-                    )
-                }
-
-                metadataItem(
-                    icon: "checkmark.circle",
-                    title: detail.kind == .anime ? "放送状态" : "连载状态",
-                    text: detail.状态.flatMap(Self.发行状态) ?? String(localized: "未知"),
-                    style: textStyle(for: "metadata.status"),
-                    sampleKey: "metadata.status"
-                )
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.leading, 6)
+        let ratingText = detail.综合评分.map { score in
+            let value = String(format: "%.2f", score.分数)
+            return voteText.map { "\(value)（\($0)）" } ?? value
         }
+
+        let rating = ratingText.map { text in
+            metadataItem(
+                icon: "chart.bar.xaxis",
+                title: "评分",
+                text: text,
+                valueLineLimit: 1,
+                valueMinimumScaleFactor: 0.82,
+                style: textStyle(for: "metadata.rating"),
+                sampleKey: "metadata.rating"
+            )
+        }
+        let length = metadataItem(
+            icon: "clock",
+            title: "篇幅",
+            text: Self.篇幅(detail) ?? String(localized: "未知"),
+            style: textStyle(for: "metadata.length"),
+            sampleKey: "metadata.length"
+        )
+        let release = detail.开始日期.map { 日期 in
+            metadataItem(
+                icon: "calendar",
+                title: detail.kind == .anime ? "放送开始" : "连载开始",
+                text: 日期,
+                style: textStyle(for: "metadata.release"),
+                sampleKey: "metadata.release"
+            )
+        }
+        let status = metadataItem(
+            icon: "checkmark.circle",
+            title: detail.kind == .anime ? "放送状态" : "连载状态",
+            text: Self.状态文本(detail),
+            style: textStyle(for: "metadata.status"),
+            sampleKey: "metadata.status"
+        )
+
+        return Group {
+            if 评分独占一行, let rating {
+                VStack(alignment: .leading, spacing: rowSpacing) {
+                    rating
+                    HStack(alignment: .top, spacing: 10) {
+                        length
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Group {
+                            if let release { release } else { status }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.leading, 6)
+                    }
+                }
+            } else {
+                HStack(alignment: .top, spacing: 10) {
+                    VStack(alignment: .leading, spacing: rowSpacing) {
+                        rating
+                        length
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    VStack(alignment: .leading, spacing: rowSpacing) {
+                        release
+                        status
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.leading, 6)
+                }
+            }
+        }
+        // 量出评分文字原本的宽度和信息区的宽度，决定评分是否独占一行
+        .background(alignment: .topLeading) {
+            if let ratingText {
+                Text(verbatim: ratingText)
+                    .font(.subheadline.weight(.regular))
+                    .fixedSize()
+                    .hidden()
+                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { 评分文字宽度 = $0 }
+            }
+        }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { 信息区宽度 = $0 }
+    }
+
+    static func 状态文本(_ detail: 作品详细信息) -> String {
+        detail.状态.flatMap(发行状态) ?? String(localized: "未知")
     }
 
     private func metadataItem(
@@ -1193,21 +1369,54 @@ struct 作品详情: View {
         .沉浸详情文字阴影(style)
     }
 
+    private func descriptionText(_ text: String, style: 沉浸详情文字样式) -> some View {
+        简介预览文本视图(
+            text: text,
+            lineLimit: 7,
+            onTruncationChange: { isDescriptionTruncated = $0 }
+        )
+        .font(.body)
+        .沉浸详情文字前景色(style.primary, style: style)
+        .contentTransition(.opacity)
+    }
+
     private func descriptionContent(fillsAvailableHeight: Bool = false) -> some View {
         let style = textStyle(for: "description.text")
-        let 简介 = detail?.简介
+        let 简介 = 显示简介
+        let isHidden = blurDescription && !已看完或抛弃 && !revealDescription
 
         return Group {
-            if let 简介, !简介.isEmpty {
-                简介预览文本视图(
-                    text: 简介,
-                    lineLimit: 7,
-                    onTruncationChange: { isDescriptionTruncated = $0 }
-                )
-                .font(.body)
-                .沉浸详情文字前景色(style.primary, style: style)
-                .lineLimit(5)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            if let 简介 {
+                HStack(alignment: .top, spacing: 10) {
+                    Group {
+                        if isHidden {
+                            descriptionText(简介, style: style)
+                                .textSelection(.disabled)
+                                .blur(radius: 7)
+                        } else {
+                            descriptionText(简介, style: style)
+                                .textSelection(.enabled)
+                        }
+                    }
+                    .lineLimit(5)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    if 提供简介翻译 {
+                        Button {
+                            requestDescriptionTranslation()
+                        } label: {
+                            if isTranslatingDescription {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Image(systemName: "translate")
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(showTranslatedDescription ? Color.blue : style.secondary)
+                        .accessibilityLabel(showTranslatedDescription ? "显示简介原文" : "翻译简介")
+                    }
+                }
                 .沉浸详情文字阴影(style)
             } else {
                 简介预览文本视图(
@@ -1230,26 +1439,35 @@ struct 作品详情: View {
             in: RoundedRectangle(cornerRadius: 28, style: .continuous)
         )
         .contentShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .matchedTransitionSource(id: "DescriptionSheet", in: editNamespace)
         .onTapGesture {
-            guard 简介?.isEmpty == false, isDescriptionTruncated else { return }
-            showsDescriptionSheet = true
+            guard 简介 != nil else { return }
+            if isHidden {
+                blurRevealConfirmation.request(id: "description") {
+                    withAnimation(.easeInOut(duration: 0.22)) {
+                        revealDescription = true
+                    }
+                }
+            } else if isDescriptionTruncated {
+                showsDescriptionSheet = true
+            }
         }
-        .allowsHitTesting(简介?.isEmpty == false)
+        .allowsHitTesting(简介 != nil)
         .视觉小说沉浸取样框(["description", "description.text"])
     }
 
     // MARK: 标签
 
-    /// MAL 的类型和 AniList 的非剧透标签，按名称去重。
+    /// MAL 的类型和 AniList 的非剧透、非色情标签，按名称去重；色情标签只在全部标签页面按内容限制设置显示。
     private var 显示标签: [String] {
         guard let detail else { return [] }
-        return Self.去重(detail.类型标签 + detail.标签.filter { !$0.是剧透 }.map(\.名称))
+        return Self.去重(detail.类型标签 + detail.标签.filter { !$0.是剧透 && !$0.是成人 }.map(\.名称))
     }
 
     private var 剧透标签: [String] {
         guard let detail else { return [] }
         let shown = Set(显示标签.map { $0.lowercased() })
-        return Self.去重(detail.标签.filter(\.是剧透).map(\.名称))
+        return Self.去重(detail.标签.filter { $0.是剧透 || $0.是成人 }.map(\.名称))
             .filter { !shown.contains($0.lowercased()) }
     }
 
@@ -1261,15 +1479,28 @@ struct 作品详情: View {
         ))
     }
 
+    /// 内联标签按住时的“查看带有此标签的…”：能筛选的类型与标签，作为结果页“+”菜单的候选。
+    private var 可筛选标签: [标签浏览.标签] {
+        var seen = Set<String>()
+        return 显示标签.compactMap(浏览标签).filter { seen.insert($0.值).inserted }
+    }
+
+    private func 浏览标签(_ name: String) -> 标签浏览.标签? {
+        作品浏览筛选.筛选值(类型或标签: name).map {
+            标签浏览.标签(值: $0, 名称: AniList标签.显示名称(name))
+        }
+    }
+
     private var inlineTags: some View {
         let style = textStyle(for: "tags")
         let tags = 内联标签
         let hasMore = 显示标签.count > tags.count || !剧透标签.isEmpty
+        let 全部 = 可筛选标签
 
         return 沉浸标签两行布局(spacing: 8, forcePlaceMoreButton: hasMore) {
             ForEach(Array(tags.enumerated()), id: \.element) { index, tag in
                 let itemStyle = textStyle(for: "tags.item.\(index)")
-                Text(verbatim: tag)
+                Text(verbatim: AniList标签.显示名称(tag))
                     .font(.caption.weight(.semibold))
                     .沉浸详情文字前景色(itemStyle.capsule, style: itemStyle)
                     .lineLimit(1)
@@ -1279,6 +1510,7 @@ struct 作品详情: View {
                     .沉浸详情文字阴影(itemStyle)
                     .高透明提亮材质背景(in: Capsule())
                     .视觉小说沉浸取样框(["tags.item.\(index)"])
+                    .标签浏览菜单(浏览标签(tag), 对象: .作品(类型), 全部: 全部, 目标: $标签浏览目标)
             }
 
             Button {
@@ -1352,6 +1584,18 @@ struct 作品详情: View {
         if !detail.角色.isEmpty {
             horizontalSection("角色") {
                 ForEach(detail.角色) { character in
+                    // 角色来自 AniList，点按打开角色详情（出场作品与声优）
+                    NavigationLink {
+                        AniList人物详情(人物: AniList人物(
+                            种类: .角色,
+                            anilistID: character.id,
+                            名字: character.名字,
+                            原名: character.原名,
+                            图片: character.图片,
+                            作品: nil
+                        ))
+                        .navigationTransition(.zoom(sourceID: "character-\(character.id)", in: editNamespace))
+                    } label: {
                     // 角色名、声优名与视觉小说详情一样按“制作人员语言”设置显示
                     mediaCard(
                         imageURL: character.图片,
@@ -1376,6 +1620,9 @@ struct 作品详情: View {
                             )
                         }
                     )
+                    .matchedTransitionSource(id: "character-\(character.id)", in: editNamespace)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }
@@ -1383,17 +1630,23 @@ struct 作品详情: View {
         if !detail.相关.isEmpty {
             horizontalSection("相关") {
                 ForEach(detail.相关) { related in
-                    NavigationLink(value: 作品详情目标(
-                        kind: related.kind,
-                        malID: related.malID,
-                        标题: related.标题,
-                        封面: related.封面
-                    )) {
+                    // 不用 NavigationLink(value:)：Today 等导航栈没有注册作品详情目标，点按没有反应
+                    NavigationLink {
+                        作品详情(目标: 作品详情目标(
+                            kind: related.kind,
+                            malID: related.malID,
+                            标题: related.标题,
+                            封面: related.封面,
+                            多语言标题: related.多语言标题
+                        ))
+                        .navigationTransition(.zoom(sourceID: "related-\(related.id)", in: editNamespace))
+                    } label: {
                         mediaCard(
                             imageURL: related.封面,
                             title: 相关作品标题(related),
                             subtitle: related.关系.isEmpty ? nil : AttributedString(related.关系)
                         )
+                        .matchedTransitionSource(id: "related-\(related.id)", in: editNamespace)
                     }
                     .buttonStyle(.plain)
                 }
@@ -1567,9 +1820,10 @@ struct 作品详情: View {
 
     // MARK: 文案
 
+    /// 按显示名称去重：MAL 的“Medical”和 AniList 的“Medicine”翻译后都是“医疗”。
     private static func 去重(_ values: [String]) -> [String] {
         var seen = Set<String>()
-        return values.filter { seen.insert($0.lowercased()).inserted }
+        return values.filter { seen.insert(AniList标签.显示名称($0).lowercased()).inserted }
     }
 
     private static func 发行状态(_ value: String) -> String? {
@@ -1603,7 +1857,7 @@ struct 作品详情: View {
 
 /// 编辑资料库里这部作品的状态和进度，修改会经 PaperVN Sync 写回 MyAnimeList。
 
-/// 完整简介。TMDB 有界面语言的简介时用 TMDB 的，否则是 MAL 的英文简介。
+/// 完整简介，来源按“简介”设置选择。
 private struct 作品简介页面: View {
     let 简介: String
     let closeAction: () -> Void
@@ -1613,6 +1867,7 @@ private struct 作品简介页面: View {
             ScrollView {
                 Text(verbatim: 简介)
                     .font(.body)
+                    .foregroundStyle(.primary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .textSelection(.enabled)
                     .padding()
@@ -1622,7 +1877,7 @@ private struct 作品简介页面: View {
             .平台柔和滚动边缘(for: .top)
             .平台内联导航标题()
             .toolbar {
-                ToolbarItem(placement: .平台关闭操作) {
+                ToolbarItem(placement: .cancellationAction) {
                     Button(action: closeAction) {
                         Label("关闭", systemImage: "xmark")
                     }
@@ -1633,41 +1888,162 @@ private struct 作品简介页面: View {
     }
 }
 
-/// 全部标签。剧透标签默认隐藏，点开分组后显示。
+/// 全部标签：MAL 的类型在最前，AniList 标签按分类分组、组内按相关度排序；剧透与色情标签原位模糊，轻点两次显示。
 private struct 作品全部标签页面: View {
-    let 标签: [String]
-    let 剧透标签: [String]
+    private struct 分组: Identifiable {
+        let 分类: String
+        let 标签: [作品详细信息.标签]
+        var id: String { 分类 }
+    }
 
-    @State private var showsSpoilers = false
+    let 对象: 标签浏览.种类
+    let 类型: [String]
+    let 标签: [作品详细信息.标签]
+
+    @Environment(\.详情内容限制方式覆盖)
+    private var contentRestrictionMethodOverride
+    @AppStorage("contentFilterEnabled") private var contentFilterEnabled = false
+    @AppStorage("filterMode") private var filterMode: 内容过滤模式 = .both
+    @AppStorage("contentRestrictionMethod")
+    private var storedContentRestrictionMethod: 内容限制方式 = .blurred
+
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @State private var revealedTagIDs: Set<String> = []
+    @StateObject private var blurRevealConfirmation = 模糊解除确认器()
+    @State private var 多选 = 标签多选()
+
+    /// AniList 分类的显示顺序，表外的分类排在后面。
+    private static let 分类顺序 = ["Theme", "Setting", "Cast", "Demographic", "Technical", "Sexual Content"]
+
+    private var contentRestrictionMethod: 内容限制方式 {
+        contentRestrictionMethodOverride ?? storedContentRestrictionMethod
+    }
+
+    private var 显示类型: [String] {
+        var seen = Set<String>()
+        return 类型.filter { seen.insert(AniList标签.显示名称($0).lowercased()).inserted }
+    }
+
+    private var 分组列表: [分组] {
+        var seen = Set(显示类型.map { AniList标签.显示名称($0).lowercased() })
+        let visible = 标签.filter { tag in
+            !(isAdultRestricted(tag) && contentRestrictionMethod == .hidden)
+                && seen.insert(AniList标签.显示名称(tag.名称).lowercased()).inserted
+        }
+        var groups: [String: [作品详细信息.标签]] = [:]
+        for tag in visible {
+            groups[tag.分类 ?? "", default: []].append(tag)
+        }
+        return groups.keys
+            .sorted { lhs, rhs in
+                let l = Self.分类顺序.firstIndex(of: lhs) ?? Self.分类顺序.count
+                let r = Self.分类顺序.firstIndex(of: rhs) ?? Self.分类顺序.count
+                return l == r ? lhs < rhs : l < r
+            }
+            .map { key in
+                分组(分类: key, 标签: groups[key, default: []].sorted { ($0.相关度 ?? 0) > ($1.相关度 ?? 0) })
+            }
+    }
 
     var body: some View {
+        let groups = 分组列表
+
         平台滚动页面 {
-            Section {
-                ForEach(标签, id: \.self) { tag in
-                    Text(verbatim: tag)
+            if !显示类型.isEmpty {
+                Section("类型") {
+                    标签分栏(items: 显示类型, id: \.self, columns: 标签相关度行.列数(horizontalSizeClass)) { name in
+                        let tag = 浏览标签(name)
+                        标签相关度行(
+                            名称: AniList标签.显示名称(name),
+                            选中: 多选.正在选择 ? tag.map { 多选.选中($0.值) } : nil,
+                            可轻点: tag != nil
+                        )
+                        .onTapGesture {
+                            guard let tag else { return }
+                            withAnimation(.snappy(duration: 0.2)) {
+                                多选.轻点(tag, 对象: 对象, 全部: 可筛选标签)
+                            }
+                        }
+                    }
                 }
             }
 
-            if !剧透标签.isEmpty {
+            ForEach(groups) { group in
                 Section {
-                    if showsSpoilers {
-                        ForEach(剧透标签, id: \.self) { tag in
-                            Text(verbatim: tag)
-                        }
-                    } else {
-                        Button("显示剧透标签（\(剧透标签.count)）") {
-                            withAnimation { showsSpoilers = true }
+                    标签分栏(
+                        items: group.标签,
+                        id: \.id,
+                        columns: 标签相关度行.列数(horizontalSizeClass)
+                    ) { tag in
+                        let blurred = shouldBlur(tag)
+                        let filterTag = 浏览标签(tag.名称)
+                        标签相关度行(
+                            名称: AniList标签.显示名称(tag.名称),
+                            数值文本: tag.相关度.map { "\($0)%" },
+                            已模糊: blurred,
+                            选中: 多选.正在选择 && !blurred ? filterTag.map { 多选.选中($0.值) } : nil,
+                            可轻点: filterTag != nil
+                        )
+                        .onTapGesture {
+                            guard blurred else {
+                                guard let filterTag else { return }
+                                withAnimation(.snappy(duration: 0.2)) {
+                                    多选.轻点(filterTag, 对象: 对象, 全部: 可筛选标签)
+                                }
+                                return
+                            }
+                            guard 内容安全限制判定.允许手动解除模糊(色情限制: isAdultRestricted(tag)) else { return }
+                            blurRevealConfirmation.request(id: "all-tags") {
+                                withAnimation(.easeInOut(duration: 0.22)) {
+                                    revealedTagIDs.formUnion(
+                                        标签
+                                            .filter { 内容安全限制判定.允许手动解除模糊(色情限制: isAdultRestricted($0)) }
+                                            .map(\.id)
+                                    )
+                                }
+                            }
                         }
                     }
                 } header: {
-                    Text("剧透")
+                    Text(verbatim: group.分类.isEmpty ? String(localized: "其他") : AniList标签.分类名称(group.分类))
                 }
             }
         }
         .平台分组列表样式()
+        .支持标签多选($多选, 对象: 对象, 全部: 可筛选标签)
         .navigationTitle("标签")
         .平台柔和滚动边缘(for: .top)
         .平台内联导航标题()
+        .overlay(alignment: .bottom) {
+            模糊解除提示(isPresented: blurRevealConfirmation.isPromptVisible)
+                .padding(.bottom, 18)
+        }
+        .onDisappear {
+            blurRevealConfirmation.cancel()
+        }
+    }
+
+    private func isAdultRestricted(_ tag: 作品详细信息.标签) -> Bool {
+        内容安全限制判定.色情标签需要限制(tag.是成人, enabled: contentFilterEnabled, mode: filterMode)
+    }
+
+    /// 能用来筛选的类型或标签；Bangumi 的用户标签和 MAL 独有的类型为 nil。
+    private func 浏览标签(_ name: String) -> 标签浏览.标签? {
+        作品浏览筛选.筛选值(类型或标签: name).map {
+            标签浏览.标签(值: $0, 名称: AniList标签.显示名称(name))
+        }
+    }
+
+    /// 按页面上的顺序，能筛选且没有模糊的类型与标签：结果页“+”菜单的候选。MAL 的两个类型对应同一个时只留一个。
+    private var 可筛选标签: [标签浏览.标签] {
+        var seen = Set<String>()
+        let names = 显示类型 + 分组列表.flatMap(\.标签).filter { !shouldBlur($0) }.map(\.名称)
+        return names.compactMap(浏览标签).filter { seen.insert($0.值).inserted }
+    }
+
+    private func shouldBlur(_ tag: 作品详细信息.标签) -> Bool {
+        guard !revealedTagIDs.contains(tag.id) else { return false }
+        return tag.是剧透 || (isAdultRestricted(tag) && contentRestrictionMethod == .blurred)
     }
 }
 
@@ -1691,104 +2067,273 @@ private struct 作品评论列表页面: View {
     }
 }
 
-/// “更多信息”：制作、连载、原作、分级、制作人员与外部链接。
+/// “更多信息”：制作、连载、原作、分级、制作人员与外部链接，排列方式与视觉小说详情相同。
 private struct 作品更多信息: View {
+    private struct 外部浏览目标: Identifiable {
+        let url: URL
+        var id: String { url.absoluteString }
+    }
+
+    /// 同一职位的制作人员，括号里的集数等作为备注。
+    private struct 职位分组: Identifiable {
+        let 职位: String
+        var 成员: [(人员: 作品详细信息.人员, 备注: String?)]
+        var id: String { 职位 }
+    }
+
     @AppStorage("staffNameLang") private var staffNameLang: 制作人员语言 = .romaji
     let detail: 作品详细信息
+    /// 详情页的评分独占一行、没有位置显示放送状态时，在这里显示。
+    var 显示状态 = false
     let closeAction: () -> Void
     @EnvironmentObject private var parentalControls: 家长控制中心
+    @State private var expandedStaffRoles: Set<String> = []
+    @State private var externalBrowserTarget: 外部浏览目标?
 
     var body: some View {
         NavigationStack {
-            List {
+            平台滚动页面 {
                 Section {
                     if let 媒体类型 = detail.媒体类型 {
-                        LabeledContent("媒体类型") { Text(verbatim: 媒体类型.replacingOccurrences(of: "_", with: " ").uppercased()) }
+                        LabeledContent("媒体类型") { Text(verbatim: Self.媒体类型名称(媒体类型)) }
                     }
                     if let 原作 = detail.原作 {
-                        LabeledContent("原作") { Text(verbatim: 原作.replacingOccurrences(of: "_", with: " ")) }
+                        LabeledContent("原作") { Text(verbatim: Self.原作名称(原作)) }
+                    }
+                    if 显示状态 {
+                        LabeledContent(detail.kind == .anime ? "放送状态" : "连载状态") {
+                            Text(verbatim: 作品详情.状态文本(detail))
+                        }
                     }
                     if let 分级 = detail.年龄分级 {
-                        LabeledContent("年龄分级") { Text(verbatim: 分级.uppercased()) }
-                    }
-                    if let 评分 = detail.MAL评分 {
-                        LabeledContent("MyAnimeList评分") {
-                            Text(verbatim: String(format: "%.2f", 评分) + (detail.MAL评分人数.map { "（\($0.formatted())）" } ?? ""))
-                        }
-                    }
-                    if let 评分 = detail.Bangumi评分 {
-                        LabeledContent("Bangumi番组计划评分") {
-                            Text(verbatim: String(format: "%.1f", 评分) + (detail.Bangumi评分人数.map { "（\($0.formatted())）" } ?? ""))
-                        }
-                    }
-                    if let 评分 = detail.AniList评分 {
-                        LabeledContent("AniList评分") { Text(verbatim: "\(评分)%") }
-                    }
-                    if let 人气 = detail.AniList人气 {
-                        LabeledContent("AniList人气") { Text(verbatim: 人气.formatted()) }
-                    }
-                    if let 评分 = detail.TMDB评分 {
-                        LabeledContent("TMDB评分") {
-                            Text(verbatim: String(format: "%.1f", 评分) + (detail.TMDB评分人数.map { "（\($0.formatted())）" } ?? ""))
-                        }
+                        // MAL 的分级代码（g、pg_13、r+）写成通常的形式
+                        LabeledContent("年龄分级") { Text(verbatim: 分级.replacingOccurrences(of: "_", with: "-").uppercased()) }
                     }
                 }
 
                 if !detail.制作.isEmpty {
                     Section(detail.kind == .anime ? "动画制作" : "作者") {
-                        ForEach(detail.制作, id: \.self) { Text(verbatim: $0) }
+                        ForEach(detail.制作, id: \.self) { name in
+                            HStack(spacing: 12) {
+                                Image(systemName: detail.kind == .anime ? "building.2" : "person")
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 22)
+                                Text(verbatim: name)
+                            }
+                        }
                     }
                 }
                 if !detail.连载.isEmpty {
                     Section("连载") {
-                        ForEach(detail.连载, id: \.self) { Text(verbatim: $0) }
-                    }
-                }
-                if !detail.制作人员.isEmpty {
-                    Section("制作人员") {
-                        ForEach(detail.制作人员) { person in
-                            LabeledContent {
-                                Text(verbatim: person.职责)
-                            } label: {
-                                // 与视觉小说详情的制作人员一样按“制作人员语言”设置显示
-                                多语言列表文本(
-                                    文本: 人物名称工具.显示名称(name: person.名字, original: person.原名, 偏好: staffNameLang),
-                                    isJapanese: staffNameLang == .original,
-                                    层级: .主标题,
-                                    日文字体名称: "HiraginoSans-W4",
-                                    系统字体粗细: .regular,
-                                    语言来源已知: false,
-                                    空格视为日语: true
-                                )
+                        ForEach(detail.连载, id: \.self) { name in
+                            HStack(spacing: 12) {
+                                Image(systemName: "newspaper")
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 22)
+                                Text(verbatim: name)
                             }
                         }
                     }
                 }
-                if !parentalControls.policy.blocksUntrustedExternalLinks {
-                    Section("外部链接") {
-                        if let url = detail.malURL {
-                            Link("MyAnimeList", destination: url)
-                        }
-                        if let url = detail.bangumiURL {
-                            Link("Bangumi番组计划", destination: url)
-                        }
-                        ForEach(detail.外部链接) { link in
-                            if let url = URL(string: link.地址) {
-                                Link(link.站点, destination: url)
-                            }
-                        }
-                    }
-                }
+                staffSection
+                externalLinksSection
             }
             .平台分组列表样式()
             .仅顶部可下拉关闭()
             .navigationTitle("更多信息")
+            .平台柔和滚动边缘(for: .top)
             .平台内联导航标题()
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+                ToolbarItem(placement: .平台关闭操作) {
                     Button(action: closeAction) {
                         Label("关闭", systemImage: "xmark")
                     }
+                }
+            }
+        }
+        .sheet(item: $externalBrowserTarget) { target in
+            内置Safari浏览器(url: target.url)
+                .平台近全屏弹窗()
+        }
+    }
+
+    /// MAL 的媒体类型（tv、movie、light_novel），MAL 拿不到时是 AniList 的格式（TV、MOVIE、NOVEL）。
+    private static func 媒体类型名称(_ value: String) -> String {
+        switch value.lowercased() {
+        case "tv", "tv_short": "TV"
+        case "movie": String(localized: "剧场版")
+        case "ova": "OVA"
+        case "ona": "ONA"
+        case "special": String(localized: "特别篇")
+        case "tv_special": String(localized: "电视特别篇")
+        case "music": String(localized: "音乐")
+        case "cm": String(localized: "广告")
+        case "pv": "PV"
+        case "manga": String(localized: "漫画")
+        case "light_novel": String(localized: "轻小说")
+        case "novel": String(localized: "小说")
+        case "one_shot": String(localized: "短篇")
+        case "doujinshi": String(localized: "同人志")
+        case "manhwa": String(localized: "韩国漫画")
+        case "manhua": String(localized: "中国漫画")
+        case "oel": String(localized: "原创英文漫画")
+        default: value.replacingOccurrences(of: "_", with: " ").uppercased()
+        }
+    }
+
+    /// MAL 与 AniList 的原作类型。
+    private static func 原作名称(_ value: String) -> String {
+        switch value.lowercased() {
+        case "original": String(localized: "原创")
+        case "manga": String(localized: "漫画")
+        case "4_koma_manga": String(localized: "四格漫画")
+        case "web_manga": String(localized: "网络漫画")
+        case "digital_manga": String(localized: "电子漫画")
+        case "novel": String(localized: "小说")
+        case "light_novel": String(localized: "轻小说")
+        case "web_novel": String(localized: "网络小说")
+        case "visual_novel": String(localized: "视觉小说")
+        case "game", "video_game": String(localized: "游戏")
+        case "card_game": String(localized: "卡牌游戏")
+        case "book": String(localized: "书籍")
+        case "picture_book": String(localized: "绘本")
+        case "radio": String(localized: "广播")
+        case "music": String(localized: "音乐")
+        case "mixed_media", "multimedia_project": String(localized: "跨媒体企划")
+        case "doujinshi": String(localized: "同人志")
+        case "anime": String(localized: "动画")
+        case "live_action": String(localized: "真人作品")
+        case "other": String(localized: "其他")
+        default: value.replacingOccurrences(of: "_", with: " ")
+        }
+    }
+
+    /// 按职位分组，组的顺序沿用 AniList 的相关度排序。
+    private var 职位分组列表: [职位分组] {
+        var groups: [职位分组] = []
+        for person in detail.制作人员 {
+            let (role, note) = AniList职位.拆分(person.职责)
+            if let index = groups.firstIndex(where: { $0.职位 == role }) {
+                groups[index].成员.append((person, note))
+            } else {
+                groups.append(职位分组(职位: role, 成员: [(person, note)]))
+            }
+        }
+        return groups
+    }
+
+    @ViewBuilder
+    private var staffSection: some View {
+        let groups = 职位分组列表
+        if !groups.isEmpty {
+            Section("制作人员") {
+                ForEach(groups) { group in
+                    DisclosureGroup(
+                        isExpanded: Binding(
+                            get: { expandedStaffRoles.contains(group.职位) },
+                            set: { isExpanded in
+                                withAnimation(.easeInOut(duration: 0.24)) {
+                                    if isExpanded {
+                                        expandedStaffRoles.insert(group.职位)
+                                    } else {
+                                        expandedStaffRoles.remove(group.职位)
+                                    }
+                                }
+                            }
+                        )
+                    ) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            ForEach(Array(group.成员.enumerated()), id: \.offset) { _, member in
+                                VStack(alignment: .leading, spacing: 4) {
+                                    多语言列表文本(
+                                        文本: 人物名称工具.显示名称(
+                                            name: member.人员.名字,
+                                            original: member.人员.原名,
+                                            偏好: staffNameLang
+                                        ),
+                                        isJapanese: staffNameLang == .original,
+                                        层级: .主标题,
+                                        日文字体名称: "HiraginoSans-W4",
+                                        系统字体粗细: .regular,
+                                        语言来源已知: false,
+                                        空格视为日语: true
+                                    )
+
+                                    if let note = member.备注 {
+                                        Text(verbatim: AniList职位.备注(note))
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }
+                        .padding(.top, 8)
+                        .padding(.leading, 32)
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: AniList职位.图标(group.职位))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 22)
+
+                            Text(verbatim: AniList职位.显示名称(group.职位))
+                                .foregroundStyle(.primary)
+
+                            Spacer(minLength: 8)
+
+                            Text("\(group.成员.count)人")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .accentColor(Color.secondary)
+                    .animation(.easeInOut(duration: 0.24), value: expandedStaffRoles.contains(group.职位))
+                }
+            }
+        }
+    }
+
+    private var 外部链接: [(名称: String, 地址: URL)] {
+        var links: [(String, URL)] = []
+        if let url = detail.malURL { links.append(("MyAnimeList", url)) }
+        if let url = detail.bangumiURL { links.append((String(localized: "Bangumi番组计划"), url)) }
+        for link in detail.外部链接 {
+            guard let url = URL(string: link.地址),
+                  let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https",
+                  !links.contains(where: { $0.1 == url }) else { continue }
+            links.append((link.站点 == "Official Site" ? String(localized: "官方网站") : link.站点, url))
+        }
+        return links
+    }
+
+    @ViewBuilder
+    private var externalLinksSection: some View {
+        let links = 外部链接
+        if !parentalControls.policy.blocksUntrustedExternalLinks, !links.isEmpty {
+            Section("外部链接") {
+                ForEach(links, id: \.地址) { link in
+                    Button {
+                        externalBrowserTarget = 外部浏览目标(url: link.地址)
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "safari")
+                                .foregroundStyle(Color.blue)
+                                .frame(width: 22)
+
+                            Text(verbatim: link.名称)
+                                .foregroundStyle(Color.blue)
+
+                            Spacer(minLength: 8)
+
+                            Image(systemName: "arrow.up.right")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.tertiary)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .tint(.blue)
                 }
             }
         }
@@ -1830,10 +2375,7 @@ private struct 作品更多信息: View {
         },
         .init("全部标签") {
             NavigationStack {
-                作品全部标签页面(
-                    标签: detail.类型标签 + detail.标签.filter { !$0.是剧透 }.map(\.名称),
-                    剧透标签: detail.标签.filter(\.是剧透).map(\.名称)
-                )
+                作品全部标签页面(对象: .作品(detail.类型), 类型: detail.类型标签, 标签: detail.标签)
             }
         },
         .init("评论") {

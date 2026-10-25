@@ -39,6 +39,8 @@ nonisolated enum 作品映射 {
         let visualNovelSharedBangumi: [String: String]?
         /// 对应文件里没有、从 Wikidata 补充的 VNDB → Bangumi 条目
         let visualNovelExtraBangumi: [String: Int]?
+        /// 类别（anime、manga）→ Bangumi 主条目 → 简体中文名（没有中文名或与原名相同的不列出）
+        let chineseTitles: [String: [String: String]]?
     }
 
     /// 只需要字符串、整数和 null 三种值。
@@ -74,6 +76,8 @@ nonisolated enum 作品映射 {
         var 原名语言: [Int: String] = [:]
         /// 编号 → 所属系列（系列里第一部作品的编号）
         var 系列: [String: String] = [:]
+        /// Bangumi 主条目 → 简体中文名
+        var 中文名: [Int: String] = [:]
     }
 
     private static let 平台顺序: [资料库平台] = [.myAnimeList, .aniList, .annict, .bangumi, .tmdb]
@@ -100,6 +104,12 @@ nonisolated enum 作品映射 {
             var table: [Int: String] = [:]
             for (language, ids) in languages { for id in ids { table[id] = language } }
             if kind == "anime" { anime.原名语言 = table } else if kind == "manga" { manga.原名语言 = table }
+        }
+        for (kind, titles) in file.chineseTitles ?? [:] {
+            var table: [Int: String] = [:]
+            table.reserveCapacity(titles.count)
+            for (id, title) in titles { if let id = Int(id) { table[id] = title } }
+            if kind == "anime" { anime.中文名 = table } else if kind == "manga" { manga.中文名 = table }
         }
         return (anime, manga, visualNovels)
     }()
@@ -205,6 +215,13 @@ nonisolated enum 作品映射 {
     /// 作品在平台上的主条目 ID，新增到该平台时使用。
     static func 平台ID(_ key: String, 平台 platform: 资料库平台, 类型 type: 作品类型) -> String? {
         分组表(for: type).主条目[key]?[platform]
+    }
+
+    /// 作品的 Bangumi 主条目的简体中文名。映射里有这部作品但没有中文名时为 nil。
+    static func 中文名(_ key: String, 类型 type: 作品类型) -> String? {
+        let table = 分组表(for: type)
+        guard let id = table.主条目[key]?[.bangumi].flatMap(Int.init) else { return nil }
+        return table.中文名[id]
     }
 
     /// 作品在 TMDB 上没有单独的条目（某部剧的第二季以后，或和别的作品共用一个条目）：返回 TMDB 上的路径。

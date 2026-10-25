@@ -9,9 +9,6 @@
 /* Begin PBXBuildFile section */
 		7CE829D33011C85800E2390F /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7CE829D23011C85800E2390F /* StoreKit.framework */; };
 		7CE829D63011C85800E2390F /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = 7CE829D53011C85800E2390F /* ZIPFoundation */; };
-		7CE82A003011C85800E2390F /* PaperVNLiveActivity.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 7CE82A043011C85800E2390F /* PaperVNLiveActivity.appex */; platformFilter = ios; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		7CE82A013011C85800E2390F /* 偏好分析实时活动属性.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CE82A053011C85800E2390F /* 偏好分析实时活动属性.swift */; };
-		7CE82A023011C85800E2390F /* 偏好分析实时活动属性.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CE82A053011C85800E2390F /* 偏好分析实时活动属性.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -29,36 +26,13 @@
 			remoteGlobalIDString = 7CBDCC312F5D45DC00652C1F;
 			remoteInfo = PaperVN;
 		};
-		7CE82A033011C85800E2390F /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 7CBDCC2A2F5D45DC00652C1F /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 7CE82A0A3011C85800E2390F;
-			remoteInfo = PaperVNLiveActivity;
-		};
 /* End PBXContainerItemProxy section */
-
-/* Begin PBXCopyFilesBuildPhase section */
-		7CE82A0D3011C85800E2390F /* Embed Foundation Extensions */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 13;
-			files = (
-				7CE82A003011C85800E2390F /* PaperVNLiveActivity.appex in Embed Foundation Extensions */,
-			);
-			name = "Embed Foundation Extensions";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		7CBDCC322F5D45DC00652C1F /* PaperVN.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PaperVN.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		7CBDCC3F2F5D45DD00652C1F /* PaperVNTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PaperVNTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		7CBDCC492F5D45DD00652C1F /* PaperVNUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PaperVNUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		7CE829D23011C85800E2390F /* StoreKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = StoreKit.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk/System/Library/Frameworks/StoreKit.framework; sourceTree = DEVELOPER_DIR; };
-		7CE82A043011C85800E2390F /* PaperVNLiveActivity.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PaperVNLiveActivity.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		7CE82A053011C85800E2390F /* 偏好分析实时活动属性.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "偏好分析实时活动属性.swift"; sourceTree = "<group>"; };
 		C0DE00012F00000000000001 /* PaperVN.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = PaperVN.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -69,13 +43,6 @@
 				Info.plist,
 			);
 			target = 7CBDCC312F5D45DC00652C1F /* PaperVN */;
-		};
-		7CE82A063011C85800E2390F /* Exceptions for "PaperVNLiveActivity" folder in "PaperVNLiveActivity" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-			);
-			target = 7CE82A0A3011C85800E2390F /* PaperVNLiveActivity */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -96,14 +63,6 @@
 		7CBDCC4C2F5D45DD00652C1F /* PaperVNUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = PaperVNUITests;
-			sourceTree = "<group>";
-		};
-		7CE82A073011C85800E2390F /* PaperVNLiveActivity */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				7CE82A063011C85800E2390F /* Exceptions for "PaperVNLiveActivity" folder in "PaperVNLiveActivity" target */,
-			);
-			path = PaperVNLiveActivity;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -132,13 +91,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		7CE82A083011C85800E2390F /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -147,8 +99,6 @@
 			children = (
 				C0DE00022F00000000000001 /* Config */,
 				7CBDCC342F5D45DC00652C1F /* PaperVN */,
-				7CE82A073011C85800E2390F /* PaperVNLiveActivity */,
-				7CE82A093011C85800E2390F /* Shared */,
 				7CBDCC422F5D45DD00652C1F /* PaperVNTests */,
 				7CBDCC4C2F5D45DD00652C1F /* PaperVNUITests */,
 				7CE829D13011C85800E2390F /* Frameworks */,
@@ -160,7 +110,6 @@
 			isa = PBXGroup;
 			children = (
 				7CBDCC322F5D45DC00652C1F /* PaperVN.app */,
-				7CE82A043011C85800E2390F /* PaperVNLiveActivity.appex */,
 				7CBDCC3F2F5D45DD00652C1F /* PaperVNTests.xctest */,
 				7CBDCC492F5D45DD00652C1F /* PaperVNUITests.xctest */,
 			);
@@ -173,14 +122,6 @@
 				7CE829D23011C85800E2390F /* StoreKit.framework */,
 			);
 			name = Frameworks;
-			sourceTree = "<group>";
-		};
-		7CE82A093011C85800E2390F /* Shared */ = {
-			isa = PBXGroup;
-			children = (
-				7CE82A053011C85800E2390F /* 偏好分析实时活动属性.swift */,
-			);
-			path = Shared;
 			sourceTree = "<group>";
 		};
 		C0DE00022F00000000000001 /* Config */ = {
@@ -201,12 +142,10 @@
 				7CBDCC2E2F5D45DC00652C1F /* Sources */,
 				7CBDCC2F2F5D45DC00652C1F /* Frameworks */,
 				7CBDCC302F5D45DC00652C1F /* Resources */,
-				7CE82A0D3011C85800E2390F /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				7CE82A0E3011C85800E2390F /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				7CBDCC342F5D45DC00652C1F /* PaperVN */,
@@ -265,28 +204,6 @@
 			productReference = 7CBDCC492F5D45DD00652C1F /* PaperVNUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
-		7CE82A0A3011C85800E2390F /* PaperVNLiveActivity */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 7CE82A113011C85800E2390F /* Build configuration list for PBXNativeTarget "PaperVNLiveActivity" */;
-			buildPhases = (
-				7CE82A0C3011C85800E2390F /* Sources */,
-				7CE82A083011C85800E2390F /* Frameworks */,
-				7CE82A0B3011C85800E2390F /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				7CE82A073011C85800E2390F /* PaperVNLiveActivity */,
-			);
-			name = PaperVNLiveActivity;
-			packageProductDependencies = (
-			);
-			productName = PaperVNLiveActivity;
-			productReference = 7CE82A043011C85800E2390F /* PaperVNLiveActivity.appex */;
-			productType = "com.apple.product-type.app-extension";
-		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -300,9 +217,6 @@
 					7CBDCC312F5D45DC00652C1F = {
 						CreatedOnToolsVersion = 26.4;
 						SystemCapabilities = {
-							com.apple.BackgroundModes = {
-								enabled = 1;
-							};
 							com.apple.InAppPurchase = {
 								enabled = 1;
 							};
@@ -318,9 +232,6 @@
 					7CBDCC482F5D45DD00652C1F = {
 						CreatedOnToolsVersion = 26.4;
 						TestTargetID = 7CBDCC312F5D45DC00652C1F;
-					};
-					7CE82A0A3011C85800E2390F = {
-						CreatedOnToolsVersion = 26.4;
 					};
 				};
 			};
@@ -347,7 +258,6 @@
 			projectRoot = "";
 			targets = (
 				7CBDCC312F5D45DC00652C1F /* PaperVN */,
-				7CE82A0A3011C85800E2390F /* PaperVNLiveActivity */,
 				7CBDCC3E2F5D45DD00652C1F /* PaperVNTests */,
 				7CBDCC482F5D45DD00652C1F /* PaperVNUITests */,
 			);
@@ -376,13 +286,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		7CE82A0B3011C85800E2390F /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -390,7 +293,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				7CE82A013011C85800E2390F /* 偏好分析实时活动属性.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -408,14 +310,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		7CE82A0C3011C85800E2390F /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				7CE82A023011C85800E2390F /* 偏好分析实时活动属性.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -428,12 +322,6 @@
 			isa = PBXTargetDependency;
 			target = 7CBDCC312F5D45DC00652C1F /* PaperVN */;
 			targetProxy = 7CBDCC4A2F5D45DD00652C1F /* PBXContainerItemProxy */;
-		};
-		7CE82A0E3011C85800E2390F /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			platformFilter = ios;
-			target = 7CE82A0A3011C85800E2390F /* PaperVNLiveActivity */;
-			targetProxy = 7CE82A033011C85800E2390F /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -571,7 +459,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_ENTITLEMENTS = PaperVN/PaperVN.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 5;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = Y3UG3Y8W6N;
 				ENABLE_PREVIEWS = YES;
@@ -582,7 +470,6 @@
 				INFOPLIST_KEY_CFBundleDisplayName = PaperVN;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "用于将视觉小说封面、角色图片和屏幕截图保存到照片。";
-				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -623,7 +510,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_ENTITLEMENTS = PaperVN/PaperVN.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 5;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = Y3UG3Y8W6N;
 				ENABLE_PREVIEWS = YES;
@@ -634,7 +521,6 @@
 				INFOPLIST_KEY_CFBundleDisplayName = PaperVN;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "用于将视觉小说封面、角色图片和屏幕截图保存到照片。";
-				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -764,78 +650,6 @@
 			};
 			name = Release;
 		};
-		7CE82A0F3011C85800E2390F /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				APPLICATION_EXTENSION_API_ONLY = YES;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
-				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = Y3UG3Y8W6N;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = PaperVNLiveActivity/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = PaperVN;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				MARKETING_VERSION = 2.0.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.jizpaper.PaperVN.LiveActivity;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				SKIP_INSTALL = YES;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SUPPORTS_MACCATALYST = NO;
-				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
-				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Debug;
-		};
-		7CE82A103011C85800E2390F /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				APPLICATION_EXTENSION_API_ONLY = YES;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
-				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = Y3UG3Y8W6N;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = PaperVNLiveActivity/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = PaperVN;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				MARKETING_VERSION = 2.0.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.jizpaper.PaperVN.LiveActivity;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				SKIP_INSTALL = YES;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SUPPORTS_MACCATALYST = NO;
-				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
-				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Release;
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -871,15 +685,6 @@
 			buildConfigurations = (
 				7CBDCC5A2F5D45DD00652C1F /* Debug */,
 				7CBDCC5B2F5D45DD00652C1F /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		7CE82A113011C85800E2390F /* Build configuration list for PBXNativeTarget "PaperVNLiveActivity" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				7CE82A0F3011C85800E2390F /* Debug */,
-				7CE82A103011C85800E2390F /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

@@ -66,7 +66,7 @@ enum 新功能页面: Hashable, CaseIterable {
         case .紧急回避: "翻转一下，立即隐藏"
         case .拷贝: "按住即可拷贝"
         case .补标: "补上真实的游玩日期"
-        case .推荐视觉小说: "分享你喜欢的作品"
+        case .推荐视觉小说: "共享你喜欢的作品"
         case .贡献翻译: "让更多人读懂简介"
         case .开源: "而且永远免费"
         }
@@ -75,9 +75,9 @@ enum 新功能页面: Hashable, CaseIterable {
     var 说明: LocalizedStringKey {
         switch self {
         case .全新搜索:
-            "由Hiro智能驱动。自动排序，具有错拼纠正与模糊搜索能力。轻点下方的搜索词试试。"
+            "由Paper智能驱动。自动排序，具有错拼纠正与模糊搜索能力。轻点下方的搜索词试试。"
         case .独立搜索Tab:
-            "开启后，“搜索”将与其他Tab分开，显示在标签栏右侧。你也可以稍后在“设置”>“搜索”中更改。"
+            "将“搜索”与其他Tab分开，显示在Tab栏右侧。你也可以稍后在“设置”→“搜索”中更改。"
         case .设置:
             "按照iOS设置App重新设计。轻点下方的类别试试。"
         case .紧急回避:
@@ -1896,7 +1896,7 @@ enum PaperVN支出 {
 private struct 支持PaperVN选项: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.requestReview) private var requestReview
-    @State private var 显示Premium = false
+    @State private var 显示Senkou = false
 
     private static let 仓库地址 = URL(string: "https://github.com/JiZPaper/PaperVN")!
 
@@ -1907,8 +1907,8 @@ private struct 支持PaperVN选项: View {
                 requestReview()
             }
             分隔线
-            行("PaperVN Premium", systemImage: "heart.fill", color: .pink, 外部链接: false) {
-                显示Premium = true
+            行("PaperVN Senkou", systemImage: "heart.fill", color: .pink, 外部链接: false) {
+                显示Senkou = true
             }
             分隔线
             行("在GitHub中查看", systemImage: "chevron.left.forwardslash.chevron.right", color: .gray, 外部链接: true) {
@@ -1919,13 +1919,13 @@ private struct 支持PaperVN选项: View {
             Color.演示区域背景,
             in: RoundedRectangle(cornerRadius: 26, style: .continuous)
         )
-        .sheet(isPresented: $显示Premium) {
+        .sheet(isPresented: $显示Senkou) {
             NavigationStack {
-                PaperVNPremiumView()
+                PaperVNSenkou设置页面()
                     .toolbar {
                         ToolbarItem(placement: .平台关闭操作) {
                             Button {
-                                显示Premium = false
+                                显示Senkou = false
                             } label: {
                                 Label("关闭", systemImage: "xmark")
                             }

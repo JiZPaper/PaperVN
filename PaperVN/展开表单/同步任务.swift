@@ -12,7 +12,7 @@ struct 同步任务页面: View {
         同步任务内容(bangumiProgress: bangumiAccount.同步进度)
             .toolbar {
                 if showsCloseButton {
-                    ToolbarItem(placement: .平台关闭操作) {
+                    ToolbarItem(placement: .平台前导关闭操作) {
                         Button {
                             dismiss()
                         } label: {
@@ -34,6 +34,7 @@ private struct 同步任务内容: View {
     @EnvironmentObject private var tmdbAccount: TMDB账户
     @ObservedObject private var sync = PaperVNSync中心.shared
     @ObservedObject private var library = 本地资料库.shared
+    @ObservedObject private var senkou = PaperVNSenkou中心.shared
     @AppStorage(PaperVNSync中心.启用设置键) private var paperVNSyncEnabled = PaperVNSync中心.默认启用
 
     var body: some View {
@@ -61,6 +62,23 @@ private struct 同步任务内容: View {
             } footer: {
                 if bangumiAccount.isLoggedIn && paperVNSyncEnabled {
                     Text("Bangumi番组计划不提供PaperVN所需“从资料库删除”功能对应的API。无法向Bangumi番组计划同步资料库。")
+                }
+            }
+
+            if senkou.已确认 && !senkou.已解锁 {
+                Section {
+                    NavigationLink {
+                        PaperVNSenkou订阅页面()
+                    } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("PaperVN Senkou")
+                            Text("于2030年12月1日前免费")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                } footer: {
+                    Text("同步动画、漫画和轻小说需要PaperVN Senkou。")
                 }
             }
 
@@ -259,7 +277,7 @@ private struct 任务行: View {
     @ViewBuilder
     private var statusLabel: some View {
         if isDisabled {
-            Text("未开启")
+            Text(String(localized: "开关状态.关闭", defaultValue: "关闭"))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         } else {
