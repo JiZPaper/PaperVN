@@ -9,8 +9,10 @@ App 里的原版代码仍在 `PaperVN/智能搜索/`，这里是同一套搜索�
 本 Package 不附带模型。最新的模型在：
 
 ```
-https://r2-papervn.jizpaper.com/Resources/PaperVNSmartSearch.pvss
+https://r2-papervn.jizpaper.com/Resources/PaperVNSmartSearch-v4.pvss
 ```
+
+（格式 3 的旧模型仍在 `Resources/PaperVNSmartSearch.pvss`，供旧版 App 使用，本 Package 不再支持。）
 
 App 安装包里预装的一份在 `PaperVN/Resources/PaperVNSmartSearch.pvss`。模型约 90 MB，搜索时按内存映射读取，不会整个复制进内存。
 
@@ -34,7 +36,7 @@ for 命中 in 结果.命中 {
 
 ## 文件格式
 
-`"PVSS"` | 格式版本 UInt32 | 头长度 UInt32 | 头 JSON | 各段数据（16 字节对齐，小端序）。头 JSON 的 `sections` 记录各段的偏移和长度。目前支持格式版本 2–3。
+`"PVSS"` | 格式版本 UInt32 | 头长度 UInt32 | 头 JSON | 各段数据（16 字节对齐，小端序）。头 JSON 的 `sections` 记录各段的偏移和长度。目前只支持格式版本 4：在名称片段索引之外还有读音索引（汉字的拼音、假名的罗马字，读音表和规则在 `phonetic` 段里，随模型下发），排序器还会用到编辑距离、名字标记、数字和条目的静态特征。
 
 ## 测试
 
@@ -42,7 +44,7 @@ for 命中 in 结果.命中 {
 swift test
 ```
 
-默认使用 App 里预装的模型，也可以用环境变量 `HIRO_INTELLIGENCE_MODEL` 指定模型文件；找不到模型时跳过测试。
+默认使用 App 里预装的模型，也可以用环境变量 `HIRO_INTELLIGENCE_MODEL` 指定模型文件；找不到模型时跳过测试。环境变量 `HIRO_INTELLIGENCE_PARITY` 指定一份一致性样例（生成模型时一起输出的查询与前 5 个结果）时，会检查这里算出的结果和生成模型时的一致。
 
 ## 许可
 

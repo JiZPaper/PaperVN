@@ -27,6 +27,28 @@ final class PaperVNSync中心: ObservableObject {
         var id: 资料库平台 { 平台 }
     }
 
+    struct 不可导入条目提示: Equatable {
+        /// 资料库里原来就有、这次移除的条目数；0 表示只是这次读到了，没有导入。
+        let 移除数: Int
+        /// 这些条目所在的平台。
+        let 平台: [资料库平台]
+
+        var 标题: String {
+            移除数 > 0 ? String(localized: "已从资料库删除\(移除数)个条目") : String(localized: "部分条目不会导入")
+        }
+
+        var 说明: String {
+            let names = ListFormatter.localizedString(byJoining: 平台.map(\.localizedTitle))
+            if 移除数 == 0 {
+                return String(localized: "你在\(names)上的资料库包含音乐等不支持导入的条目。这些条目将保留在原平台上，不会导入到PaperVN。")
+            }
+            // 在 PaperVN 中加入、没有同步到任何平台的条目
+            return 平台.isEmpty
+                ? String(localized: "PaperVN不支持导入音乐等条目。这些条目已从资料库删除。")
+                : String(localized: "PaperVN不支持导入音乐等条目。这些条目已从资料库删除，仍保留在\(names)上。")
+        }
+    }
+
     @Published private(set) var 任务: [资料库平台: 同步任务] = [:]
     /// 各平台最近一次同步完成的时间，保存在本机。
     @Published private(set) var 最近同步时间: [资料库平台: Date] = 读取最近同步时间()
@@ -56,6 +78,8 @@ final class PaperVNSync中心: ObservableObject {
     @Published private(set) var 读取失败: [资料库平台: String] = [:]
     /// 分别保留时在资料库中隐藏的作品数。
     @Published private(set) var 隐藏数 = 0
+    /// 资料库中有音乐（MV）、广告等不能导入的条目时的提示，见 `同步合并.去掉不可导入的条目`。
+    @Published var 不可导入提示: 不可导入条目提示?
     /// VNDB账户里可以作为标签的标签，见 `读取VNDB标签`。
     @Published private(set) var VNDB标签: [用户列表标签信息] = []
     /// 用户在资料库顶部忽略过的缺失作品（“平台|编号”）。发现新的缺失作品时再次提示。
@@ -135,6 +159,20 @@ final class PaperVNSync中心: ObservableObject {
         if self.bangumi !== bangumi { self.bangumi = bangumi }
     }
     private var 动画同步: Task<Void, Never>?
+    /// 同步读取资料库之后在 App 里修改过的作品。同步会话里存的还是修改前的资料库，写回时这些作品保持用户修改后的样子，
+    /// 也不把会话里的旧值推送到平台，否则平台上已经是新值、资料库却退回旧值，下次同步又要用户确认。
+    private var 同步期间修改: Set<String> = []
+    /// 静默下载了新的作品映射，但当时有同步正在进行或等着用户处理，等下一次同步开始时再换上。
+    private var 作品映射待重新载入 = false
+
+    /// 作品映射的新文件已经替换好（`作品映射更新`）。没有同步在进行时马上换用，否则留到下一次同步开始。
+    func 作品映射已更新() async {
+        guard 动画同步 == nil, 待处理 == nil else {
+            作品映射待重新载入 = true
+            return
+        }
+        await 作品映射.重新载入()
+    }
 
     private var vndb导入: Task<Void, Never>?
     private var vndb导入标识: UUID?
@@ -156,10 +194,10 @@ final class PaperVNSync中心: ObservableObject {
 
     /// 从VNDB导入视觉小说。`forceRefresh` 为假时允许使用VNDB服务的短期缓存。
     func 从VNDB导入(token: String, userID: String, forceRefresh: Bool) async {
-        guard Self.已启用, !token.isEmpty, !userID.isEmpty else { return }
-        if 本地资料库.shared.所有者 != userID { VNDB标签 = [] }
+        // 资料库的所有者由 资料库身份 决定（Paper Account、VNDB 或本机），这里只导入
+        guard Self.已启用, !token.isEmpty, !userID.isEmpty, let owner = 本地资料库.shared.所有者 else { return }
+        if 上次凭据?.userID != userID { VNDB标签 = [] }
         上次凭据 = (token, userID)
-        本地资料库.shared.切换所有者(userID)
 
         let 标识 = UUID()
         vndb导入标识 = 标识
@@ -173,13 +211,15 @@ final class PaperVNSync中心: ObservableObject {
             // 先等资料库从磁盘读完，否则导入会把还没读出来的动画、漫画与轻小说覆盖掉
             await 本地资料库.shared.等待载入()
             do {
+                // 没登录VNDB时在 PaperVN（或其他设备）中改过的视觉小说先写入VNDB，免得被导入覆盖
+                try await 推送本地视觉小说(token: token, owner: owner)
                 let items = try await VNDB服务.shared.fetchAllUserList(
                     token: token,
                     userID: userID,
                     forceRefresh: forceRefresh
                 )
                 guard vndb导入标识 == 标识 else { return }
-                本地资料库.shared.导入VNDB(items, owner: userID)
+                本地资料库.shared.导入VNDB(items, owner: owner)
                 await 读取VNDB标签(token: token, userID: userID)
                 任务[.vndb]?.状态 = .完成(.now)
                 Self.记录同步完成(.vndb)
@@ -197,8 +237,33 @@ final class PaperVNSync中心: ObservableObject {
     /// 读取VNDB账户里的标签，用在资料库筛选与编辑页。读取失败时保留上次的结果，筛选菜单仍可用作品上的标签。
     func 读取VNDB标签(token: String, userID: String) async {
         guard let labels = try? await VNDB服务.shared.fetchUserListLabels(token: token, userID: userID),
-              本地资料库.shared.所有者 == userID else { return }
+              上次凭据?.userID == userID else { return }
         if VNDB标签 != labels { VNDB标签 = labels }
+    }
+
+    /// 待推送VNDB中的视觉小说：资料库里有的整条写入VNDB，删除了的从VNDB删除。
+    private func 推送本地视觉小说(token: String, owner: String) async throws {
+        var store = 同步状态存储.读取(owner: owner)
+        guard !store.待推送VNDB.isEmpty else { return }
+        let entries = Dictionary(本地资料库.shared.条目.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        for key in store.待推送VNDB.sorted() {
+            let vnID = String(key.dropFirst(3))
+            if let entry = entries[key], let item = entry.vndb {
+                try await VNDB服务.shared.restoreUserListEntry(
+                    token: token,
+                    vnID: item.id,
+                    labels: (item.labels ?? []).map(\.id).filter { $0 != 7 },
+                    vote: item.vote,
+                    started: item.started,
+                    finished: item.finished,
+                    notes: item.notes
+                )
+            } else if store.本地已删除.contains(key) {
+                try? await VNDB服务.shared.deleteUserListEntry(token: token, vnID: vnID)
+            }
+            store.待推送VNDB.remove(key)
+            store.保存(owner: owner)
+        }
     }
 
     private func 重新导入VNDB() {
@@ -215,7 +280,10 @@ final class PaperVNSync中心: ObservableObject {
     // MARK: 动画、漫画与轻小说
 
     /// 已登录、参与动画同步的平台。
-    private var 已登录平台: [资料库平台] {
+    /// 由 资料库身份 在登录状态变化时更新。
+    var VNDB已登录 = false
+
+    var 已登录平台: [资料库平台] {
         资料库平台.动画漫画平台.filter { platform in
             switch platform {
             case .myAnimeList: myAnimeList?.isLoggedIn == true
@@ -238,9 +306,10 @@ final class PaperVNSync中心: ObservableObject {
     /// 已登录的平台都无法同步这类作品时（只登录了 VNDB 或 Bangumi，或编辑漫画、轻小说时只登录了 Annict）不能编辑，
     /// 否则修改只留在本机、平台上的记录又会在同步时盖回来。可以编辑时返回 nil。
     func 需要登录才能编辑(_ type: 作品类型) -> 资料库编辑限制? {
-        // 资料库的所有者是 VNDB 账户；没有登录其他平台时，就是只登录了 VNDB
+        // 登录了 Paper Account 时资料库随它同步，所有类型都可以编辑
+        if PaperAccount账户.shared.isLoggedIn { return nil }
         var platforms = 已登录平台
-        if platforms.isEmpty, 本地资料库.shared.所有者 != nil { platforms = [.vndb] }
+        if platforms.isEmpty, VNDB已登录 { platforms = [.vndb] }
         guard !platforms.isEmpty,
               !platforms.contains(where: { $0.同步能力.支持写入 && $0.同步能力.支持的类型.contains(type) }) else { return nil }
         return 资料库编辑限制(
@@ -284,6 +353,11 @@ final class PaperVNSync中心: ObservableObject {
         }
         let platforms = 同步平台
         guard !platforms.isEmpty else { return }
+        // 下载好的新映射在同步开始前换上，同步过程中作品的编号不变
+        if 作品映射待重新载入 {
+            作品映射待重新载入 = false
+            await 作品映射.重新载入()
+        }
         // 资料库从磁盘读完、读取成功之后才同步；否则会把还没读出来的资料库当成空的
         await 本地资料库.shared.等待载入()
         guard 本地资料库.shared.可写入, 本地资料库.shared.所有者 == owner else { return }
@@ -295,6 +369,7 @@ final class PaperVNSync中心: ObservableObject {
                     if case .进行中 = 任务[platform]?.状态 { 任务[platform]?.状态 = .等待 }
                 }
             }
+            同步期间修改 = []
             for platform in platforms {
                 任务[platform] = 同步任务(
                     平台: platform,
@@ -344,7 +419,25 @@ final class PaperVNSync中心: ObservableObject {
 
             var store = 同步状态存储.读取(owner: owner)
             var local = 本地资料库.shared.动画漫画条目
+            // 读取平台期间在 App 里改过的作品已经在 local 里了，之后改的另外记
+            let editedWhileReading = 同步期间修改
+            同步期间修改 = []
             未匹配作品 = store.未匹配作品
+            // MAL 把几部作品记成一个条目的，按集数拆成这几部作品的记录
+            var malSplitOriginals: [Int: 同步快照] = [:]
+            if var malLibrary = libraries[.myAnimeList] {
+                let base = store.基线[.myAnimeList]?.快照 ?? [:]
+                var records: [平台资料库记录] = []
+                for record in Array(malLibrary.记录.values) + malLibrary.附属记录 {
+                    let parts = MAL拆分条目.拆开(record, 基线: base)
+                    if parts != [record], let malID = Int(record.平台ID) { malSplitOriginals[malID] = record.快照 }
+                    records += parts
+                }
+                (malLibrary.记录, malLibrary.附属记录) = 同步合并.每部作品一条(records)
+                libraries[.myAnimeList] = malLibrary
+            }
+            // 后台校准过的作品，以校准为准：去掉用户自己的手动匹配，撤回当初按手动匹配写错的记录（不提示用户）
+            let withdrawals = Self.跟随校准(store: &store, libraries: &libraries, local: &local)
             // 各平台的条目按对应关系归到作品：手动匹配与校准表 → 预装的作品映射 → 以前在 MAL 上找到的对应。
             // 同步时不按标题现场匹配；对不上的作品可以在同步任务里手动匹配
             for platform in Array(libraries.keys) {
@@ -411,6 +504,32 @@ final class PaperVNSync中心: ObservableObject {
                     }
                 }
             }
+            // 音乐（MV）、广告等不是作品的条目不导入。以前的版本导入资料库的直接移除，平台上保留：
+            // 基线和待推送里也去掉，不会被当成在 PaperVN 中删除了，推送到平台
+            let unsupported = 同步合并.去掉不可导入的条目(&libraries, 本地: &local, 已知: store.不可导入.union(不可导入条目判定.已知))
+            store.不可导入 = unsupported.键
+            if !unsupported.键.isEmpty {
+                for key in unsupported.键 {
+                    store.待推送[key] = nil
+                    store.隐藏[key] = nil
+                    store.隐藏条目[key] = nil
+                }
+                store.未匹配作品 = store.未匹配作品.compactMapValues { works in
+                    let kept = works.filter { !unsupported.键.contains($0.键) }
+                    return kept.isEmpty ? nil : kept
+                }
+                未匹配作品 = store.未匹配作品
+                if !unsupported.移除的条目.isEmpty {
+                    本地资料库.shared.移除不可导入的条目(unsupported, owner: owner)
+                }
+                // 第一次遇到时提示一次；资料库里移除了条目时总是提示
+                let platforms = unsupported.平台.union(unsupported.移除的条目.flatMap(\.平台ID.keys))
+                let names = 资料库平台.动画漫画平台.filter(platforms.contains)
+                if !names.isEmpty, !unsupported.移除的条目.isEmpty || !store.已提示不可导入 {
+                    store.已提示不可导入 = true
+                    不可导入提示 = 不可导入条目提示(移除数: unsupported.移除的条目.count, 平台: names)
+                }
+            }
             // AniList 在 PaperVN 新建记录时自动填上的日期：资料库和这次读到的记录都改回应有的日期，推送时再改 AniList
             var aniListDateFixes: [String: 同步日期] = [:]
             for (key, record) in libraries[.aniList]?.记录 ?? [:] {
@@ -442,15 +561,29 @@ final class PaperVNSync中心: ObservableObject {
                     bases[platform]?.快照[key] = nil
                 }
             }
+            for key in unsupported.键 {
+                for platform in bases.keys { bases[platform]?.快照[key] = nil }
+            }
             同步合并.去掉仍在平台上的基线(&bases, 平台: libraries, 本地: local)
+            // 读取平台期间在 App 里改过的作品：读到的可能是推送之前的旧值，而基线已经按推送记成了新值，
+            // 会被当成“在平台上修改”要用户确认。以资料库为准：平台读到的值当作没有变化，资料库的值再推送一次
+            var pending = store.待推送.filter { store.隐藏[$0.key] == nil }
+            for key in editedWhileReading where store.隐藏[key] == nil {
+                for (platform, platformLibrary) in libraries where bases[platform]?.账户ID == platformLibrary.账户ID {
+                    bases[platform]?.快照[key] = platformLibrary.记录[key]?.快照
+                }
+                pending[key, default: []].formUnion(libraries.keys.filter(\.可导出))
+            }
             var session = 同步会话(
                 本地: local,
                 平台: libraries,
                 基线: bases,
-                待推送: store.待推送.filter { store.隐藏[$0.key] == nil }
+                待推送: pending
             )
             session.本地已删除 = store.本地已删除
             session.AniList日期修正 = aniListDateFixes
+            session.MAL拆分原值 = malSplitOriginals
+            session.撤回写入 = withdrawals
             session.仅导出 = Set(platforms.filter { $0.同步方向 == .仅导出 })
             session.仅导入 = Set(platforms.filter { !$0.可导出 })
             session.读取失败 = failures
@@ -473,6 +606,42 @@ final class PaperVNSync中心: ObservableObject {
         动画同步 = task
         await task.value
         动画同步 = nil
+    }
+
+    private var 不可导入检查: Task<Void, Never>?
+
+    /// 资料库载入或更改后检查一次。依次执行：前一次还在读取时，这一次等它读完再看有没有新加入的作品。
+    func 安排检查不可导入的条目() {
+        let previous = 不可导入检查
+        不可导入检查 = Task {
+            await previous?.value
+            await 检查不可导入的条目()
+        }
+    }
+
+    /// 资料库里以前导入的音乐（MV）等条目：按公开接口读到的分类移除（见 `不可导入条目判定`），不依赖登录了哪个平台，也不用等同步。
+    /// 编号记进同步状态：之后同步时平台上的这些条目不导入，基线也去掉，不会把删除推送到平台。
+    private func 检查不可导入的条目() async {
+        guard let owner = 本地资料库.shared.所有者, 本地资料库.shared.可写入 else { return }
+        let anime = 本地资料库.shared.条目.filter { $0.类型 == .anime }
+        guard !anime.isEmpty else { return }
+        let keys = await 不可导入条目判定.读取(anime)
+        guard !keys.isEmpty else { return }
+        // 同步会话里还有这些条目，同步完成时会写回资料库：等同步结束；等用户处理时不动，处理完会再检查一次
+        await 动画同步?.value
+        guard 待处理 == nil, 动画同步 == nil, 本地资料库.shared.所有者 == owner, 本地资料库.shared.可写入 else { return }
+        let removed = 本地资料库.shared.条目.filter { $0.类型 == .anime && keys.contains($0.id) }
+        guard !removed.isEmpty else { return }
+        var store = 同步状态存储.读取(owner: owner)
+        store.不可导入.formUnion(keys)
+        store.已提示不可导入 = true
+        for key in keys {
+            store.待推送[key] = nil
+        }
+        store.保存(owner: owner)
+        本地资料库.shared.移除不可导入的条目(不可导入的条目(键: keys), owner: owner)
+        let platforms = Set(removed.flatMap(\.平台ID.keys))
+        不可导入提示 = 不可导入条目提示(移除数: removed.count, 平台: 资料库平台.动画漫画平台.filter(platforms.contains))
     }
 
     private func 读取结果(
@@ -746,7 +915,8 @@ final class PaperVNSync中心: ObservableObject {
         var unmatched: [资料库平台: [String]] = [:]
         let manual = 本地资料库.shared.所有者.map { 同步状态存储.读取(owner: $0).手动匹配 } ?? []
         for operation in missing where found[operation.平台]?[operation.键] == nil {
-            let id = 作品匹配校准.shared.平台ID(operation.平台, 类型: operation.类型, 已知: Self.已知ID(operation, session: session), 手动: manual)
+            let id = (operation.平台 == .myAnimeList ? MAL拆分条目.拆分ID(operation.键, 类型: operation.类型) : nil)
+                ?? 作品匹配校准.shared.平台ID(operation.平台, 类型: operation.类型, 已知: Self.已知ID(operation, session: session), 手动: manual)
                 ?? 作品映射.平台ID(operation.键, 平台: operation.平台, 类型: operation.类型)
                 ?? (operation.平台 == .myAnimeList ? operation.malID.map(String.init) : nil)
             if let id { found[operation.平台, default: [:]][operation.键] = id }
@@ -811,6 +981,7 @@ final class PaperVNSync中心: ObservableObject {
                         local[key]?.状态 = mal.状态
                         local[key]?.评分 = mal.评分
                         local[key]?.进度 = mal.进度
+                        local[key]?.卷数 = mal.卷数
                     }
                     store.基线[platform]?.快照[key] = nil
                     local[key]?.平台ID[platform] = nil
@@ -825,12 +996,80 @@ final class PaperVNSync中心: ObservableObject {
         }
     }
 
+    /// 后台校准覆盖用户自己的手动匹配：某个平台上，校准已经说明了这部作品对应哪个条目（或者并在别的作品里），
+    /// 就去掉用户对这个平台的手动匹配，按校准同步，不提示用户。
+    /// 手动匹配选的条目和校准不同时，当初已经按它写到了平台上：
+    /// - 去掉这部作品在该平台的基线和资料库里记着的平台 ID，免得被当成“在平台上删除”，或者以后改到错的条目上；
+    /// - 那个条目属于资料库里的另一部作品（例如整部剧的 TMDB 条目属于第一季）：留着，归给那部作品；
+    /// - 否则，平台上的记录还是当初写进去的样子时从平台上删除。用户在平台上改过的不删。
+    /// 整个过程不弹出任何确认：去掉的基线和记录一一对应，不会被当成平台上的删除或新增。
+    static func 跟随校准(
+        store: inout 同步状态存储,
+        libraries: inout [资料库平台: 平台资料库],
+        local: inout [String: 本地资料库条目]
+    ) -> [撤回写入] {
+        let calibration = 作品匹配校准.shared
+        var withdrawals: [撤回写入] = []
+        var kept: [作品对应组] = []
+        for group in store.手动匹配 {
+            let type: 作品类型 = group.type == "anime" ? .anime : .manga
+            let ids = Dictionary(uniqueKeysWithValues: group.ids.compactMap { name, id in 资料库平台(rawValue: name).map { ($0, id) } })
+            let attached = Dictionary(uniqueKeysWithValues: (group.attached ?? [:]).compactMap { name, values in
+                资料库平台(rawValue: name).flatMap { platform in values.first.map { (platform, $0) } }
+            })
+            // 手动匹配为附属时，目标平台是主条目；否则每个平台都可能是当初手动选的
+            let targets: [(平台: 资料库平台, 选的: String, 已知: [资料库平台: String], 附属: Bool)] = attached.isEmpty
+                ? ids.map { platform, id in (platform, id, ids.filter { $0.key != platform }, false) }
+                : ids.map { platform, id in (platform, id, attached, true) }
+            var overridden = false
+            for target in targets where !target.已知.isEmpty {
+                let calibratedID = calibration.平台ID(target.平台, 类型: type, 已知: target.已知, 手动: [])
+                let calibratedFold = calibration.并入(target.平台, 类型: type, 已知: target.已知, 手动: [])
+                guard calibratedID != nil || calibratedFold else { continue }
+                overridden = true
+                // 和校准一致，或者手动匹配本来就没写入（附属），没有要撤回的
+                guard !target.附属, calibratedID != target.选的 else { continue }
+                // 当初这条记录算到的作品：用手动选的平台以外的 ID 确定（选的条目本身可能属于别的作品）
+                guard let wrongKey = 作品对应组(类型: type, ids: target.已知).键(类型: type) else { continue }
+                let baseline = store.基线[target.平台]?.快照.removeValue(forKey: wrongKey)
+                if local[wrongKey]?.平台ID[target.平台] == target.选的 { local[wrongKey]?.平台ID[target.平台] = nil }
+                guard let baseline else { continue }
+                let record = libraries[target.平台].flatMap { library in
+                    (Array(library.记录.values) + library.附属记录).first { $0.平台ID == target.选的 }
+                }
+                // 选的是别的作品的条目（例如整部剧的 TMDB 条目属于第一季）：那部作品在资料库里时归给它，
+                // 没有基线就用这次读到的值补上，免得被当成“平台上新增、修改”而弹出确认；不在资料库里时，这条记录只是当初写错的，撤回
+                let owner = [作品映射.查找(target.平台, 平台ID: target.选的, 类型: type),
+                             calibration.查找(target.平台, 平台ID: target.选的, 类型: type, 手动: [])]
+                    .compactMap { $0 }.first { !$0.附属 }?.键
+                if let owner, local[owner] != nil {
+                    if let record, store.基线[target.平台]?.快照[owner] == nil { store.基线[target.平台]?.快照[owner] = record.快照 }
+                    continue
+                }
+                guard target.平台.同步能力.支持删除 else { continue }
+                // 平台上还是当初写进去的样子（或者读取时被过滤掉了，例如 TMDB 上的真人电影）才删
+                guard record == nil || record?.快照 == baseline else { continue }
+                if var library = libraries[target.平台] {
+                    let records = (Array(library.记录.values) + library.附属记录).filter { $0.平台ID != target.选的 }
+                    (library.记录, library.附属记录) = 同步合并.每部作品一条(records)
+                    libraries[target.平台] = library
+                }
+                withdrawals.append(撤回写入(平台: target.平台, 平台ID: target.选的, 类型: type))
+            }
+            if !overridden { kept.append(group) }
+        }
+        store.手动匹配 = kept
+        return withdrawals
+    }
+
     /// 平台条目属于哪部作品。手动匹配与后台校准最优先（用来改正映射），其次是预装的作品映射。
     /// 校准表与手动匹配的“附属”只说明某个平台上没有这部作品自己的条目（例如 Bangumi 把 OVA 算在 TV 版里），
     /// 不能把预装映射里单独成为作品的条目（MAL、Annict 上单独的 OVA）降为附属：
     /// 否则它会从原来的作品里消失，被当成“在平台上删除”，资料库里的作品也可能在改编号时被并掉。
     private static func 对应作品(_ record: inout 平台资料库记录, store: 同步状态存储) {
         let platform = record.平台
+        // 拆开的 MAL 条目（“55357#2”）拆开时已经按拆分定好了作品
+        if platform == .myAnimeList, 作品映射.MAL拆分条目(record.平台ID) != nil { return }
         let preset = 作品映射.查找(platform, 平台ID: record.平台ID, 类型: record.类型)
         var calibrated = 作品匹配校准.shared.查找(platform, 平台ID: record.平台ID, 类型: record.类型, 手动: store.手动匹配)
         if calibrated?.附属 == true, let preset, !preset.附属 { calibrated = nil }
@@ -883,7 +1122,22 @@ final class PaperVNSync中心: ObservableObject {
         待处理 = nil
         显示待处理 = false
 
+        // 和别的作品共用 MAL 条目的作品写入拆分条目（资料库里可能还记着旧的整条 MAL ID）
+        var session = session
+        for index in session.推送.indices where session.推送[index].平台 == .myAnimeList && session.推送[index].平台ID != nil {
+            let operation = session.推送[index]
+            if let id = MAL拆分条目.拆分ID(operation.键, 类型: operation.类型) { session.推送[index].平台ID = id }
+        }
+        // 撤回按手动匹配写错的记录：失败了也不要紧（可能用户已经在平台上删掉了），基线已经去掉，不会再被当成这部作品
+        for withdrawal in session.撤回写入 where session.可导出(withdrawal.平台) {
+            try? await 写入(withdrawal.平台, platformID: withdrawal.平台ID, type: withdrawal.类型, target: nil)
+        }
         let operations = session.推送.filter { $0.平台ID != nil }
+        // 共用一个 MAL 条目的几部作品合成一次写入，按新的资料库算出整个条目的值
+        let newLibrary = operations.contains { $0.平台 == .myAnimeList && 作品映射.MAL拆分条目($0.平台ID ?? "") != nil }
+            ? 同步合并.新资料库(session) : [:]
+        let malSplitOriginals = session.MAL拆分原值
+        let malRecords = session.平台[.myAnimeList]?.记录 ?? [:]
         var failed: Set<String> = []
         var errors: [资料库平台: String] = [:]
         for platform in session.平台.keys {
@@ -898,9 +1152,35 @@ final class PaperVNSync中心: ObservableObject {
             Task { () -> (Set<String>, String?) in
                 var platformFailed: Set<String> = []
                 var firstError: String?
+                var malSplitResults: [Int: Result<Void, Error>] = [:]
                 for (index, operation) in platformOperations.enumerated() {
+                    // 同步期间在 App 里改过的作品，会话里的值已经过时：不写入，按失败处理，基线和待推送最后保持 App 里修改后的
+                    if self.同步期间修改.contains(operation.键) {
+                        platformFailed.insert(operation.id)
+                        continue
+                    }
                     do {
-                        try await self.写入(operation)
+                        if platform == .myAnimeList, let malID = 作品映射.MAL拆分条目(operation.平台ID ?? "") {
+                            // 同一个 MAL 条目只写一次，几部作品共用写入的结果
+                            if malSplitResults[malID] == nil {
+                                do {
+                                    try await self.写入MAL拆分条目(malID, 类型: operation.类型, 原值: malSplitOriginals[malID]) { part in
+                                        // 共用条目的其他几部在同步期间改过的，用资料库里现在的值
+                                        let entry = self.同步期间修改.contains(part.键)
+                                            ? 本地资料库.shared.动画漫画条目[part.键] : newLibrary[part.键]
+                                        return entry.map {
+                                            同步合并.写入目标($0, 现有: malRecords[part.键]?.快照, ability: platform.同步能力)
+                                        }
+                                    }
+                                    malSplitResults[malID] = .success(())
+                                } catch {
+                                    malSplitResults[malID] = .failure(error)
+                                }
+                            }
+                            try malSplitResults[malID]?.get()
+                        } else {
+                            try await self.写入(operation)
+                        }
                     } catch {
                         platformFailed.insert(operation.id)
                         firstError = firstError ?? Self.错误说明(error)
@@ -919,14 +1199,13 @@ final class PaperVNSync中心: ObservableObject {
         }
         // 改回 AniList 自动填写的日期。失败了也不要紧：下次同步还会认出来再改
         if let account = aniList, account.isLoggedIn {
-            for (key, fix) in session.AniList日期修正 {
+            for (key, fix) in session.AniList日期修正 where !同步期间修改.contains(key) {
                 guard let value = session.平台[.aniList]?.记录[key]?.平台ID, let mediaID = Int(value) else { continue }
                 try? await account.修改日期(mediaID: mediaID, 日期: fix)
             }
         }
 
         // 新的资料库：没有推送成功的新增，平台 ID 不写进去
-        var session = session
         session.推送 = session.推送.map { operation in
             var operation = operation
             if failed.contains(operation.id) { operation.平台ID = nil }
@@ -937,8 +1216,44 @@ final class PaperVNSync中心: ObservableObject {
             if let id = operation.平台ID { library[operation.键]?.平台ID[operation.平台] = id }
         }
 
+        // 在 MAL 上按标题搜到、成功添加的作品：资料库里的编号改成 MAL 的，并记住平台记录和 MAL ID 的对应，
+        // 否则下次同步时 MAL 那边按 MAL ID 编号，又会被当成另一部作品
+        var malAdded: [(operation: 推送操作, malID: Int, newKey: String)] = []
+        for operation in session.推送 where operation.平台 == .myAnimeList && operation.种类 == .新增
+            && !failed.contains(operation.id) && !operation.键.hasPrefix("mal-") {
+            guard let value = operation.平台ID, let malID = Int(value) else { continue }
+            let newKey = 同步合并.键(类型: operation.类型, malID: malID, 平台: .myAnimeList, 平台ID: value)
+            malAdded.append((operation, malID, newKey))
+            if var entry = library.removeValue(forKey: operation.键) {
+                entry.id = newKey
+                entry.平台ID[.myAnimeList] = value
+                library[newKey] = entry
+            }
+        }
+        // 中文名补全之后才写入资料库：资料库显示的是最终的标题，不会先显示一遍再变
+        await Bangumi中文名补全.补全(&library)
+        // 漫画还是轻小说以公开接口读到的分类为准，平台记录（尤其是 Bangumi 按标签猜的）只在读不到时使用
+        let bookTypes = await 书籍类型判定.读取(Array(library.values), bangumiToken: try? await bangumi?.validAccessToken())
+        for (key, type) in bookTypes { library[key]?.类型 = type }
+        guard 本地资料库.shared.所有者 == owner else { return }
+
+        // 以下读取、修改、保存同步状态和写入资料库之间不能有 await：期间在 App 里的修改也会读写同步状态，
+        // 中间插进来的修改会被这里存的旧状态覆盖
+        // 同步期间在 App 里修改过的作品保持修改后的样子，只补上这次查到的平台 ID
+        let edited = 同步期间修改
+        let current = 本地资料库.shared.动画漫画条目
+        for key in edited {
+            guard var entry = current[key] else {
+                library[key] = nil
+                continue
+            }
+            if let synced = library[key] { entry.平台ID.merge(synced.平台ID) { mine, _ in mine } }
+            library[key] = entry
+        }
+
         var store = 同步状态存储.读取(owner: owner)
         let previousBases = store.基线
+        let previousPending = store.待推送
         store.基线.merge(同步合并.新基线(session, 失败: failed)) { _, new in new }
         // 以前隐藏的作品不在这次的数据里，保留它们原来的基线
         for key in store.隐藏.keys {
@@ -946,7 +1261,7 @@ final class PaperVNSync中心: ObservableObject {
                 if let value = previousBases[platform]?.快照[key] { store.基线[platform]?.快照[key] = value }
             }
         }
-        for (key, platforms) in session.新隐藏 {
+        for (key, platforms) in session.新隐藏 where !edited.contains(key) {
             store.隐藏[key, default: []].formUnion(platforms)
             if let entry = session.本地[key] ?? 同步合并.隐藏条目(key: key, session: session) {
                 store.隐藏条目[key] = entry
@@ -967,16 +1282,19 @@ final class PaperVNSync中心: ObservableObject {
         }
         store.待推送 = pending
         // 这次同步决定删除的作品（覆盖、确认删除）记下来：不能删除的平台上还留着它，以后不能再恢复回来
-        for (key, result) in session.结果 where result == .删除 {
+        for (key, result) in session.结果 where result == .删除 && !edited.contains(key) {
             store.本地已删除.insert(key)
         }
+        // 同步期间在 App 里修改过的作品：基线和待推送保持那次修改留下的（推送成功的基线已经是新值，没推送成功的留在待推送里）
+        for key in edited {
+            // 这次才有基线的账户（第一次同步、换了账户）没有那次修改留下的基线，用这次读到的
+            for (platform, platformLibrary) in session.平台 where previousBases[platform]?.账户ID == platformLibrary.账户ID {
+                store.基线[platform]?.快照[key] = previousBases[platform]?.快照[key]
+            }
+            store.待推送[key] = previousPending[key]
+        }
 
-        // 在 MAL 上按标题搜到、成功添加的作品：资料库里的编号改成 MAL 的，并记住平台记录和 MAL ID 的对应，
-        // 否则下次同步时 MAL 那边按 MAL ID 编号，又会被当成另一部作品
-        for operation in session.推送 where operation.平台 == .myAnimeList && operation.种类 == .新增
-            && !failed.contains(operation.id) && !operation.键.hasPrefix("mal-") {
-            guard let value = operation.平台ID, let malID = Int(value) else { continue }
-            let newKey = 同步合并.键(类型: operation.类型, malID: malID, 平台: .myAnimeList, 平台ID: value)
+        for (operation, malID, newKey) in malAdded {
             for (platform, platformLibrary) in session.平台 {
                 if let record = platformLibrary.记录[operation.键] {
                     store.已知MALID["\(platform.rawValue):\(record.平台ID)"] = malID
@@ -984,11 +1302,6 @@ final class PaperVNSync中心: ObservableObject {
                 if let baseValue = store.基线[platform]?.快照.removeValue(forKey: operation.键) {
                     store.基线[platform]?.快照[newKey] = baseValue
                 }
-            }
-            if var entry = library.removeValue(forKey: operation.键) {
-                entry.id = newKey
-                entry.平台ID[.myAnimeList] = value
-                library[newKey] = entry
             }
         }
         // 找不到的作品记下来，可以在同步任务里手动匹配；新出现的匿名提交到后台
@@ -1012,10 +1325,7 @@ final class PaperVNSync中心: ObservableObject {
                 newlyUnmatched.append((work, platform))
             }
         }
-        // 中文名补全之后才写入资料库：资料库显示的是最终的标题，不会先显示一遍再变
-        await Bangumi中文名补全.补全(&library)
-        guard 本地资料库.shared.所有者 == owner else { return }
-        本地资料库.shared.替换动画漫画(Array(library.values), owner: owner)
+        本地资料库.shared.替换动画漫画(Array(library.values), owner: owner, 原因: 资料库更改原因(导入方式: session.导入方式))
         store.保存(owner: owner)
         if !newlyUnmatched.isEmpty {
             Task {
@@ -1079,6 +1389,7 @@ final class PaperVNSync中心: ObservableObject {
                     kind: kind, id: id, status: target.状态,
                     score: target.评分 ?? (清除空值 ? 0 : nil),
                     progress: target.进度,
+                    volumes: target.卷数,
                     dates: 日期.map { ($0.开始, $0.完成) }
                 )
             } else {
@@ -1109,6 +1420,26 @@ final class PaperVNSync中心: ObservableObject {
         default:
             return
         }
+    }
+
+    /// 几部作品共用的 MAL 条目：把各部的值合成一个写入。都不在资料库里时从 MAL 删除；
+    /// `原值` 是 MAL 上现在的值，合成的值和它一样时不写，免得改掉 MAL 上的更改时间。
+    private func 写入MAL拆分条目(
+        _ malID: Int,
+        类型 type: 作品类型,
+        原值 current: 同步快照?,
+        值 value: (作品映射.拆分部分) -> 同步快照?
+    ) async throws {
+        guard let (_, combined) = MAL拆分条目.写回值(malID, 类型: type, 值: value) else { return }
+        guard let account = myAnimeList, account.isLoggedIn else { throw 平台账户错误.notLoggedIn(资料库平台.myAnimeList.localizedTitle) }
+        let kind: MyAnimeList列表项.种类 = type == .anime ? .anime : .manga
+        guard let combined else {
+            try await account.deleteListItem(kind: kind, id: malID)
+            return
+        }
+        if let current, MAL拆分条目.相符(combined, current) { return }
+        // 评分为 nil 时（各部分数不同）不改 MAL 上的评分
+        try await account.updateListStatus(kind: kind, id: malID, status: combined.状态, score: combined.评分, progress: combined.进度)
     }
 
     // MARK: 在 App 里修改
@@ -1184,34 +1515,59 @@ final class PaperVNSync中心: ObservableObject {
         清除空值: Bool = false
     ) async throws {
         guard Self.已启用, let owner = 本地资料库.shared.所有者 else { return }
+        if entry.类型 != .visualNovel { 同步期间修改.insert(entry.id) }
         // 只导入的平台（Bangumi）不写入
         let platforms = 已登录平台.filter { $0.可导出 && $0.同步能力.支持的类型.contains(entry.类型) }
 
         // 已看完而不知道集数时按总集数写，不留空
         var target = target
         if target?.状态 == .completed, target?.进度 == nil, let total = entry.总数 { target?.进度 = total }
+        if target?.状态 == .completed, target?.卷数 == nil, let total = entry.总卷数 { target?.卷数 = total }
 
-        var store = 同步状态存储.读取(owner: owner)
-        store.待推送[entry.id, default: []].formUnion(platforms)
-        // 记住在 PaperVN 中删除的作品：Bangumi 上还留着它，同步时不能再恢复回来。只登录了 Bangumi 时也要记
-        if target == nil {
-            store.本地已删除.insert(entry.id)
-        } else {
-            store.本地已删除.remove(entry.id)
+        更改同步状态(owner: owner) { store in
+            store.待推送[entry.id, default: []].formUnion(platforms)
+            // 记住在 PaperVN 中删除的作品：Bangumi 上还留着它，同步时不能再恢复回来。只登录了 Bangumi 时也要记
+            if target == nil {
+                store.本地已删除.insert(entry.id)
+            } else {
+                store.本地已删除.remove(entry.id)
+            }
         }
-        store.保存(owner: owner)
         guard !platforms.isEmpty else { return }
 
         var firstError: Error?
         // 没有改日期时，平台上的日期按和资料库一致看待：AniList 自动填上的日期改回资料库里的
         let 本地日期 = 同步日期(开始: entry.开始日期, 完成: entry.完成日期)
         for platform in platforms {
+            // 和别的作品共用 MAL 条目时，几部作品合成一个条目写入（其他几部用资料库里现在的值）
+            if platform == .myAnimeList, let splitID = MAL拆分条目.拆分ID(entry.id, 类型: entry.类型),
+               let malID = 作品映射.MAL拆分条目(splitID) {
+                if target == nil && !platform.同步能力.支持删除 { continue }
+                let library = 本地资料库.shared.动画漫画条目
+                do {
+                    try await 写入MAL拆分条目(malID, 类型: entry.类型, 原值: nil) { part in
+                        part.键 == entry.id ? target : library[part.键].map(同步合并.快照)
+                    }
+                    更改同步状态(owner: owner) { store in
+                        store.待推送[entry.id]?.remove(platform)
+                        if store.基线[platform] != nil {
+                            let existing = store.基线[platform]?.快照[entry.id]
+                            store.基线[platform]?.快照[entry.id] = target.map {
+                                同步合并.平台保存的值($0, 现有: existing, platform: platform, type: entry.类型)
+                            }
+                        }
+                    }
+                } catch {
+                    firstError = firstError ?? error
+                }
+                continue
+            }
             let platformID = entry.平台ID[platform]
                 ?? (platform == .myAnimeList ? entry.malID.map(String.init) : nil)
                 ?? 作品映射.平台ID(entry.id, 平台: platform, 类型: entry.类型)
             // 平台不支持删除（Bangumi）：不推送，需要用户在平台上手动删除
             if target == nil && !platform.同步能力.支持删除 {
-                store.待推送[entry.id]?.remove(platform)
+                更改同步状态(owner: owner) { $0.待推送[entry.id]?.remove(platform) }
                 continue
             }
             // 还不知道作品在该平台上的 ID：留在待推送里，完整同步时查找后再推送
@@ -1221,23 +1577,33 @@ final class PaperVNSync中心: ObservableObject {
                     platform, platformID: platformID, type: entry.类型, target: target, 日期: 日期, 清除空值: 清除空值,
                     自动日期修正: 日期 == nil ? (原有: 本地日期, 期望: 本地日期) : nil
                 )
-                store.待推送[entry.id]?.remove(platform)
-                if store.基线[platform] != nil {
-                    let existing = store.基线[platform]?.快照[entry.id]
-                    // TMDB 记录不了的值写入后作品会从 TMDB 上消失，基线里也去掉，免得下次被当成在 TMDB 上删除
-                    store.基线[platform]?.快照[entry.id] = target.flatMap { value in
-                        platform.同步能力.可记录(value)
-                            ? 同步合并.平台保存的值(value, 现有: existing, platform: platform, type: entry.类型)
-                            : nil
+                更改同步状态(owner: owner) { store in
+                    store.待推送[entry.id]?.remove(platform)
+                    if store.基线[platform] != nil {
+                        let existing = store.基线[platform]?.快照[entry.id]
+                        // TMDB 记录不了的值写入后作品会从 TMDB 上消失，基线里也去掉，免得下次被当成在 TMDB 上删除
+                        store.基线[platform]?.快照[entry.id] = target.flatMap { value in
+                            platform.同步能力.可记录(value)
+                                ? 同步合并.平台保存的值(value, 现有: existing, platform: platform, type: entry.类型)
+                                : nil
+                        }
                     }
                 }
             } catch {
                 firstError = firstError ?? error
             }
         }
-        if store.待推送[entry.id]?.isEmpty == true { store.待推送[entry.id] = nil }
-        store.保存(owner: owner)
+        更改同步状态(owner: owner) { store in
+            if store.待推送[entry.id]?.isEmpty == true { store.待推送[entry.id] = nil }
+        }
         if let firstError { throw firstError }
+    }
+
+    /// 每次都重新读取再保存：推送单项要等网络，期间同步可能已经保存了新的基线，拿着之前读到的状态保存会把它覆盖掉。
+    private func 更改同步状态(owner: String, _ change: (inout 同步状态存储) -> Void) {
+        var store = 同步状态存储.读取(owner: owner)
+        change(&store)
+        store.保存(owner: owner)
     }
 
     /// 退出登录时清空任务与当前资料库。
@@ -1258,7 +1624,7 @@ final class PaperVNSync中心: ObservableObject {
         VNDB标签 = []
         最近同步时间 = [:]
         UserDefaults.standard.removeObject(forKey: Self.最近同步时间键)
-        本地资料库.shared.切换所有者(nil)
+        // 资料库是否保留由 资料库身份 决定：还登录着 Paper Account 或其他平台时资料库照常可用
     }
 
     private static func 错误说明(_ error: Error) -> String {
@@ -1289,6 +1655,12 @@ struct 同步状态存储: Codable {
     var 已提交未匹配: Set<String> = []
     /// 用户手动匹配的作品，优先于校准表。
     var 手动匹配: [作品对应组] = []
+    /// 没登录VNDB时在 PaperVN 中更改的视觉小说，登录VNDB后先写入VNDB再导入。
+    var 待推送VNDB: Set<String> = []
+    /// 认出来的音乐（MV）、广告等不能导入的条目，见 `同步合并.去掉不可导入的条目`。
+    var 不可导入: Set<String> = []
+    /// 已经提示过资料库中有不能导入的条目。
+    var 已提示不可导入 = false
 
     init() {}
 
@@ -1304,6 +1676,9 @@ struct 同步状态存储: Codable {
         未匹配作品 = try container.decodeIfPresent([资料库平台: [PaperVN.未匹配作品]].self, forKey: .未匹配作品) ?? [:]
         已提交未匹配 = try container.decodeIfPresent(Set<String>.self, forKey: .已提交未匹配) ?? []
         手动匹配 = try container.decodeIfPresent([作品对应组].self, forKey: .手动匹配) ?? []
+        待推送VNDB = try container.decodeIfPresent(Set<String>.self, forKey: .待推送VNDB) ?? []
+        不可导入 = try container.decodeIfPresent(Set<String>.self, forKey: .不可导入) ?? []
+        已提示不可导入 = try container.decodeIfPresent(Bool.self, forKey: .已提示不可导入) ?? false
     }
 
     static func 读取(owner: String) -> 同步状态存储 {
@@ -1321,7 +1696,7 @@ struct 同步状态存储: Codable {
         try? data.write(to: url, options: .atomic)
     }
 
-    private static func 文件地址(owner: String) -> URL {
+    nonisolated static func 文件地址(owner: String) -> URL {
         let safeOwner = owner.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? owner
         return URL.applicationSupportDirectory
             .appending(path: "PaperVN Sync", directoryHint: .isDirectory)

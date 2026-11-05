@@ -50,6 +50,9 @@ public actor 智能搜索引擎 {
         let 先验: UnsafeBufferPointer<Float>
         let 系列: UnsafeBufferPointer<UInt32>
         let 所属作品: UnsafeBufferPointer<UInt32>
+        /// 每个条目固定的特征（头里 staticFeatures 列出的），按条目连续存放。
+        let 静态: UnsafeBufferPointer<Float>
+        let 静态位置: [Int]
 
         var 作品数: Int { 文件.头.visualNovelCount }
         var 角色数: Int { 文件.头.characterCount }
@@ -66,15 +69,23 @@ public actor 智能搜索引擎 {
             先验 = try 文件.数组段("docs/priors", 类型: Float.self)
             系列 = try 文件.数组段("docs/series", 类型: UInt32.self)
             所属作品 = try 文件.数组段("docs/parents", 类型: UInt32.self)
+            静态 = try 文件.数组段("docs/static", 类型: Float.self)
             let 头 = 文件.头
+            静态位置 = ["group_top", "group_size"].compactMap { 头.staticFeatures.firstIndex(of: $0) }
             let 数量 = 头.visualNovelCount + 头.characterCount + 头.producerCount + 头.staffCount
                 + (头.animeCount ?? 0) + (头.mangaCount ?? 0) + (头.lightNovelCount ?? 0)
             guard 编号.count == 数量,
                   先验.count == 数量,
+                  静态位置.count == 2,
+                  静态.count == 数量 * 头.staticFeatures.count,
                   系列.count == 头.visualNovelCount,
                   所属作品.count == 头.characterCount else {
                 throw 智能搜索模型错误.缺少数据("docs")
             }
+        }
+
+        func 静态特征(_ 文档: Int, _ 序号: Int) -> Float {
+            静态[文档 * 文件.头.staticFeatures.count + 静态位置[序号]]
         }
 
         func 类型(_ 文档: Int) -> 智能搜索条目类型 {
@@ -142,6 +153,7 @@ public actor 智能搜索引擎 {
             查询,
             名称数量: 头.nameCandidateCount,
             覆盖数量: 头.coverageCandidateCount,
+            读音数量: 头.phoneticCandidateCount,
             先验: 模型.先验
         )
         guard !候选.isEmpty else { return .空 }
@@ -149,10 +161,14 @@ public actor 智能搜索引擎 {
 
         let 名称特征 = 候选.map { 模型.名称索引.特征(查询, 文档: $0) }
         let 最高名称分 = 名称特征.map(\.f).max() ?? 0
+        let 最高读音分 = 名称特征.map(\.读音f).max() ?? 0
         let 最高先验 = 候选.map { 模型.先验[$0] }.max() ?? 0
         let 查询长度 = Float(min(查询.规范文本.count, 32)) / 32
-        let 中日文: Float = 文本.unicodeScalars.contains(where: Self.是中日文) ? 1 : 0
+        let 查询中日文 = 文本.unicodeScalars.contains(where: 智能搜索名称索引.是中日文)
+        let 中日文: Float = 查询中日文 ? 1 : 0
+        let 查询有数字: Float = 查询.数字.isEmpty ? 0 : 1
 
+        // 顺序与 `智能搜索排序器.特征名` 一致
         let 特征 = 候选.indices.map { i -> [Float] in
             let 名称 = 名称特征[i]
             let 文档 = 候选[i]
@@ -170,9 +186,26 @@ public actor 智能搜索引擎 {
                 类型 == .角色 ? 1 : 0,
                 类型 == .会社 ? 1 : 0,
                 类型 == .制作人员 ? 1 : 0,
+                类型 == .动画 ? 1 : 0,
+                类型 == .漫画 ? 1 : 0,
+                类型 == .轻小说 ? 1 : 0,
                 名称.长度比,
                 查询长度,
                 中日文,
+                名称.读音f,
+                名称.读音f - 最高读音分,
+                名称.读音f >= 0.999 ? 1 : 0,
+                名称.编辑相似,
+                名称.开头编辑相似,
+                名称.名字标记 & 1 != 0 ? 1 : 0,
+                名称.名字标记 & 2 != 0 ? 1 : 0,
+                查询中日文 == 名称.名字中日文 ? 1 : 0,
+                查询有数字,
+                名称.数字对上 ? 1 : 0,
+                名称.数字冲突 ? 1 : 0,
+                名称.名字有数字 ? 1 : 0,
+                模型.静态特征(文档, 0),
+                模型.静态特征(文档, 1),
             ]
         }
         let 空特征: [Float] = [
@@ -181,6 +214,8 @@ public actor 智能搜索引擎 {
             名称特征.contains(where: \.前缀) ? 1 : 0,
             查询长度,
             中日文,
+            最高读音分,
+            名称特征.map(\.编辑相似).max() ?? 0,
         ]
         let (排序结果, 空概率) = 模型.排序器.排序(候选特征: 特征, 空特征: 空特征)
         // 用户多半是在找作品或角色：会社和制作人员只有明显更像时才排到它们前面
@@ -233,11 +268,5 @@ public actor 智能搜索引擎 {
         case .视觉小说, .角色, .动画, .漫画, .轻小说: return 1
         case .会社, .制作人员: return 0.3
         }
-    }
-
-    private static func 是中日文(_ 字: Unicode.Scalar) -> Bool {
-        (0x3040...0x30FF).contains(字.value)
-            || (0x3400...0x9FFF).contains(字.value)
-            || (0xAC00...0xD7A3).contains(字.value)
     }
 }

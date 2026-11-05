@@ -5,6 +5,8 @@ private struct 作品编辑草稿: Equatable {
     /// 0–10，0 表示没有评分。
     var 评分: Int
     var 进度: Int
+    /// 漫画与轻小说的已读卷数。
+    var 卷数: Int
     var 开始日期: Date?
     var 完成日期: Date?
 }
@@ -29,9 +31,14 @@ struct 作品资料库编辑页面: View {
     @State private var automaticallyFilledFinished = false
     @State private var isSaving = false
     @State private var saveError: String?
-    /// 手动输入进度，适合几百话的作品。
-    @State private var showsProgressInput = false
+    /// 手动输入话数或卷数，适合几百话的作品。
+    @State private var 正在输入: 进度项?
     @State private var progressInput = ""
+
+    private enum 进度项 {
+        case 话数
+        case 卷数
+    }
 
     init(entry: 本地资料库条目, title: 标题工具.标题结果) {
         self.entry = entry
@@ -40,6 +47,7 @@ struct 作品资料库编辑页面: View {
             状态: entry.状态 ?? .planning,
             评分: Int((Double(entry.评分 ?? 0) / 10).rounded()),
             进度: entry.进度 ?? 0,
+            卷数: entry.卷数 ?? 0,
             开始日期: Self.date(from: entry.开始日期),
             完成日期: Self.date(from: entry.完成日期)
         )
@@ -82,14 +90,14 @@ struct 作品资料库编辑页面: View {
                         isPresented: $showDiscardAlert,
                         titleVisibility: .visible
                     ) {
-                        Button("存储更改") {
+                        Button("保存更改") {
                             Task { await save() }
                         }
                         Button("放弃更改", role: .destructive) {
                             dismiss()
                         }
                     } message: {
-                        Text("尚未存储的状态、进度、评分或日期将会丢失。")
+                        Text("尚未保存的状态、进度、评分或日期将会丢失。")
                     }
                 }
 
@@ -103,12 +111,12 @@ struct 作品资料库编辑页面: View {
                                 .tint(.gray)
                                 .frame(width: 22, height: 22)
                         } else {
-                            Label("存储更改", systemImage: "checkmark")
+                            Label("保存更改", systemImage: "checkmark")
                         }
                     }
                     .液态玻璃醒目按钮(in: Circle())
                     .tint(.blue)
-                    .accessibilityLabel("存储更改")
+                    .accessibilityLabel("保存更改")
                     .disabled(isSaving)
                 }
             }
@@ -127,7 +135,7 @@ struct 作品资料库编辑页面: View {
                 }
         )
         .alert(
-            "无法存储",
+            "无法保存",
             isPresented: Binding(
                 get: { saveError != nil },
                 set: { if !$0 { saveError = nil } }
@@ -137,18 +145,25 @@ struct 作品资料库编辑页面: View {
         } message: {
             Text(verbatim: saveError ?? "")
         }
-        .alert(进度标题, isPresented: $showsProgressInput) {
-            TextField(进度标题, text: $progressInput)
+        .alert(
+            正在输入 == .卷数 ? 卷数标题 : 进度标题,
+            isPresented: Binding(get: { 正在输入 != nil }, set: { if !$0 { 正在输入 = nil } }),
+            presenting: 正在输入
+        ) { item in
+            TextField(item == .卷数 ? 卷数标题 : 进度标题, text: $progressInput)
                 .keyboardType(.numberPad)
             Button("取消", role: .cancel) {}
             Button("好") {
                 guard let value = Int(progressInput.trimmingCharacters(in: .whitespaces)) else { return }
                 withAnimation(.snappy) {
-                    draft.进度 = min(max(value, 0), entry.总数 ?? 99_999)
+                    switch item {
+                    case .话数: draft.进度 = min(max(value, 0), entry.总数 ?? 99_999)
+                    case .卷数: draft.卷数 = min(max(value, 0), entry.总卷数 ?? 9_999)
+                    }
                 }
             }
-        } message: {
-            if let total = entry.总数 {
+        } message: { item in
+            if let total = item == .卷数 ? entry.总卷数 : entry.总数 {
                 Text("输入0到\(total)之间的数字。")
             }
         }
@@ -208,38 +223,68 @@ struct 作品资料库编辑页面: View {
     }
 
     private var 进度标题: LocalizedStringKey { 是动画 ? "已观看话数" : "已阅读话数" }
+    private var 卷数标题: LocalizedStringKey { "已阅读卷数" }
 
     private var progressSection: some View {
         Section {
-            // 绑定带动画，加减时数字使用系统的数字滚动效果
-            Stepper(value: $draft.进度.animation(.snappy), in: 0...(entry.总数 ?? 99_999)) {
-                HStack {
-                    // Stepper 的标签不会套用强调色，图标要单独设为强调色，和上下的图标一致
-                    Label {
-                        Text(进度标题)
-                    } icon: {
-                        Image(systemName: 是动画 ? "play.rectangle" : "book")
-                            .foregroundStyle(.tint)
-                    }
-                    Spacer()
-                    // 点按数字可以直接输入
-                    Button {
-                        progressInput = String(draft.进度)
-                        showsProgressInput = true
-                    } label: {
-                        Text(verbatim: entry.总数.map { "\(draft.进度)/\($0)" } ?? "\(draft.进度)")
-                            .font(.headline.monospacedDigit())
-                            .foregroundStyle(draft.进度 == 0 ? Color.secondary : Color.blue)
-                            .contentTransition(.numericText(value: Double(draft.进度)))
-                    }
-                    .buttonStyle(.borderless)
-                    .accessibilityHint(Text("输入数字"))
-                }
+            进度步进器(
+                标题: 进度标题,
+                systemImage: 是动画 ? "play.rectangle" : "book",
+                值: $draft.进度,
+                总数: entry.总数,
+                上限: 99_999,
+                项: .话数
+            )
+            // 漫画与轻小说另外记已读卷数
+            if !是动画 {
+                进度步进器(
+                    标题: 卷数标题,
+                    systemImage: "books.vertical",
+                    值: $draft.卷数,
+                    总数: entry.总卷数,
+                    上限: 9_999,
+                    项: .卷数
+                )
             }
-            .sensoryFeedback(.selection, trigger: draft.进度)
         } header: {
             Text("进度")
         }
+    }
+
+    private func 进度步进器(
+        标题: LocalizedStringKey,
+        systemImage: String,
+        值: Binding<Int>,
+        总数: Int?,
+        上限: Int,
+        项: 进度项
+    ) -> some View {
+        // 绑定带动画，加减时数字使用系统的数字滚动效果
+        Stepper(value: 值.animation(.snappy), in: 0...(总数 ?? 上限)) {
+            HStack {
+                // Stepper 的标签不会套用强调色，图标要单独设为强调色，和上下的图标一致
+                Label {
+                    Text(标题)
+                } icon: {
+                    Image(systemName: systemImage)
+                        .foregroundStyle(.tint)
+                }
+                Spacer()
+                // 点按数字可以直接输入
+                Button {
+                    progressInput = String(值.wrappedValue)
+                    正在输入 = 项
+                } label: {
+                    Text(verbatim: 总数.map { "\(值.wrappedValue)/\($0)" } ?? "\(值.wrappedValue)")
+                        .font(.headline.monospacedDigit())
+                        .foregroundStyle(值.wrappedValue == 0 ? Color.secondary : Color.blue)
+                        .contentTransition(.numericText(value: Double(值.wrappedValue)))
+                }
+                .buttonStyle(.borderless)
+                .accessibilityHint(Text("输入数字"))
+            }
+        }
+        .sensoryFeedback(.selection, trigger: 值.wrappedValue)
     }
 
     private var ratingSection: some View {
@@ -385,6 +430,9 @@ struct 作品资料库编辑页面: View {
         if status == .completed, let total = entry.总数, draft.进度 < total {
             draft.进度 = total
         }
+        if status == .completed, !是动画, let total = entry.总卷数, draft.卷数 < total {
+            draft.卷数 = total
+        }
     }
 
     /// 刚加入资料库不久就从计划改成已看完或抛弃，多半是补标，自动填的日期可能不对。
@@ -431,6 +479,7 @@ struct 作品资料库编辑页面: View {
         updated.状态 = draft.状态
         updated.评分 = draft.评分 == 0 ? nil : draft.评分 * 10
         updated.进度 = draft.进度
+        if !是动画 { updated.卷数 = draft.卷数 }
         updated.开始日期 = Self.string(from: draft.开始日期)
         updated.完成日期 = Self.string(from: draft.完成日期)
         let datesChanged = draft.开始日期 != originalDraft.开始日期 || draft.完成日期 != originalDraft.完成日期
@@ -499,7 +548,11 @@ struct 无法编辑资料库提示: ViewModifier {
             return String(localized: "\(platform.localizedTitle)不支持\(types.并列)记录。无法向\(platform.localizedTitle)同步资料库。")
         }
         let names = 限制.可登录.map(\.localizedTitle).顿号并列
-        return (reasons + [String(localized: "请至少登录\(names)之一以编辑资料库。")]).joined()
+        return (reasons + [
+            String(localized: "请至少登录\(names)之一以编辑资料库。"),
+            // 登录了 Paper Account 时资料库随它同步，所有类型都可以编辑（见 需要登录才能编辑）
+            String(localized: "你也可以通过登录Paper账户来编辑资料库。"),
+        ]).joined()
     }
 }
 

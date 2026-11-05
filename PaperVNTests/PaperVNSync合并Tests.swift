@@ -808,4 +808,109 @@ struct PaperVNSync合并Tests {
         同步合并.合并(&session)
         #expect(session.冲突.map(\.键) == [键(24991)])
     }
+
+    @Test func 卷数不同算作冲突旧基线没有卷数不算() {
+        let mal = 资料库平台.myAnimeList.同步能力
+        let aniList = 资料库平台.aniList.同步能力
+        let a = 同步快照(状态: .inProgress, 评分: nil, 进度: 30, 卷数: 3)
+        let b = 同步快照(状态: .inProgress, 评分: nil, 进度: 30, 卷数: 4)
+        let old = 同步快照(状态: .inProgress, 评分: nil, 进度: 30)
+        #expect(!同步快照.一致(a, mal, b, aniList))
+        #expect(同步快照.一致(old, mal, a, mal))
+        // Annict 等不支持卷数的平台不比较
+        #expect(同步快照.一致(a, mal, b, 资料库平台.annict.同步能力))
+    }
+
+    @Test func 读完时卷数补满() {
+        var entry = 本地资料库条目(id: "mal-manga:1", 类型: .manga, 平台ID: [:], 标题: "作品", 加入时间: nil)
+        entry.状态 = .completed
+        entry.总卷数 = 12
+        let target = 同步合并.写入目标(entry, 现有: nil, ability: 资料库平台.myAnimeList.同步能力)
+        #expect(target.卷数 == 12)
+    }
+
+    // MARK: 音乐等不能导入的条目
+
+    private func 分类(_ record: 平台资料库记录, 可导入: Bool?, 附属: Bool? = nil) -> 平台资料库记录 {
+        var record = record
+        record.可导入 = 可导入
+        record.附属 = 附属
+        return record
+    }
+
+    @Test
+    func 音乐条目不导入并从资料库移除() {
+        let music = 分类(记录(.myAnimeList, mal: 1, .completed), 可导入: false)
+        let tv = 分类(记录(.myAnimeList, mal: 2, .completed), 可导入: true)
+        var libraries: [资料库平台: 平台资料库] = [
+            .myAnimeList: 资料库(.myAnimeList, [music, tv]),
+            .bangumi: 资料库(.bangumi, [记录(.bangumi, mal: 1, .completed)]),
+        ]
+        var local = 本地(from: [music, tv])
+        let result = 同步合并.去掉不可导入的条目(&libraries, 本地: &local, 已知: [])
+        #expect(result.键 == [键(1)])
+        #expect(result.平台 == [.myAnimeList, .bangumi])
+        #expect(result.移除的条目.map(\.id) == [键(1)])
+        #expect(libraries[.myAnimeList]?.记录.keys.sorted() == [键(2)])
+        #expect(libraries[.bangumi]?.记录.isEmpty == true)
+        #expect(local.keys.sorted() == [键(2)])
+    }
+
+    @Test
+    func 其他平台标明是作品时保留() {
+        let music = 分类(记录(.myAnimeList, mal: 1, .completed), 可导入: false)
+        let tv = 分类(记录(.aniList, mal: 1, .completed), 可导入: true)
+        var libraries: [资料库平台: 平台资料库] = [
+            .myAnimeList: 资料库(.myAnimeList, [music]),
+            .aniList: 资料库(.aniList, [tv]),
+        ]
+        var local = 本地(from: [music])
+        let result = 同步合并.去掉不可导入的条目(&libraries, 本地: &local, 已知: [键(1)])
+        #expect(result.键.isEmpty)
+        #expect(local[键(1)] != nil)
+        #expect(libraries[.myAnimeList]?.记录[键(1)] != nil)
+    }
+
+    @Test
+    func 附属的音乐条目不影响所属作品() {
+        // 例如 MAL 上的主题曲 MV 并入了正篇：正篇本身不能因此被移除
+        let music = 分类(记录(.myAnimeList, mal: 1, .completed), 可导入: false, 附属: true)
+        var libraries: [资料库平台: 平台资料库] = [.myAnimeList: 资料库(.myAnimeList, [music])]
+        var local = 本地(from: [music])
+        let result = 同步合并.去掉不可导入的条目(&libraries, 本地: &local, 已知: [])
+        #expect(result.键.isEmpty)
+        #expect(local[键(1)] != nil)
+    }
+
+    @Test
+    func 以前认出的条目在没有分类的平台上也不导入() {
+        var libraries: [资料库平台: 平台资料库] = [.bangumi: 资料库(.bangumi, [记录(.bangumi, mal: 1, .completed)])]
+        var local: [String: 本地资料库条目] = [:]
+        let result = 同步合并.去掉不可导入的条目(&libraries, 本地: &local, 已知: [键(1)])
+        #expect(result.键 == [键(1)])
+        #expect(libraries[.bangumi]?.记录.isEmpty == true)
+    }
+
+    @Test
+    func 编号没改过来的资料库条目按平台ID移除() {
+        let music = 分类(记录(.myAnimeList, mal: 1, .completed), 可导入: false)
+        var libraries: [资料库平台: 平台资料库] = [.myAnimeList: 资料库(.myAnimeList, [music])]
+        var entry = 本地资料库条目(id: "bangumi-anime:9", 类型: .anime, 平台ID: [.myAnimeList: "1"], 标题: "MV", 加入时间: nil)
+        entry.状态 = .completed
+        var local = [entry.id: entry]
+        let result = 同步合并.去掉不可导入的条目(&libraries, 本地: &local, 已知: [])
+        #expect(result.移除的条目.map(\.id) == ["bangumi-anime:9"])
+        #expect(local.isEmpty)
+    }
+
+    @Test
+    func 平台格式能否导入() {
+        #expect(作品搜索结果.可导入(格式: "MUSIC") == false)
+        #expect(作品搜索结果.可导入(格式: "music") == false)
+        #expect(作品搜索结果.可导入(格式: "pv") == false)
+        #expect(作品搜索结果.可导入(格式: "CM") == false)
+        #expect(作品搜索结果.可导入(格式: "TV_SHORT") == true)
+        #expect(作品搜索结果.可导入(格式: "unknown") == nil)
+        #expect(作品搜索结果.可导入(格式: nil) == nil)
+    }
 }

@@ -36,6 +36,8 @@ struct 资料库编辑页面: View {
     @State private var hasManuallyModifiedDate = false
     @State private var isSaving = false
     @State private var saveError: String?
+    /// 存储后清除了VNDB上的日期时显示的提示；关闭后关闭编辑页。
+    @State private var 日期清除提示: VNDB日期清除提示?
     @State private var automaticallyFilledStarted = false
     @State private var automaticallyFilledFinished = false
     @State private var loadedReleases: [视觉小说发行版本]
@@ -101,6 +103,8 @@ struct 资料库编辑页面: View {
 
                 if mode == .full {
                     datesSection
+                    编辑页面游玩路径区域(vnID: vnID)
+                    编辑页面游戏文件夹区域(vnID: vnID)
                     tagsSection
                 }
             }
@@ -128,7 +132,7 @@ struct 资料库编辑页面: View {
                         isPresented: $showDiscardAlert,
                         titleVisibility: .visible
                     ) {
-                        Button("存储更改") {
+                        Button("保存更改") {
                             Task {
                                 await save()
                             }
@@ -138,7 +142,7 @@ struct 资料库编辑页面: View {
                             dismiss()
                         }
                     } message: {
-                        Text("尚未存储的状态、评分、日期或标签将会丢失。")
+                        Text("尚未保存的状态、评分、日期或标签将会丢失。")
                     }
                 }
 
@@ -154,17 +158,18 @@ struct 资料库编辑页面: View {
                                 .tint(.gray)
                                 .frame(width: 22, height: 22)
                         } else {
-                            Label("存储更改", systemImage: "checkmark")
+                            Label("保存更改", systemImage: "checkmark")
                         }
                     }
                     .液态玻璃醒目按钮(in: Circle())
                     .tint(.blue)
-                    .accessibilityLabel("存储更改")
+                    .accessibilityLabel("保存更改")
                     .disabled(isSaving)
                 }
             }
         }
         .interactiveDismissDisabled(hasChanges || isSaving)
+        .task { await 游玩路径中心.shared.刷新() }
         .task(id: vnID) {
             await loadReleasesIfNeeded()
         }
@@ -182,7 +187,7 @@ struct 资料库编辑页面: View {
                 }
         )
         .alert(
-            "无法存储",
+            "无法保存",
             isPresented: Binding(
                 get: { saveError != nil },
                 set: { if !$0 { saveError = nil } }
@@ -222,6 +227,15 @@ struct 资料库编辑页面: View {
             }
         } message: {
             Text(verbatim: dateCorrectionAlertMessage)
+        }
+        .alert(
+            日期清除提示?.标题 ?? "",
+            isPresented: Binding(get: { 日期清除提示 != nil }, set: { if !$0 { 日期清除提示 = nil } }),
+            presenting: 日期清除提示
+        ) { _ in
+            Button("好") { dismiss() }
+        } message: { notice in
+            Text(notice.说明)
         }
     }
 
@@ -293,7 +307,7 @@ struct 资料库编辑页面: View {
                 HStack(spacing: 8) {
                     ProgressView()
                         .controlSize(.small)
-                    Text("正在载入可选版本…")
+                    Text("正在加载可选版本…")
                 }
                 .font(.footnote)
                 .foregroundStyle(.secondary)
@@ -584,11 +598,11 @@ struct 资料库编辑页面: View {
         } catch {
             if (error as? URLError)?.code == .timedOut {
                 releaseLoadError = String(
-                    localized: "载入发行版本超时，请检查网络后再试。"
+                    localized: "加载发行版本超时，请检查网络后再试。"
                 )
             } else {
                 releaseLoadError = String(
-                    localized: "无法载入发行版本：\(error.localizedDescription)"
+                    localized: "无法加载发行版本：\(error.localizedDescription)"
                 )
             }
         }
@@ -597,8 +611,9 @@ struct 资料库编辑页面: View {
     @MainActor
     private func save() async {
         guard !isSaving else { return }
-        guard !token.isEmpty else {
-            saveError = String(localized: "请先登录VNDB账户。")
+        // 没登录VNDB时写入本地资料库（随 Paper Account 同步），见 VNDB服务
+        guard !token.isEmpty || 本地资料库.shared.所有者 != nil else {
+            saveError = String(localized: "请先在“账户”中登录Paper账户或任意平台账户。")
             return
         }
 
@@ -621,6 +636,8 @@ struct 资料库编辑页面: View {
 
         isSaving = true
         saveError = nil
+        var clearedStarted: String?
+        var clearedFinished: String?
 
         do {
             switch mode {
@@ -640,6 +657,9 @@ struct 资料库编辑页面: View {
                 )
 
             case .full:
+                // VNDB API 清除不了日期（见 VNDB服务.patchUserList），记下清除前VNDB上的值
+                clearedStarted = !token.isEmpty && draft.started == nil && originalDraft.started != nil ? currentItem?.started : nil
+                clearedFinished = !token.isEmpty && draft.finished == nil && originalDraft.finished != nil ? currentItem?.finished : nil
                 try await VNDB服务.shared.updateUserListEntry(
                     token: token,
                     vnID: vnID,
@@ -676,10 +696,20 @@ struct 资料库编辑页面: View {
                 )
             }
 
+            if clearedStarted != nil || clearedFinished != nil {
+                if PaperAccount账户.shared.isLoggedIn {
+                    // 资料库随 Paper Account 同步：只在资料库中清除，导入VNDB时也保持清除
+                    本地资料库.shared.记录VNDB已清除日期(vnID: vnID, started: clearedStarted, finished: clearedFinished)
+                    日期清除提示 = .只在资料库中清除
+                } else {
+                    日期清除提示 = .无法清除
+                }
+            }
+
             originalDraft = draft
             await onSaved()
             isSaving = false
-            dismiss()
+            if 日期清除提示 == nil { dismiss() }
         } catch {
             isSaving = false
             saveError = error.localizedDescription
@@ -815,5 +845,29 @@ private struct 资料库标签选择页面: View {
 
     private func 刷新标签() async {
         await PaperVNSync中心.shared.读取VNDB标签(token: auth.token, userID: auth.userID)
+    }
+}
+
+/// VNDB API 清除不了开始日期与结束日期（不接受 null）。登录了VNDB时在编辑页清除日期，存储后显示这个提示。
+private enum VNDB日期清除提示 {
+    /// 登录了 Paper Account：只在资料库中清除，随 Paper Cloud 同步。
+    case 只在资料库中清除
+    /// 没登录 Paper Account：资料库属于VNDB账户，日期没有清除，其他更改已保存。
+    case 无法清除
+
+    var 标题: LocalizedStringKey {
+        switch self {
+        case .只在资料库中清除: "部分更改无法与VNDB同步"
+        case .无法清除: "部分更改无法完成"
+        }
+    }
+
+    var 说明: LocalizedStringKey {
+        switch self {
+        case .只在资料库中清除:
+            "由于VNDB API错误，当前无法通过API清除VNDB上的开始日期或结束日期。此更改将保留在PaperVN资料库中并与Paper Cloud同步。"
+        case .无法清除:
+            "由于VNDB API错误，当前无法清除VNDB上的开始日期或结束日期，其他更改已保存。你可以通过登录Paper账户来暂时解决此问题。"
+        }
     }
 }

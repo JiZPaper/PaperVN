@@ -5,6 +5,8 @@ import SwiftUI
 nonisolated enum PaperVNURLRoute: Hashable, Sendable {
     case visualNovel(String)
     case character(String)
+    /// 动画、漫画与轻小说。没有对应的 URL，由 Spotlight 打开。
+    case work(作品详情目标)
 
     static let scheme = "papervn"
 
@@ -147,6 +149,10 @@ final class PaperVNURLRouter: ObservableObject {
         return true
     }
 
+    func 打开(_ route: PaperVNURLRoute) {
+        pendingRequest = PaperVNURLRequest(route: route)
+    }
+
     func consume(_ request: PaperVNURLRequest) {
         guard pendingRequest?.id == request.id else { return }
         pendingRequest = nil
@@ -167,5 +173,7 @@ func PaperVNURLDestination(
             auth: auth,
             initialName: id
         )
+    case .work(let target):
+        作品详情(目标: target)
     }
 }

@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import UniformTypeIdentifiers
 @preconcurrency import Translation
 import UIKit
 
@@ -41,7 +42,7 @@ private struct 视觉小说详情警报修饰器: ViewModifier {
             .alert("需要登录", isPresented: $showLoginRequiredAlert) {
                 Button("好") { }
             } message: {
-                Text("请先在资料库页面登录VNDB账户。")
+                Text("请先在“账户”中登录Paper账户或任意平台账户。")
             }
             .alert(
                 "无法添加到资料库",
@@ -670,6 +671,8 @@ struct 视觉小说详情: View {
     @State private var userListItem: 用户列表项目?
     @State private var hasLoadedUserListItem = false
     @State private var isAddingToLibrary = false
+    /// 加入资料库后，同一系列里还没加入的作品。
+    @State private var 系列补全结果: 系列补全.结果?
     @State private var libraryActionError: String?
     @State private var pendingReleaseID: String?
     @State private var showLibraryDeleteConfirmation = false
@@ -698,6 +701,9 @@ struct 视觉小说详情: View {
     @State private var revealDescription = false
     @State private var revealScreenshotIDs: Set<String> = []
     @State private var revealedRelatedImageIDs: Set<String> = []
+    /// “相关”里按这部作品推荐的作品（前作、续作等关系在“系列”里）。
+    @State private var 相关推荐: [探索视觉小说] = []
+    @ObservedObject private var library = 本地资料库.shared
     @State private var screenshotStackFrontIndex = 0
     @State private var screenshotStackDragOffset = CGSize.zero
     @State private var screenshotStackPromotionProgress: CGFloat = 0
@@ -706,6 +712,12 @@ struct 视觉小说详情: View {
     @State private var showDescriptionSheet = false
     @State private var isDescriptionTruncated = false
     @State private var showEditSheet = false
+    @ObservedObject private var 文件夹中心 = 视觉小说文件夹中心.shared
+    @ObservedObject private var senkou = PaperVNSenkou中心.shared
+    @State private var 显示文件夹选择 = false
+    @State private var 显示运行页面 = false
+    @State private var 显示运行订阅 = false
+    @State private var 文件夹错误: String?
     @State private var showInfoSheet = false
     @State private var showLoginRequiredAlert = false
     @State private var showAllTags = false
@@ -915,6 +927,18 @@ struct 视觉小说详情: View {
         .task(id: auth.userID) {
             await loadUserListItem()
         }
+        .task(id: "recommendations|\(vnID)|\(contentFilterEnabled)|\(library.修订号)") {
+            let items = await 作品推荐中心.shared.相关推荐(
+                作品: [vnID.lowercased()],
+                类型: .visualNovel,
+                包含成人内容: !contentFilterEnabled
+            )
+            guard !Task.isCancelled else { return }
+            相关推荐 = items.compactMap {
+                if case .视觉小说(let visualNovel) = $0 { return visualNovel }
+                return nil
+            }
+        }
         .onAppear {
             guard isFromRecommendation, let owner = 本地资料库.shared.所有者 else { return }
             推荐反馈中心.shared.记录打开(vnID, userID: 推荐反馈中心.作品曝光用户(owner))
@@ -1003,6 +1027,16 @@ struct 视觉小说详情: View {
             navigationTitleText: navigationTitleText,
             deleteFromLibrary: deleteFromLibrary
         ))
+        .系列补全提醒($系列补全结果) { works in
+            try await 系列补全.添加视觉小说(works, auth: auth, bangumiAccount: bangumiAccount)
+        }
+        #if DEBUG
+        // 预览系列提醒：Debug 构建带 `-SeriesCompletionSample` 启动参数时，打开详情页就检查一次
+        .task(id: vnID) {
+            guard ProcessInfo.processInfo.arguments.contains("-SeriesCompletionSample") else { return }
+            系列补全结果 = await 系列补全.检查(vnID: vnID)
+        }
+        #endif
         .overlay(alignment: .bottom) {
             模糊解除提示(
                 isPresented: blurRevealConfirmation.isPromptVisible
@@ -1042,32 +1076,90 @@ struct 视觉小说详情: View {
         .平台优先纵向栏()
     }
 
+    @ViewBuilder
     private var editButton: some View {
-        Button {
-            if shouldShowAddButton {
+        if shouldShowAddButton || isAddingToLibrary {
+            Button {
                 addToPlanning()
-            } else if auth.token.isEmpty || auth.userID.isEmpty {
-                showLoginRequiredAlert = true
-            } else {
-                showEditSheet = true
+            } label: {
+                if isAddingToLibrary {
+                    ProgressView()
+                } else {
+                    工具栏圆形图标标签("加入计划游玩", systemImage: "plus")
+                }
             }
-        } label: {
-            if isAddingToLibrary {
-                ProgressView()
-            } else {
-                工具栏圆形图标标签(
-                    shouldShowAddButton ? "加入计划游玩" : "编辑资料库",
-                    systemImage: shouldShowAddButton
-                        ? "plus"
-                        : "square.and.pencil"
-                )
+            .disabled(isAddingToLibrary)
+            .matchedTransitionSource(id: "EditSheet", in: editNamespace)
+            .accessibilityLabel("加入计划游玩")
+        } else {
+            // 已在资料库中：编辑资料库，以及添加游戏文件夹或运行视觉小说
+            Menu {
+                Button {
+                    if auth.可使用资料库 {
+                        showEditSheet = true
+                    } else {
+                        showLoginRequiredAlert = true
+                    }
+                } label: {
+                    Label("编辑资料库", systemImage: "square.and.pencil")
+                }
+
+                if 文件夹中心.记录(作品: vnID) != nil {
+                    Button {
+                        运行视觉小说()
+                    } label: {
+                        Label("运行视觉小说", systemImage: "play")
+                    }
+                } else {
+                    Button {
+                        显示文件夹选择 = true
+                    } label: {
+                        Label("添加文件夹", systemImage: "folder.badge.plus")
+                    }
+                }
+            } label: {
+                工具栏圆形图标标签("资料库", systemImage: "tray")
+            }
+            .matchedTransitionSource(id: "EditSheet", in: editNamespace)
+            .accessibilityLabel("资料库")
+            .fileImporter(isPresented: $显示文件夹选择, allowedContentTypes: [.folder]) { result in
+                guard case .success(let url) = result else { return }
+                Task {
+                    do {
+                        try await 文件夹中心.设置(url, 作品: vnID)
+                    } catch {
+                        文件夹错误 = error.localizedDescription
+                    }
+                }
+            }
+            .alert(
+                "无法添加文件夹",
+                isPresented: Binding(get: { 文件夹错误 != nil }, set: { if !$0 { 文件夹错误 = nil } })
+            ) {
+                Button("好") { 文件夹错误 = nil }
+            } message: {
+                Text(verbatim: 文件夹错误 ?? "")
+            }
+            .fullScreenCover(isPresented: $显示运行页面) {
+                视觉小说运行页面(vnID: vnID, 标题: navigationTitleText)
+            }
+            .Senkou订阅弹出(isPresented: $显示运行订阅, zoomSourceID: "EditSheet", in: editNamespace) {
+                // 等订阅页面收起后再全屏打开
+                Task {
+                    try? await Task.sleep(for: .milliseconds(600))
+                    显示运行页面 = true
+                }
             }
         }
-        .disabled(isAddingToLibrary)
-        .matchedTransitionSource(id: "EditSheet", in: editNamespace)
-        .accessibilityLabel(
-            shouldShowAddButton ? "加入计划游玩" : "编辑资料库"
-        )
+    }
+
+    /// 运行视觉小说属于 PaperVN Senkou 的延迟免费功能。
+    private func 运行视觉小说() {
+        if senkou.已解锁 {
+            显示运行页面 = true
+        } else {
+            显示运行订阅 = true
+        }
     }
 
     private var displayedDetail: 视觉小说详细信息 {
@@ -1136,10 +1228,16 @@ struct 视觉小说详情: View {
     private var allTagsDestination: some View {
         更多标签页面(
             tags: displayedDetail.sortedTags,
+            来源名称: navigationTitleText,
             spoilerUnlockedByProgress: hasFinishedOrDropped,
             showTranslatedText: $showTranslatedTags,
             translatedNames: $translatedTagNames
         )
+    }
+
+    /// 按后台“作品标题”的设置替换过的标题，和列表一致。
+    private func 显示用标题(_ detail: 视觉小说详细信息) -> [用户多语言标题]? {
+        作品标题覆盖.shared.应用(detail.titles, 作品键: 本地资料库条目.视觉小说ID(detail.id), 类型: .visualNovel)
     }
 
     private var navigationTitleText: String {
@@ -1149,7 +1247,7 @@ struct 视觉小说详情: View {
     private var navigationTitleResult: 标题工具.标题结果 {
         let detail = displayedDetail
         return 标题工具.获取主标题(
-            titles: detail.titles,
+            titles: 显示用标题(detail),
             defaultTitle: detail.title,
             偏好: preferredTitleLang,
             回退: fallbackTitleLang,
@@ -1163,8 +1261,7 @@ struct 视觉小说详情: View {
     }
 
     private var shouldShowAddButton: Bool {
-        !auth.token.isEmpty
-            && !auth.userID.isEmpty
+        auth.可使用资料库
             && hasLoadedUserListItem
             && userListItem == nil
     }
@@ -2269,14 +2366,14 @@ struct 视觉小说详情: View {
         let sampleKey = "metadata.title"
         let textStyle = immersiveMetadataTextStyle(for: sampleKey)
         let main = 标题工具.获取主标题(
-            titles: detail.titles,
+            titles: 显示用标题(detail),
             defaultTitle: detail.title,
             偏好: preferredTitleLang,
             回退: fallbackTitleLang,
             允许非官方: allowUnofficialTitles
         )
         let subtitle = 标题工具.获取副标题(
-            titles: detail.titles,
+            titles: 显示用标题(detail),
             defaultTitle: detail.title,
             偏好: preferredTitleLang,
             回退: fallbackTitleLang,
@@ -2339,7 +2436,7 @@ struct 视觉小说详情: View {
                 immersiveMetadataItem(
                     icon: "clock",
                     title: "篇幅",
-                    text: "正在载入…",
+                    text: "正在加载…",
                     textStyle: textStyle
                 )
             }
@@ -2348,14 +2445,14 @@ struct 视觉小说详情: View {
                 immersiveMetadataItem(
                     icon: "calendar",
                     title: "发行日期",
-                    text: "正在载入…",
+                    text: "正在加载…",
                     textStyle: textStyle
                 )
 
                 immersiveMetadataItem(
                     icon: "checkmark.circle",
                     title: "开发状态",
-                    text: "正在载入…",
+                    text: "正在加载…",
                     textStyle: textStyle
                 )
             }
@@ -2363,7 +2460,7 @@ struct 视觉小说详情: View {
         }
         .redacted(reason: .placeholder)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("正在载入…")
+        .accessibilityLabel("正在加载…")
     }
 
     private func immersiveStats(
@@ -2593,6 +2690,7 @@ struct 视觉小说详情: View {
                 全部: allTags
                     .filter { !shouldHideTag($0) && !shouldBlurTag($0) }
                     .map { 标签浏览.标签(值: $0.id, 名称: displayedTagName($0)) },
+                来源: navigationTitleText,
                 目标: $标签浏览目标
             )
             .onTapGesture {
@@ -2623,7 +2721,7 @@ struct 视觉小说详情: View {
         if let errorMessage {
             VStack(alignment: .leading, spacing: 10) {
                 Label(
-                    detail == nil ? "无法载入" : "无法载入",
+                    detail == nil ? "无法加载" : "无法加载",
                     systemImage: "exclamationmark.triangle"
                 )
                 .font(.headline)
@@ -2661,7 +2759,7 @@ struct 视觉小说详情: View {
         .padding(.horizontal, immersivePageHorizontalPadding)
         .redacted(reason: .placeholder)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("正在载入…")
+        .accessibilityLabel("正在加载…")
         .opacity(isLoadingDetail ? 1 : 0)
         .animation(
             reduceMotion ? nil : .easeInOut(duration: 0.3),
@@ -2704,9 +2802,10 @@ struct 视觉小说详情: View {
             }
         }
 
+        // 前作、续作、FD 等关系
         let relations = visibleRelations(in: detail)
         if !relations.isEmpty {
-            immersiveHorizontalSection("相关") {
+            immersiveHorizontalSection("系列") {
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(spacing: 14) {
                         ForEach(relations, id: \.id) { relation in
@@ -2727,6 +2826,27 @@ struct 视觉小说详情: View {
                                     .matchedTransitionSource(id: "relation-\(relation.id)", in: cardNamespace)
                             }
                             .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.vertical, 6)
+                }
+                .contentMargins(
+                    .horizontal,
+                    immersivePageHorizontalPadding,
+                    for: .scrollContent
+                )
+                .scrollClipDisabled()
+            }
+        }
+
+        // 按这部作品推荐的作品
+        let recommendations = visibleRecommendations(excluding: relations)
+        if !recommendations.isEmpty {
+            immersiveHorizontalSection("相关") {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(spacing: 14) {
+                        ForEach(recommendations) { visualNovel in
+                            immersiveRecommendationLink(visualNovel)
                         }
                     }
                     .padding(.vertical, 6)
@@ -2781,7 +2901,7 @@ struct 视觉小说详情: View {
 
     private var externalCommentsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline) {
+            HStack {
                 Text("评论")
                     .font(.title2.weight(.bold))
                 Spacer()
@@ -3000,6 +3120,48 @@ struct 视觉小说详情: View {
                     in: .whitespacesAndNewlines
                 ).isEmpty
         }
+    }
+
+    /// 已经在“系列”里的视觉小说不重复显示。
+    private func visibleRecommendations(
+        excluding relations: [视觉小说相关]
+    ) -> [探索视觉小说] {
+        let relationIDs = Set(relations.map(\.id))
+        return 相关推荐.filter { !relationIDs.contains($0.id) }
+    }
+
+    /// 按这部作品推荐的视觉小说。
+    private func immersiveRecommendationLink(
+        _ visualNovel: 探索视觉小说
+    ) -> some View {
+        let sourceID = "recommended-\(visualNovel.id)"
+        return NavigationLink {
+            视觉小说详情(
+                vnID: visualNovel.id,
+                auth: auth,
+                initialTitle: visualNovel.title,
+                initialTitles: visualNovel.详情多语言标题,
+                initialImageURL: visualNovel.image?.url,
+                initialImageSexual: visualNovel.image?.sexual,
+                initialImageViolence: visualNovel.image?.violence,
+                initialImageDimensions: visualNovel.image?.dims
+            )
+            .navigationTransition(.zoom(sourceID: sourceID, in: cardNamespace))
+        } label: {
+            immersiveMediaCard(
+                imageID: "detail-\(sourceID)",
+                imageURL: visualNovel.image?.url ?? visualNovel.image?.thumbnail,
+                sexual: visualNovel.image?.sexual,
+                violence: visualNovel.image?.violence,
+                titles: 作品标题覆盖.shared.应用(
+                    visualNovel.详情多语言标题, 作品键: 本地资料库条目.视觉小说ID(visualNovel.id), 类型: .visualNovel
+                ),
+                defaultTitle: visualNovel.title,
+                subtitle: nil
+            )
+            .matchedTransitionSource(id: sourceID, in: cardNamespace)
+        }
+        .buttonStyle(.plain)
     }
 
     private func immersiveHorizontalSection<Content: View>(
@@ -3513,9 +3675,29 @@ struct 视觉小说详情: View {
     private func immersiveRelationCard(
         _ relation: 视觉小说相关
     ) -> some View {
-        let titleResult = 标题工具.获取主标题(
+        immersiveMediaCard(
+            imageID: "detail-relation-\(relation.id)",
+            imageURL: relation.image?.url ?? relation.image?.thumbnail,
+            sexual: relation.image?.sexual,
+            violence: relation.image?.violence,
             titles: relation.titles,
             defaultTitle: relation.title,
+            subtitle: relation.relationTitle
+        )
+    }
+
+    private func immersiveMediaCard(
+        imageID: String,
+        imageURL: String?,
+        sexual: Double?,
+        violence: Double?,
+        titles: [用户多语言标题]?,
+        defaultTitle: String,
+        subtitle: String?
+    ) -> some View {
+        let titleResult = 标题工具.获取主标题(
+            titles: titles,
+            defaultTitle: defaultTitle,
             偏好: preferredTitleLang,
             回退: fallbackTitleLang,
             允许非官方: allowUnofficialTitles
@@ -3525,10 +3707,10 @@ struct 视觉小说详情: View {
 
         return ZStack(alignment: .bottomLeading) {
             restrictedCardImage(
-                id: "detail-relation-\(relation.id)",
-                url: relation.image?.url ?? relation.image?.thumbnail,
-                sexual: relation.image?.sexual,
-                violence: relation.image?.violence,
+                id: imageID,
+                url: imageURL,
+                sexual: sexual,
+                violence: violence,
                 width: cardWidth,
                 height: cardHeight,
                 cornerRadius: 26
@@ -3563,10 +3745,12 @@ struct 视觉小说详情: View {
                 .foregroundStyle(.white)
                 .lineLimit(1)
 
-                Text(verbatim: relation.relationTitle)
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.white.opacity(0.76))
-                    .lineLimit(1)
+                if let subtitle {
+                    Text(verbatim: subtitle)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.white.opacity(0.76))
+                        .lineLimit(1)
+                }
             }
             .padding(12)
         }
@@ -3655,7 +3839,7 @@ struct 视觉小说详情: View {
                 .opacity(showsContent ? 1 : 0)
             } else {
                 简介预览文本视图(
-                    text: String(repeating: "正在载入", count: 96),
+                    text: String(repeating: "正在加载", count: 96),
                     lineLimit: 5
                 )
                 .font(.body)
@@ -3773,7 +3957,7 @@ struct 视觉小说详情: View {
                     Section {
                         ForEach(releases) { release in
                             NavigationLink {
-                                探索发行版本详情(
+                                发行版本详情(
                                     item: explorationRelease(from: release),
                                     auth: auth,
                                     openedFromVisualNovelDetail: true
@@ -3801,11 +3985,12 @@ struct 视觉小说详情: View {
                             }
                             .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                 if userListItem != nil {
-                                    Button(role: .destructive) {
+                                    Button {
                                         showLibraryDeleteConfirmation = true
                                     } label: {
                                         Label("删除", systemImage: "trash")
                                     }
+                                    .tint(.red)
                                     .disabled(isAddingToLibrary)
                                 }
                             }
@@ -3911,7 +4096,7 @@ struct 视觉小说详情: View {
         for release: 视觉小说发行版本
     ) {
         guard hasLoadedUserListItem else {
-            if auth.token.isEmpty || auth.userID.isEmpty {
+            if !auth.可使用资料库 {
                 showLoginRequiredAlert = true
             }
             return
@@ -4001,7 +4186,7 @@ struct 视觉小说详情: View {
     }
 
     private func loadUserListItem(forceRefresh: Bool = false) async {
-        guard !auth.token.isEmpty, !auth.userID.isEmpty else {
+        guard auth.可使用资料库 else {
             userListItem = nil
             hasLoadedUserListItem = false
             return
@@ -4036,7 +4221,7 @@ struct 视觉小说详情: View {
 
     private func addToPlanning(selectedReleaseID: String? = nil) {
         guard !isAddingToLibrary else { return }
-        guard !auth.token.isEmpty, !auth.userID.isEmpty else {
+        guard auth.可使用资料库 else {
             showLoginRequiredAlert = true
             return
         }
@@ -4069,14 +4254,17 @@ struct 视觉小说详情: View {
                 await loadUserListItem(forceRefresh: true)
             } catch {
                 libraryActionError = error.localizedDescription
+                isAddingToLibrary = false
+                return
             }
             isAddingToLibrary = false
+            系列补全结果 = await 系列补全.检查(vnID: vnID)
         }
     }
 
     private func deleteFromLibrary() {
         guard !isAddingToLibrary else { return }
-        guard !auth.token.isEmpty, !auth.userID.isEmpty else {
+        guard auth.可使用资料库 else {
             showLoginRequiredAlert = true
             return
         }

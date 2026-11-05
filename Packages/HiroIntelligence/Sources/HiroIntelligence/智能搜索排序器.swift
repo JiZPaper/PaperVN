@@ -5,9 +5,14 @@ import Foundation
 nonisolated struct 智能搜索排序器: Sendable {
     static let 特征名 = [
         "f", "p", "r", "exact", "prefix", "contains", "f_gap", "prior", "prior_gap",
-        "is_char", "is_producer", "is_staff", "len_ratio", "query_len", "query_cjk",
+        "is_char", "is_producer", "is_staff", "is_anime", "is_manga", "is_novel",
+        "len_ratio", "query_len", "query_cjk",
+        "pf", "pf_gap", "p_exact", "ed", "ed_prefix",
+        "alias", "char_alias", "script_match",
+        "digit_query", "digit_match", "digit_conflict", "name_digit",
+        "group_top", "group_size",
     ]
-    static let 空特征名 = ["f_max", "exact_any", "prefix_any", "query_len", "query_cjk"]
+    static let 空特征名 = ["f_max", "exact_any", "prefix_any", "query_len", "query_cjk", "pf_max", "ed_max"]
 
     private nonisolated struct 层: Sendable {
         let 权重: [[Float]]

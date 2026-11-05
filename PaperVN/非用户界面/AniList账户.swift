@@ -192,10 +192,10 @@ final class AniList账户: ObservableObject {
           MediaListCollection(userId: $userId, type: $type, chunk: $chunk, perChunk: 500) {
             hasNextChunk
             lists { entries {
-              status score(format: POINT_100) progress updatedAt createdAt
+              status score(format: POINT_100) progress progressVolumes updatedAt createdAt
               startedAt { year month day } completedAt { year month day }
               media {
-                id idMal format episodes chapters averageScore countryOfOrigin
+                id idMal format episodes chapters volumes averageScore countryOfOrigin
                 title { romaji native english }
                 coverImage { large }
                 startDate { year month day }
@@ -242,6 +242,7 @@ final class AniList账户: ObservableObject {
         ]
         if let score = value.评分 ?? (清除空值 ? 0 : nil) { variables["scoreRaw"] = score }
         if let progress = value.进度 { variables["progress"] = progress }
+        if let volumes = value.卷数 { variables["progressVolumes"] = volumes }
         if let 日期 {
             // 各部分为 null 表示清除日期
             variables["startedAt"] = Self.模糊日期(日期.start)
@@ -252,10 +253,10 @@ final class AniList账户: ObservableObject {
             platform: "AniList",
             accessToken: try accessToken(),
             query: """
-            mutation ($mediaId: Int, $status: MediaListStatus, $scoreRaw: Int, $progress: Int,
+            mutation ($mediaId: Int, $status: MediaListStatus, $scoreRaw: Int, $progress: Int, $progressVolumes: Int,
                       $startedAt: FuzzyDateInput, $completedAt: FuzzyDateInput) {
               SaveMediaListEntry(mediaId: $mediaId, status: $status, scoreRaw: $scoreRaw, progress: $progress,
-                                 startedAt: $startedAt, completedAt: $completedAt) {
+                                 progressVolumes: $progressVolumes, startedAt: $startedAt, completedAt: $completedAt) {
                 startedAt { year month day } completedAt { year month day }
               }
             }
@@ -415,6 +416,7 @@ private struct AniList列表响应: Decodable {
             let format: String?
             let episodes: Int?
             let chapters: Int?
+            let volumes: Int?
             let averageScore: Int?
             let countryOfOrigin: String?
             let title: 标题?
@@ -424,6 +426,7 @@ private struct AniList列表响应: Decodable {
         let status: String?
         let score: Double?
         let progress: Int?
+        let progressVolumes: Int?
         let updatedAt: Int?
         let createdAt: Int?
         let startedAt: 日期?
@@ -437,7 +440,7 @@ private struct AniList列表响应: Decodable {
             func text(_ date: 日期?) -> String? {
                 平台账户工具.日期文本(year: date?.year, month: date?.month, day: date?.day)
             }
-            return 平台资料库记录(
+            var record = 平台资料库记录(
                 平台: .aniList,
                 平台ID: String(media.id),
                 类型: kind,
@@ -445,7 +448,10 @@ private struct AniList列表响应: Decodable {
                 标题: media.title?.romaji ?? media.title?.native ?? String(media.id),
                 日文标题: media.title?.native,
                 封面地址: media.coverImage?.large,
-                快照: 同步快照(状态: status, 评分: score.map { Int($0.rounded()) }, 进度: progress),
+                快照: 同步快照(
+                    状态: status, 评分: score.map { Int($0.rounded()) }, 进度: progress,
+                    卷数: kind == .anime ? nil : progressVolumes
+                ),
                 总数: (total ?? 0) > 0 ? total : nil,
                 平均评分: media.averageScore.map(Double.init),
                 发行日期: text(media.startDate),
@@ -460,6 +466,10 @@ private struct AniList列表响应: Decodable {
                     英文: media.title?.english
                 )
             )
+            record.总卷数 = kind == .anime ? nil : media.volumes.flatMap { $0 > 0 ? $0 : nil }
+            // 音乐（MV）不是作品，不导入资料库
+            record.可导入 = media.format.map { $0 != "MUSIC" }
+            return record
         }
     }
     let data: 数据

@@ -25,5 +25,25 @@
 	<string>f80456b95e7a5aa2ccfbadad6d727981</string>
 	<key>MALClientID</key>
 	<string>$(MAL_CLIENT_ID)</string>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.json</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>PaperVN Library</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.jizpaper.papervn.library</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>papervnlibrary</string>
+				</array>
+			</dict>
+		</dict>
+	</array>
 </dict>
 </plist>

@@ -990,7 +990,7 @@ private struct 搜索资料库作品: Identifiable {
     init(_ result: 视觉小说搜索结果) {
         id = result.id
         title = result.title
-        titles = result.titles
+        titles = 作品标题覆盖.shared.应用(result.titles, 作品键: 本地资料库条目.视觉小说ID(result.id), 类型: .visualNovel)
         image = result.image.map {
             .init(
                 url: $0.url,
@@ -1099,6 +1099,8 @@ struct 搜索: View {
     @State private var libraryEditorTarget: 搜索资料库编辑目标?
     @State private var libraryDeleteTarget: 搜索资料库删除目标?
     @State private var libraryActionError: String?
+    /// 加入资料库后，同一系列里还没加入的作品。
+    @State private var 系列补全结果: 系列补全.结果?
     @State private var showLoginRequiredAlert = false
     @State private var isPerformingLibraryAction = false
     @StateObject private var smartSearch = 智能搜索视图模型()
@@ -1134,8 +1136,7 @@ struct 搜索: View {
     private var preferredTitleLang: 标题语言 = .original
     @AppStorage("fallbackTitleLang")
     private var fallbackTitleLang: 标题语言 = .original
-    @AppStorage("subTitleLang")
-    private var subTitleLang: 副标题语言 = .none
+    @作品列表标题偏好读取 private var 标题偏好
     @AppStorage("allowUnofficialTitles")
     private var allowUnofficialTitles = false
     @AppStorage("staffNameLang")
@@ -1556,7 +1557,7 @@ struct 搜索: View {
         .alert("需要登录", isPresented: $showLoginRequiredAlert) {
             Button("好") { }
         } message: {
-            Text("请先在资料库页面登录VNDB账户。")
+            Text("请先在“账户”中登录Paper账户或任意平台账户。")
         }
         .alert(
             "无法完成资料库操作",
@@ -1568,6 +1569,12 @@ struct 搜索: View {
             Button("好") { libraryActionError = nil }
         } message: {
             Text(verbatim: libraryActionError ?? "")
+        }
+        .系列补全提醒($系列补全结果) { works in
+            try await 系列补全.添加视觉小说(works, auth: auth, bangumiAccount: bangumiAccount)
+            for vnID in works.compactMap(\.vndbID) {
+                await refreshLibraryItem(for: vnID, preservesExistingOnMissing: true)
+            }
         }
         .alert(item: $libraryDeleteTarget) { target in
             Alert(
@@ -1640,6 +1647,7 @@ struct 搜索: View {
                     对象: 浏览.对象,
                     标签: 当前标签值.map { .init(值: $0, 名称: 标签显示名称($0)) },
                     候选: 浏览.候选,
+                    来源名称: 浏览.来源名称,
                     同时带有: 标签规则同时带有,
                     移除: { value in 设置标签值(当前标签值.filter { $0 != value }) },
                     添加: { tag in
@@ -1891,7 +1899,7 @@ struct 搜索: View {
         } header: {
             HStack(spacing: 8) {
                 平台持续加载指示器()
-                Text("正在载入…")
+                Text("正在加载…")
             }
             .textCase(nil)
             .accessibilityElement(children: .combine)
@@ -1910,126 +1918,24 @@ struct 搜索: View {
     }
 
     private func visualNovelRow(_ item: 视觉小说搜索结果) -> some View {
-        let main = visualNovelDisplayTitle(for: item)
-        let subtitle = 标题工具.获取副标题(
-            titles: item.titles,
-            defaultTitle: item.title,
-            偏好: preferredTitleLang,
-            回退: fallbackTitleLang,
-            副标题设置: subTitleLang,
-            允许非官方: allowUnofficialTitles
-        )
-
-        return HStack(spacing: 12) {
+        作品列表行(
+            场景: .search,
+            内容: 作品列表行内容(item, 主标题: visualNovelDisplayTitle(for: item), 标题: 标题偏好)
+        ) {
             resultImage(
                 id: "vn-\(item.id)",
                 url: item.image?.url ?? item.image?.thumbnail,
                 sexual: item.image?.sexual,
                 violence: item.image?.violence
             )
-
-            VStack(alignment: .leading, spacing: 列表行布局.主副标题间距) {
-                多语言列表文本(
-                    main,
-                    层级: .主标题,
-                    系统字体粗细: main.languageCode
-                        == 标题语言.chinese.langCode ? .medium : nil
-                )
-                    .lineLimit(2)
-
-                if let subtitle {
-                    多语言列表文本(subtitle, 层级: .副标题)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-
-                if let developers = item.developers, !developers.isEmpty {
-                    Text(
-                        verbatim: ListFormatter.localizedString(
-                            byJoining: developers.prefix(2).map(\.name)
-                        )
-                    )
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                }
-
-                元数据流式布局(间距: 8) {
-                    if let released = item.released {
-                        metadata(icon: "calendar", text: released)
-                    }
-                    视觉小说统一评分标签(
-                        vndbID: item.id,
-                        vndbRating: item.rating,
-                        vndbVoteCount: item.votecount
-                    )
-                    if 评分设置.已选平台(.visualNovel) == [.vndb],
-                       let votes = item.votecount {
-                        metadata(icon: "person.2", text: votes.formatted())
-                    }
-                }
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-
-                let availability = availabilityText(item)
-                if !availability.isEmpty {
-                    Text(verbatim: availability)
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(1)
-                }
-            }
         }
-        .contentShape(Rectangle())
     }
 
     /// 动画、漫画与轻小说的结果行。排版和字体与视觉小说的结果行一致。
     private func 动画漫画Row(_ item: 作品搜索结果) -> some View {
-        let main = 标题工具.获取主标题(
-            titles: item.多语言标题,
-            defaultTitle: item.标题,
-            偏好: preferredTitleLang,
-            回退: fallbackTitleLang,
-            允许非官方: allowUnofficialTitles
-        )
-        let subtitle = 标题工具.获取副标题(
-            titles: item.多语言标题,
-            defaultTitle: item.标题,
-            偏好: preferredTitleLang,
-            回退: fallbackTitleLang,
-            副标题设置: subTitleLang,
-            允许非官方: allowUnofficialTitles
-        )
-
-        return HStack(spacing: 12) {
+        作品列表行(场景: .search, 内容: 作品列表行内容(item, 标题: 标题偏好)) {
             resultImage(id: "work-\(item.id)", url: item.封面, sexual: item.成人内容 ? 2 : nil, violence: nil)
-
-            VStack(alignment: .leading, spacing: 列表行布局.主副标题间距) {
-                多语言列表文本(
-                    main,
-                    层级: .主标题,
-                    系统字体粗细: main.languageCode
-                        == 标题语言.chinese.langCode ? .medium : nil
-                )
-                    .lineLimit(2)
-
-                if let subtitle {
-                    多语言列表文本(subtitle, 层级: .副标题)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-
-                元数据流式布局(间距: 8) {
-                    metadata(icon: item.类型.symbolName, text: item.类型.localizedTitle)
-                    if let 年份 = item.年份 {
-                        metadata(icon: "calendar", text: String(年份))
-                    }
-                }
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-            }
         }
-        .contentShape(Rectangle())
     }
 
     private func visualNovelDisplayTitle(
@@ -2258,7 +2164,7 @@ struct 搜索: View {
         selectedReleaseID: String? = nil
     ) {
         guard !isPerformingLibraryAction else { return }
-        guard !auth.token.isEmpty, !auth.userID.isEmpty else {
+        guard auth.可使用资料库 else {
             showLoginRequiredAlert = true
             return
         }
@@ -2304,6 +2210,7 @@ struct 搜索: View {
                 )
                 isPerformingLibraryAction = false
                 finishAddingToLibrary(work)
+                系列补全结果 = await 系列补全.检查(vnID: work.id)
             } catch is CancellationError {
                 return
             } catch {
@@ -2369,7 +2276,7 @@ struct 搜索: View {
         for work: 搜索资料库作品
     ) {
         guard libraryItemsByID[work.id] != nil else { return }
-        guard !auth.token.isEmpty, !auth.userID.isEmpty else {
+        guard auth.可使用资料库 else {
             showLoginRequiredAlert = true
             return
         }
@@ -2388,7 +2295,7 @@ struct 搜索: View {
 
     private func deleteFromLibrary(_ work: 搜索资料库作品) {
         guard !isPerformingLibraryAction else { return }
-        guard !auth.token.isEmpty, !auth.userID.isEmpty else {
+        guard auth.可使用资料库 else {
             libraryDeleteTarget = nil
             showLoginRequiredAlert = true
             return
@@ -2468,7 +2375,7 @@ struct 搜索: View {
         for vnID: String,
         preservesExistingOnMissing: Bool = false
     ) async {
-        guard !auth.token.isEmpty, !auth.userID.isEmpty else { return }
+        guard auth.可使用资料库 else { return }
         do {
             let item = try await VNDB服务.shared.fetchUserListItem(
                 token: auth.token,
@@ -2678,20 +2585,6 @@ struct 搜索: View {
         }
     }
 
-    private func availabilityText(_ item: 视觉小说搜索结果) -> String {
-        let languages = ListFormatter.localizedString(byJoining:
-            (item.languages ?? []).prefix(3)
-            .map { VNDB显示工具.语言名称($0) }
-        )
-        let platforms = ListFormatter.localizedString(byJoining:
-            (item.platforms ?? []).prefix(2)
-            .map { VNDB显示工具.平台名称($0) }
-        )
-        return [languages, platforms]
-            .filter { !$0.isEmpty }
-            .joined(separator: "·")
-    }
-
     private var 可见视觉小说结果: [视觉小说搜索结果] {
         guard contentFilterEnabled, contentRestrictionMethod == .hidden else {
             return viewModel.视觉小说结果
@@ -2821,7 +2714,9 @@ struct 搜索: View {
                     guard 大类.indices.contains(index) else { return }
                     browseWorkType = 大类[index] == .visualNovel ? nil : 大类[index]
                 }
-            )
+            ),
+            // 切换分类时下面换成了另一个列表，Picker要改为跟随新列表
+            列表标识: "\(当前大类.rawValue)|\(当前作品范围)|\(浏览范围)"
         )
         .frame(maxWidth: .infinity)
         .accessibilityLabel("搜索类型")
@@ -3318,6 +3213,9 @@ struct 搜索: View {
         }
         输入.在线作品顺序 = smartSearch.在线作品顺序
         输入.作品系列 = smartSearch.作品系列
+        输入.偏好 = smartSearch.偏好
+        输入.企划 = smartSearch.企划
+        输入.企划补充 = smartSearch.企划补充
         let types = 已启用类型
         // 设置里关闭的作品类型不显示；角色、会社、制作人员都来自 VNDB，随视觉小说开关
         let 条目 = 综合搜索合并.合并(输入).compactMap { item -> 综合搜索条目? in
@@ -3409,6 +3307,8 @@ struct 搜索: View {
                     探索加载失败页面(message: message) {
                         submitSearch(immediately: true)
                     }
+                    // 在滚动视图里也垂直居中（减去上下各 12 点的内边距）
+                    .containerRelativeFrame(.vertical) { 高度, _ in max(高度 - 24, 0) }
                 } else {
                     let 条目 = Array(综合搜索条目列表.enumerated())
                     VStack(spacing: 12) {
@@ -3681,10 +3581,10 @@ struct 搜索: View {
     private func 作品组摘要(_ 组: 综合作品组) -> String {
         var 部分: [String] = []
         if !组.角色.isEmpty {
-            部分.append(String(localized: "角色 \(组.角色.count)"))
+            部分.append(String(localized: "角色\(组.角色.count)"))
         }
         if !组.同系列.isEmpty {
-            部分.append(String(localized: "系列 \(组.同系列.count)"))
+            部分.append(String(localized: "系列\(组.同系列.count)"))
         }
         return 部分.joined(separator: " · ")
     }
@@ -3897,7 +3797,7 @@ struct 搜索: View {
         Button(action: 切换) {
             HStack(spacing: 4) {
                 Image(systemName: "square.stack")
-                Text(verbatim: String(localized: "系列 \(数量)"))
+                Text(verbatim: String(localized: "系列\(数量)"))
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
                 Image(systemName: "chevron.down")
@@ -4008,13 +3908,13 @@ struct 搜索: View {
                 initialImage: character.image
             )
         case let .制作人员(staff):
-            探索制作人员详情(item: staff)
+            制作人员详情(item: staff)
         case let .会社(producer):
-            探索会社详情(item: producer)
+            会社详情(item: producer)
         case let .动画漫画(work):
             作品详情(目标: work.详情目标)
         case let .发行版本(release):
-            探索发行版本详情(item: release, auth: auth)
+            发行版本详情(item: release, auth: auth)
         }
     }
 

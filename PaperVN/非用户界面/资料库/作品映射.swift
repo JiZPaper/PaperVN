@@ -5,6 +5,8 @@ import Foundation
 /// 同步时不再按标题现场匹配：各平台的条目先查这份映射，得到它属于哪一部作品。
 /// - 动画以 Annict 的作品划分为准：一部 Annict 作品是一部作品；没有 Annict 作品的按 MAL 划分。
 /// - 漫画与轻小说以 MAL 为准（Annict 没有漫画与轻小说）。
+/// - 反过来，MAL 偶尔把几部作品记成一个条目（分成几集）：同步时按集数拆成几条记录（“55357#1”“55357#2”），
+///   写回 MAL 时再合成一个条目，见 `MAL拆分条目`。
 /// - 一部作品在同一个平台上可以有多个条目：主条目之外的是“附属条目”（例如 Bangumi 单独成条目的特别篇、
 ///   Annict 并入正篇的 MAL 特别篇、Bangumi 书籍的单行本）。附属条目在导入时并入作品，不单独成为一部作品，
 ///   也不会被写入。
@@ -16,7 +18,23 @@ nonisolated enum 作品映射 {
         let 附属: Bool
     }
 
+    /// MAL 把几部作品记成一个条目（分成几集）时的一部（例如两部剧场总集篇在 MAL 上是一个 2 集的条目）。
+    struct 拆分部分: Equatable, Sendable {
+        /// 这部作品在资料库里的编号。
+        let 键: String
+        /// 它在 MAL 条目里占的集数，按顺序排在前一部之后。
+        let 集数: Int
+        /// 这部作品自己的原名（MAL 条目的标题是几部合在一起的）。
+        let 标题: String
+        var 罗马字: String? = nil
+        var 英文: String? = nil
+        /// 原名的语言；后台的拆分没有标明时为 nil，和 MAL 的原名一样按作品映射判断。
+        var 原名语言: String? = nil
+    }
+
     private struct 文件: Decodable {
+        /// “构建日期-内容摘要”，旧的映射文件只有日期。
+        let version: String?
         struct 分组: Decodable {
             /// [编号, MAL, AniList, Annict, Bangumi, TMDB（可省略）]，没有的为 null；编号能由 MAL 或 AniList ID 推出时也为 null。
             let works: [[JSONValue]]
@@ -28,6 +46,8 @@ nonisolated enum 作品映射 {
             let tmdbNoWrite: [Int]?
             /// [作品下标, 系列下标, …]：AniList 续作、前作关系连起来的动画（各季），系列下标是其中下标最小的作品
             let series: [Int]?
+            /// 平台 → 平台上的 ID → [[作品下标, 集数, 原名, 罗马字, 英文, 原名语言], …]：平台把这几部作品记成一个条目，按集数依次分给它们
+            let split: [String: [String: [[JSONValue]]]]?
         }
         let anime: 分组
         let manga: 分组
@@ -78,6 +98,10 @@ nonisolated enum 作品映射 {
         var 系列: [String: String] = [:]
         /// Bangumi 主条目 → 简体中文名
         var 中文名: [Int: String] = [:]
+        /// MAL ID → 这个条目拆成的几部作品
+        var MAL拆分: [Int: [拆分部分]] = [:]
+        /// 编号 → 它在 MAL 上的拆分条目 ID（“55357#2”）
+        var MAL拆分ID: [String: String] = [:]
     }
 
     private static let 平台顺序: [资料库平台] = [.myAnimeList, .aniList, .annict, .bangumi, .tmdb]
@@ -88,10 +112,34 @@ nonisolated enum 作品映射 {
         var 补充条目: [String: Int] = [:]
     }
 
-    private static let 数据: (anime: 表, manga: 表, visualNovels: 视觉小说表) = {
-        guard let url = Bundle.main.url(forResource: "PaperVNWorkMap", withExtension: "json"),
-              let data = try? Data(contentsOf: url),
-              let file = try? JSONDecoder().decode(文件.self, from: data) else { return (表(), 表(), 视觉小说表()) }
+    private struct 全部表 {
+        var anime = 表()
+        var manga = 表()
+        var visualNovels = 视觉小说表()
+        /// 映射文件的版本（“构建日期-内容摘要”）。
+        var 版本: String?
+    }
+
+    /// 读出来的映射。App 内静默下载了新的映射文件时由 `重新载入()` 换掉，见 `作品映射更新`。
+    private nonisolated(unsafe) static var 已载入: 全部表?
+    private static let 锁 = NSLock()
+
+    private static var 数据: 全部表 {
+        锁.lock()
+        defer { 锁.unlock() }
+        if let 已载入 { return 已载入 }
+        let loaded = 载入(作品映射存储.当前URL)
+        已载入 = loaded
+        return loaded
+    }
+
+    private static func 载入(_ url: URL?) -> 全部表 {
+        guard let url, let data = try? Data(contentsOf: url),
+              let file = try? JSONDecoder().decode(文件.self, from: data) else { return 全部表() }
+        return 整理(file)
+    }
+
+    private static func 整理(_ file: 文件) -> 全部表 {
         var visualNovels = 视觉小说表()
         visualNovels.主条目 = file.visualNovels ?? [:]
         for (bangumi, vndb) in file.visualNovelSharedBangumi ?? [:] {
@@ -111,12 +159,28 @@ nonisolated enum 作品映射 {
             for (id, title) in titles { if let id = Int(id) { table[id] = title } }
             if kind == "anime" { anime.中文名 = table } else if kind == "manga" { manga.中文名 = table }
         }
-        return (anime, manga, visualNovels)
-    }()
+        return 全部表(anime: anime, manga: manga, visualNovels: visualNovels, 版本: file.version)
+    }
 
     /// 映射文件有几 MB，在后台先读出来，免得第一次查找时卡住主线程。
     static func 预载() async {
         await Task.detached(priority: .utility) { _ = 数据.anime.条目.count }.value
+    }
+
+    /// 换用磁盘上现在的映射文件（下载了新的映射之后）。先在锁外读完，读的期间查找照常用旧的。
+    static func 重新载入() async {
+        let loaded = await Task.detached(priority: .utility) { 载入(作品映射存储.当前URL) }.value
+        锁.withLock { 已载入 = loaded }
+    }
+
+    /// 正在使用的映射的版本。
+    static var 版本: String? { 数据.版本 }
+
+    /// 下载的映射文件能完整读取时返回它的版本，替换前用来检查。
+    static func 验证(_ data: Data) throws -> String? {
+        let file = try JSONDecoder().decode(文件.self, from: data)
+        guard !file.anime.works.isEmpty else { throw CocoaError(.fileReadCorruptFile) }
+        return file.version
     }
 
     /// 视觉小说在 Bangumi 上有多个条目（不同发行版本）时，推送用的主条目；0 表示没有自己的条目。
@@ -128,6 +192,15 @@ nonisolated enum 作品映射 {
     static func 视觉小说可以写入(_ bangumiID: Int, vndbID: String) -> Bool {
         guard let owner = 数据.visualNovels.共用条目归属[bangumiID] else { return true }
         return owner == vndbID.lowercased()
+    }
+
+    /// Bangumi 条目 → VNDB作品：共用条目归属、主条目与补充条目反过来查。主条目为 0 的不算。
+    static func 视觉小说Bangumi反查() -> (归属: [Int: String], 条目: [Int: [String]]) {
+        let table = 数据.visualNovels
+        var entries: [Int: [String]] = [:]
+        for (vndb, bangumi) in table.主条目 where bangumi > 0 { entries[bangumi, default: []].append(vndb) }
+        for (vndb, bangumi) in table.补充条目 where bangumi > 0 { entries[bangumi, default: []].append(vndb) }
+        return (table.共用条目归属, entries)
     }
 
     /// 对应文件里没有、从 Wikidata 补充的 Bangumi 条目。
@@ -183,6 +256,27 @@ nonisolated enum 作品映射 {
                 table.系列[keys[index]] = keys[root]
             }
         }
+        for (malText, parts) in group.split?[资料库平台.myAnimeList.rawValue] ?? [:] {
+            guard let malID = Int(malText) else { continue }
+            var list: [拆分部分] = []
+            for part in parts {
+                guard part.count >= 3, let index = part[0].text.flatMap(Int.init), keys.indices.contains(index), !keys[index].isEmpty,
+                      let episodes = part[1].text.flatMap(Int.init), let title = part[2].text else { continue }
+                list.append(拆分部分(
+                    键: keys[index], 集数: episodes, 标题: title,
+                    罗马字: part.count > 3 ? part[3].text : nil,
+                    英文: part.count > 4 ? part[4].text : nil,
+                    原名语言: part.count > 5 ? part[5].text : nil
+                ))
+            }
+            guard list.count == parts.count else { continue }
+            table.MAL拆分[malID] = list
+            for (offset, part) in list.enumerated() {
+                let id = "\(malID)#\(offset + 1)"
+                table.MAL拆分ID[part.键] = id
+                table.条目["\(资料库平台.myAnimeList.rawValue)|\(id)"] = 结果(键: part.键, 附属: false)
+            }
+        }
         for (name, values) in group.attached {
             guard let platform = 资料库平台(rawValue: name) else { continue }
             for offset in stride(from: 0, to: values.count - 1, by: 2) {
@@ -212,9 +306,26 @@ nonisolated enum 作品映射 {
         return Int(key[key.index(after: colon)...])
     }
 
-    /// 作品在平台上的主条目 ID，新增到该平台时使用。
+    /// 作品在平台上的主条目 ID，新增到该平台时使用。MAL 上和别的作品共用一个条目时是拆分条目 ID（“55357#2”）。
     static func 平台ID(_ key: String, 平台 platform: 资料库平台, 类型 type: 作品类型) -> String? {
-        分组表(for: type).主条目[key]?[platform]
+        if platform == .myAnimeList, let id = 分组表(for: type).MAL拆分ID[key] { return id }
+        return 分组表(for: type).主条目[key]?[platform]
+    }
+
+    /// MAL 把几部作品记成一个条目时，按集数顺序拆成的几部作品。
+    static func MAL拆分(_ malID: Int, 类型 type: 作品类型) -> [拆分部分]? {
+        分组表(for: type).MAL拆分[malID]
+    }
+
+    /// 作品在 MAL 上和别的作品共用一个条目时，它的拆分条目 ID（“55357#2”：MAL 条目 55357 的第 2 部）。
+    static func MAL拆分ID(_ key: String, 类型 type: 作品类型) -> String? {
+        分组表(for: type).MAL拆分ID[key]
+    }
+
+    /// 拆分条目 ID（“55357#2”）里的 MAL ID。
+    static func MAL拆分条目(_ platformID: String) -> Int? {
+        guard let hash = platformID.firstIndex(of: "#") else { return nil }
+        return Int(platformID[..<hash])
     }
 
     /// 作品的 Bangumi 主条目的简体中文名。映射里有这部作品但没有中文名时为 nil。

@@ -9,7 +9,7 @@ enum AnnictOAuth配置 {
     static let callbackScheme = "papervn"
     static let redirectURI = "papervn://oauth/annict"
     static let endpoint = URL(string: "https://api.annict.com/graphql")!
-    static let tokenURL = URL(string: "https://papervn.jizpaper.com/api/sync/oauth/annict/token")!
+    static let tokenURL = URL(string: "https://papervn.jizpaper.com/sync/oauth/annict/token")!
 
     static var clientID: String { 平台账户工具.infoValue("AnnictClientID", environment: "ANNICT_CLIENT_ID") }
     static var isConfigured: Bool { !clientID.isEmpty }

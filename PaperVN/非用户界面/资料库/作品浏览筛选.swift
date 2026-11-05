@@ -232,6 +232,10 @@ struct 作品浏览筛选: Codable, Hashable {
             formatNotIn = []
         case .manga:
             formatNotIn.insert("NOVEL")
+        case .anime:
+            // 音乐（MV）不是作品，不列出（和 PaperVN Sync 不导入的条目一致）；以前存下的筛选里选了它也去掉
+            formatIn?.remove("MUSIC")
+            formatNotIn.insert("MUSIC")
         default:
             break
         }
@@ -274,7 +278,6 @@ struct 作品浏览筛选: Codable, Hashable {
                 选项(值: "OVA", 标题: "OVA"),
                 选项(值: "ONA", 标题: "ONA"),
                 选项(值: "SPECIAL", 标题: String(localized: "特别篇")),
-                选项(值: "MUSIC", 标题: String(localized: "音乐短片")),
             ]
         case .manga:
             [

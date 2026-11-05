@@ -1,5 +1,5 @@
 {
-  "说明": "人工核对过的 Bangumi 条目 → MAL ID 校正，优先于所有自动规则。null 表示这个 Bangumi 条目在 MAL 上没有对应的作品。每条都写明依据。 annict 段是 Annict 作品 → MAL ID 的校正：Annict 自己记录的 MAL ID 有误时使用，依据写在 Annict依据（仅供校对，不向用户显示）。",
+  "说明": "人工核对过的 Bangumi 条目 → MAL ID 校正，优先于所有自动规则。null 表示这个 Bangumi 条目在 MAL 上没有对应的作品。每条都写明依据。 annict 段是 Annict 作品 → MAL ID 的校正：Annict 自己记录的 MAL ID 有误时使用，依据写在 Annict依据（仅供校对，不向用户显示）。 split 段是 MAL 把几部作品记成一个条目（分成几集）的情况：按 Annict 拆成几部作品，MAL 条目按集数依次分给它们，依据在“拆分依据”。",
   "anime": {
     "65883": 210,
     "107454": 5760,
@@ -37,7 +37,8 @@
     "13369": 55303,
     "1676": 19959,
     "1703": 1663,
-    "1952": 338
+    "1952": 338,
+    "16331": null
   },
   "Annict依据": {
     "3856": "Annict自己记录的MAL ID有误：どろろ（1969 TV，26 集）应为 MAL 5760「Dororo to Hyakkimaru」，Annict 记成了 1968 年的试映版 11471",
@@ -50,6 +51,57 @@
     "13369": "Annict自己记录的MAL ID有误：崩壊：スターレイル ショートアニメ「飛光」（2023）应为 MAL 55303「Fei Guang」，Annict 记的 64979 在 MAL 上不存在",
     "1676": "Annict自己记录的MAL ID有误：バーバパパ（1977 日本 TV 版，48 集）应为 MAL 19959「Barbapapa (1977)」，Annict 记成了 1974 年的欧洲版 2823",
     "1703": "Annict自己记录的MAL ID有误：母をたずねて三千里（1976 TV，52 集）应为 MAL 1663，Annict 记成了 1980 年的剧场版 33474",
-    "1952": "Annict自己记录的MAL ID有误：ベルサイユのばら（1979 TV，40 集）应为 MAL 338，Annict 记成了 2007 年的特别篇 5415"
+    "1952": "Annict自己记录的MAL ID有误：ベルサイユのばら（1979 TV，40 集）应为 MAL 338，Annict 记成了 2007 年的特别篇 5415",
+    "16331": "Annict自己记录的MAL ID有误：劇場編集版 Summer Pockets 空門蒼編（2025）是 MAL 61926（四部剧场编辑版合在一起的条目）的第 3 部，见 split；arm 把它和 AniList 195230（久島鴎編）配在一起"
+  },
+  "split": {
+    "55357": [
+      {
+        "annict": 10865,
+        "episodes": 1,
+        "title": "劇場総集編ぼっち・ざ・ろっく！ Re:"
+      },
+      {
+        "annict": 11308,
+        "anilist": 171099,
+        "bangumi": 459642,
+        "episodes": 1,
+        "title": "劇場総集編ぼっち・ざ・ろっく！ Re:Re:"
+      }
+    ],
+    "61926": [
+      {
+        "mal": true,
+        "anilist": 195230,
+        "tmdb": "movie/1531742",
+        "episodes": 1,
+        "title": "劇場編集版 Summer Pockets 久島鴎編"
+      },
+      {
+        "anilist": 206609,
+        "annict": 16329,
+        "tmdb": "movie/1531746",
+        "episodes": 1,
+        "title": "劇場編集版 Summer Pockets 紬ヴェンダース編"
+      },
+      {
+        "anilist": 206610,
+        "annict": 16331,
+        "tmdb": "movie/1531748",
+        "episodes": 1,
+        "title": "劇場編集版 Summer Pockets 空門蒼編"
+      },
+      {
+        "anilist": 206611,
+        "annict": 16332,
+        "tmdb": "movie/1531749",
+        "episodes": 1,
+        "title": "劇場編集版 Summer Pockets 鳴瀬しろは編"
+      }
+    ]
+  },
+  "拆分依据": {
+    "55357": "MAL 把前后两部剧场总集篇记成一个条目「Bocchi the Rock! Movie」（2 集）；Annict、AniList、Bangumi 都是两部作品：Re:（2024-06，Annict 10865）与 Re:Re:（2024-08，Annict 11308，arm 没有收录）",
+    "61926": "MAL 把四部剧场编辑版记成一个条目「Summer Pockets Movie」（4 集）；AniList、TMDB 都是四部电影，Annict 有紬・蒼・しろは三部（久島鴎編没有找到）。按上映顺序：久島鴎編 2025-08-15、紬ヴェンダース編 08-22、空門蒼編 08-29、鳴瀬しろは編 09-05"
   }
 }

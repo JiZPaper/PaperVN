@@ -45,7 +45,8 @@ nonisolated final class 只读映射文件: @unchecked Sendable {
 public nonisolated struct 智能搜索模型文件: @unchecked Sendable {
     /// 2：纯名称模糊匹配（名称索引 + 排序器），不再包含查询编码器。
     /// 3：加入动画、漫画、轻小说条目（排在制作人员之后，编号是 MAL ID）。
-    public static let 支持的格式版本: ClosedRange<UInt32> = 2...3
+    /// 4：加入读音索引、名字标记、条目的静态特征，排序器的特征也随之改变；只支持这一版。
+    public static let 支持的格式版本: ClosedRange<UInt32> = 4...4
 
     public nonisolated struct 段: Decodable, Sendable {
         public let offset: Int
@@ -66,9 +67,14 @@ public nonisolated struct 智能搜索模型文件: @unchecked Sendable {
         public let nameCount: Int
         public let gramCount: Int
         public let maxIDF: Double
+        public let phoneticMaxIDF: Double
+        public let phoneticMinQueryLength: Int
         public let nameCandidateCount: Int
         public let coverageCandidateCount: Int
+        public let phoneticCandidateCount: Int
         public let queryUnigramMaxHan: Int
+        /// docs/static 里每个条目的特征名，顺序与排序器的同名特征对应。
+        public let staticFeatures: [String]
         public let sections: [String: 段]
     }
 

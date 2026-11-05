@@ -88,6 +88,12 @@ class 用户登录: ObservableObject {
     @Published var userID: String = ""
     @Published var errorMessage: String?
 
+    /// 可以使用资料库：登录了VNDB，或者因为登录了 Paper Account、其他平台而有本地资料库。
+    /// 没登录VNDB时，视觉小说的读写改用本地资料库（见 VNDB服务 的资料库方法）。
+    var 可使用资料库: Bool {
+        (isLoggedIn && !token.isEmpty && !userID.isEmpty) || 本地资料库.shared.所有者 != nil
+    }
+
     var vndb账户: VNDB账户 {
         VNDB账户(userID: userID, username: username, 已登录: isLoggedIn)
     }
@@ -645,8 +651,25 @@ private struct 账户页面: View {
     @State private var isLoggingInToVNDB = false
     @State private var activeAlert: 账户提示?
     @FocusState private var focusedInput: 输入焦点?
+    @ObservedObject private var paperAccount = PaperAccount账户.shared
+
     var body: some View {
         Form {
+            Section {
+                NavigationLink {
+                    PaperAccount页面()
+                        .账户与设置关闭按钮(isVisible: showsCloseButton, action: closeAction)
+                } label: {
+                    accountRow("Paper账户", status: accountStatus(
+                        isLoggedIn: paperAccount.isLoggedIn,
+                        isLoading: paperAccount.正在登录,
+                        name: paperAccount.资料?.nickname
+                    ))
+                }
+            } footer: {
+                Text("Today推荐使用Paper账户。登录后，这台设备上的反馈和数据维护内容会转入账户。")
+            }
+
             Section {
                 NavigationLink {
                     accountDetailPage("VNDB") { vndbSection }
@@ -719,6 +742,9 @@ private struct 账户页面: View {
         .onChange(of: vndbAccount.isLoggedIn) { _, isLoggedIn in
             if isLoggedIn {
                 startBangumiSynchronizationIfNeeded()
+                // 已登录 Paper Account 时，把以前用这个VNDB账户提交的内容转过去
+                let token = vndbAccount.token
+                Task { await PaperAccount账户.shared.迁移VNDB(token: token) }
             } else {
                 bangumiAccount.cancelLibrarySynchronization()
             }
@@ -826,7 +852,7 @@ private struct 账户页面: View {
         isLoading: Bool,
         name: String?
     ) -> Text {
-        if isLoading { return Text("正在载入…") }
+        if isLoading { return Text("正在加载…") }
         guard isLoggedIn else { return Text("未登录") }
         if let name, !name.isEmpty { return Text(verbatim: name) }
         return Text("已登录")
@@ -1257,12 +1283,9 @@ private struct 账户页面: View {
 
     private func startBangumiSynchronizationIfNeeded() {
         guard PaperVNSync中心.已启用,
-              vndbAccount.isLoggedIn,
+              本地资料库.shared.所有者 != nil,
               bangumiAccount.isLoggedIn else { return }
-        bangumiAccount.startLibrarySynchronization(
-            vndbToken: vndbAccount.token,
-            userID: vndbAccount.userID
-        )
+        bangumiAccount.startLibrarySynchronization()
     }
 
     @ViewBuilder
@@ -1462,7 +1485,7 @@ private struct 账户页面: View {
     }
 
     private var vndbLoginButtonTitle: LocalizedStringKey {
-        if vndbAccount.isRestoringSession { return "正在载入…" }
+        if vndbAccount.isRestoringSession { return "正在加载…" }
         if isLoggingInToVNDB { return "正在登录…" }
         if inputToken.isEmpty && !vndbAccount.token.isEmpty {
             return "使用上次登录时的Token"
@@ -1471,14 +1494,14 @@ private struct 账户页面: View {
     }
 
     private var kunLoginButtonTitle: LocalizedStringKey {
-        if kunAccount.isRestoringSession { return "正在载入…" }
+        if kunAccount.isRestoringSession { return "正在加载…" }
         if kunAccount.isLoggingOut { return "正在退出…" }
         if kunAccount.isAuthenticating { return "正在登录…" }
         return "登录鲲Galgame"
     }
 
     private var bangumiLoginButtonTitle: LocalizedStringKey {
-        if bangumiAccount.isRestoringSession { return "正在载入…" }
+        if bangumiAccount.isRestoringSession { return "正在加载…" }
         if bangumiAccount.isAuthenticating { return "正在登录…" }
         return "登录Bangumi番组计划"
     }
@@ -1519,6 +1542,12 @@ struct 关于页面: View {
                         Image(systemName: "doc.text")
                     }
                 }
+
+                Link(destination: Self.licenseURL) {
+                    关于外部链接标签("许可") {
+                        Image(systemName: "checkmark.seal")
+                    }
+                }
             }
 
             Section("社区") {
@@ -1556,20 +1585,6 @@ struct 关于页面: View {
                             .resizable()
                             .scaledToFit()
                             .foregroundStyle(.primary)
-                    }
-                }
-            }
-
-            Section("开源项目") {
-                Link(destination: Self.localizationsRepositoryURL) {
-                    关于外部链接标签("翻译PaperVN") {
-                        Image(systemName: "chevron.left.forwardslash.chevron.right")
-                    }
-                }
-
-                Link(destination: Self.descriptionTranslationsRepositoryURL) {
-                    关于外部链接标签("翻译VNDB视觉小说与角色简介") {
-                        Image(systemName: "chevron.left.forwardslash.chevron.right")
                     }
                 }
             }
@@ -1614,6 +1629,7 @@ struct 关于页面: View {
     private static let termsOfServiceURL = URL(
         string: "https://papervn.jizpaper.com/TermsOfService.html"
     )!
+    private static let licenseURL = URL(string: "https://papervn.jizpaper.com/license")!
     private static let discordURL = URL(string: "https://discord.gg/GkFWCsFq36")!
     static let telegramURL = URL(string: "https://t.me/papervn_app")!
     static let qqGroupURL = URL(
@@ -1625,12 +1641,6 @@ struct 关于页面: View {
     )!
     private static let bilibiliURL = URL(
         string: "https://space.bilibili.com/355150816"
-    )!
-    private static let localizationsRepositoryURL = URL(
-        string: "https://github.com/JiZPaper/PaperVN-Localizations"
-    )!
-    private static let descriptionTranslationsRepositoryURL = URL(
-        string: "https://github.com/JiZPaper/VNDB-Description-Translations"
     )!
     private static let emailURL = URL(string: "mailto:JiZPaper@gmail.com")!
 }

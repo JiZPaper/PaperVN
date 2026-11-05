@@ -124,6 +124,9 @@ struct 本地资料库条目: Codable, Identifiable, Hashable {
     /// 动画是看到第几集，漫画与轻小说是读到第几话。
     var 进度: Int?
     var 总数: Int?
+    /// 漫画与轻小说读到第几卷。
+    var 卷数: Int?
+    var 总卷数: Int?
     /// 用于在 Annict 等日文平台上查找作品。
     var 日文标题: String?
     /// 各语言的标题，显示时按标题语言设置选择（与视觉小说共用同一套规则）。
@@ -131,6 +134,9 @@ struct 本地资料库条目: Codable, Identifiable, Hashable {
 
     /// 视觉小说的完整VNDB记录，资料库行、编辑页与详情页仍然依赖它。
     var vndb: 用户列表项目?
+    /// 在 PaperVN 中清除、VNDB上却清除不了的日期（VNDB API 不接受 null，见 `VNDB服务.patchUserList`）：
+    /// "started"、"finished" → 清除时VNDB上的值。随条目同步到其他设备；VNDB修好之后删掉。
+    var VNDB已清除日期: [String: String]?
 
     static func 视觉小说ID(_ vndbID: String) -> String { "vn:\(vndbID)" }
 
@@ -164,6 +170,8 @@ struct 本地资料库条目: Codable, Identifiable, Hashable {
         封面地址 = item.封面地址
         进度 = item.进度
         总数 = item.总数
+        卷数 = item.卷数 > 0 ? item.卷数 : nil
+        总卷数 = item.总卷数
         日文标题 = item.日文标题
         vndb = nil
     }
@@ -179,6 +187,26 @@ struct 本地资料库条目: Codable, Identifiable, Hashable {
         if let value = 平台ID[.myAnimeList], let id = Int(value) { return id }
         guard id.hasPrefix("mal-"), let value = id.split(separator: ":").last else { return nil }
         return Int(value)
+    }
+
+    /// 按 `VNDB已清除日期` 去掉VNDB上清除不了的日期。VNDB上的日期已经改过的（例如在网站上改了），以VNDB为准，不再保持清除。
+    mutating func 应用VNDB已清除日期(_ cleared: [String: String]) {
+        guard let item = vndb else { return }
+        var remaining: [String: String] = [:]
+        remaining["started"] = cleared["started"].flatMap { $0 == item.started ? $0 : nil }
+        remaining["finished"] = cleared["finished"].flatMap { $0 == item.finished ? $0 : nil }
+        VNDB已清除日期 = remaining.isEmpty ? nil : remaining
+        guard !remaining.isEmpty else { return }
+        let clearsStarted = remaining["started"] != nil
+        let clearsFinished = remaining["finished"] != nil
+        if clearsStarted { 开始日期 = nil }
+        if clearsFinished { 完成日期 = nil }
+        vndb = 用户列表项目(
+            id: item.id, added: item.added, lastmod: item.lastmod, vote: item.vote,
+            started: clearsStarted ? nil : item.started,
+            finished: clearsFinished ? nil : item.finished,
+            notes: item.notes, labels: item.labels, releases: item.releases, vn: item.vn
+        )
     }
 
     init(vndb item: 用户列表项目) {
@@ -207,6 +235,8 @@ struct 本地资料库条目: Codable, Identifiable, Hashable {
 @MainActor
 final class 本地资料库: ObservableObject {
     static let shared = 本地资料库()
+    /// 没有登录 Paper Account 与VNDB、只登录了其他平台时，资料库属于此设备。
+    nonisolated static let 本机所有者 = "local"
 
     @Published private(set) var 条目: [本地资料库条目] = [] {
         didSet { 修订号 &+= 1 }
@@ -230,11 +260,17 @@ final class 本地资料库: ObservableObject {
 
     private init() {}
 
-    /// 登录、退出或切换账户时调用。
-    func 切换所有者(_ owner: String?) {
+    /// 登录、退出或切换账户时调用。`迁移来源` 依次检查：新所有者还没有资料库时，
+    /// 把第一个有资料库的来源（例如登录 Paper Account 前的VNDB资料库）整体搬过来，资料库跟着同一个人走。
+    func 切换所有者(_ owner: String?, 迁移来源: [String] = []) {
         let owner = owner?.isEmpty == false ? owner : nil
         guard owner != 所有者 else { return }
+        if let owner, !FileManager.default.fileExists(atPath: Self.文件地址(owner: owner).path()),
+           let source = 迁移来源.first(where: { $0 != owner && FileManager.default.fileExists(atPath: Self.文件地址(owner: $0).path()) }) {
+            Self.搬移资料库(从: source, 到: owner)
+        }
         所有者 = owner
+        资料库更改记录.shared.重置()
         条目 = []
         已载入 = false
         载入任务?.cancel()
@@ -253,12 +289,16 @@ final class 本地资料库: ObservableObject {
                 }
                 // 显示之前先补上作品映射里预装的中文名，资料库一出现就是最终的标题
                 Bangumi中文名补全.预装(&decoded)
+                // 漫画、轻小说按以前读到的分类改正，旧版本分错的作品一出现就在正确的类型里
+                书籍类型判定.改正(&decoded)
                 return decoded
             }.value
             guard let self, !Task.isCancelled, self.所有者 == owner else { return }
             self.条目 = values ?? []
             self.载入失败 = values == nil
             self.已载入 = true
+            if values != nil { 资料库更改记录.shared.载入(owner: owner, 条目: self.条目) }
+            self.安排改正书籍类型()
         }
     }
 
@@ -266,9 +306,22 @@ final class 本地资料库: ObservableObject {
     func 导入VNDB(_ items: [用户列表项目], owner: String) {
         // 资料库还没读完时导入，会只留下视觉小说，把动画、漫画与轻小说覆盖掉
         guard owner == 所有者, 可写入 else { return }
-        let imported = items.map(本地资料库条目.init(vndb:))
+        let cleared = Dictionary(条目.compactMap { entry in entry.VNDB已清除日期.map { (entry.id, $0) } },
+                                 uniquingKeysWith: { first, _ in first })
+        let imported = items.map { item in
+            var entry = 本地资料库条目(vndb: item)
+            if let dates = cleared[entry.id] { entry.应用VNDB已清除日期(dates) }
+            return entry
+        }
+        // VNDB上删掉的作品记为已删除，导入 Bangumi 的视觉小说时不再加回来；VNDB上有的作品取消这个记录
+        let importedKeys = Set(imported.map(\.id))
+        let removed = 条目.filter { $0.类型 == .visualNovel && !importedKeys.contains($0.id) }.map(\.id)
+        var store = 同步状态存储.读取(owner: owner)
+        store.本地已删除.formUnion(removed)
+        store.本地已删除.subtract(importedKeys)
+        store.保存(owner: owner)
         条目 = 条目.filter { $0.类型 != .visualNovel } + imported
-        保存()
+        保存(原因: .VNDB导入)
     }
 
     /// 动画、漫画与轻小说（视觉小说以外的作品），按 PaperVN ID 索引。
@@ -276,11 +329,28 @@ final class 本地资料库: ObservableObject {
         Dictionary(条目.filter { $0.类型 != .visualNovel }.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
     }
 
-    /// PaperVN Sync 合并完成后，整体替换动画、漫画与轻小说。
-    func 替换动画漫画(_ entries: [本地资料库条目], owner: String) {
+    /// PaperVN Sync 合并完成后，整体替换动画、漫画与轻小说。`原因` 区分一般同步与第一次同步时选择的导入方式。
+    func 替换动画漫画(_ entries: [本地资料库条目], owner: String, 原因 reason: 资料库更改原因 = .同步) {
         guard owner == 所有者, 可写入 else { return }
         条目 = 条目.filter { $0.类型 == .visualNovel } + entries
-        保存()
+        保存(原因: reason)
+        安排改正书籍类型()
+    }
+
+    /// PaperVN Sync 认出的音乐（MV）、广告等不能导入的条目从资料库移除，平台上的记录不动。
+    func 移除不可导入的条目(_ unsupported: 不可导入的条目, owner: String) {
+        guard owner == 所有者, 可写入 else { return }
+        let count = 条目.count
+        条目.removeAll { $0.类型 != .visualNovel && unsupported.包含($0) }
+        if 条目.count != count { 保存(原因: .自动整理) }
+    }
+
+    /// 回退、导入资料库或从云端恢复后整体换上新的作品。
+    func 应用回退(_ entries: [本地资料库条目], owner: String) {
+        guard owner == 所有者, 可写入 else { return }
+        条目 = entries
+        保存(原因: .回退)
+        安排改正书籍类型()
     }
 
     /// 新加入资料库的作品（例如在详情页加入计划）。
@@ -288,12 +358,47 @@ final class 本地资料库: ObservableObject {
         guard 所有者 != nil else { return }
         var entries = [entry]
         Bangumi中文名补全.预装(&entries)
+        书籍类型判定.改正(&entries)
         var entry = entries[0]
         entry.加入时间 = entry.加入时间 ?? .now
         entry.修改时间 = .now
         条目.removeAll { $0.id == entry.id }
         条目.append(entry)
         保存()
+        安排改正书籍类型()
+    }
+
+    private var 书籍类型任务: Task<Void, Never>?
+
+    /// 漫画与轻小说按公开接口读到的分类改正（见 `书籍类型判定`），不需要登录任何平台。
+    /// 依次执行：前一次还在读取时，这一次等它读完再看有没有新加入的作品。
+    private func 安排改正书籍类型() {
+        let previous = 书籍类型任务
+        书籍类型任务 = Task { [weak self] in
+            await previous?.value
+            await self?.改正书籍类型()
+        }
+        // 以前导入的音乐（MV）等条目也在这些时候检查
+        PaperVNSync中心.shared.安排检查不可导入的条目()
+    }
+
+    private func 改正书籍类型() async {
+        guard 可写入, let owner = 所有者 else { return }
+        let books = 条目.filter { $0.类型 == .manga || $0.类型 == .lightNovel }
+        guard !books.isEmpty else { return }
+        let token = try? await PaperVNSync中心.shared.bangumi?.validAccessToken()
+        let types = await 书籍类型判定.读取(books, bangumiToken: token)
+        guard 可写入, 所有者 == owner else { return }
+        var entries = 条目
+        var changed = false
+        for index in entries.indices where entries[index].类型 == .manga || entries[index].类型 == .lightNovel {
+            guard let type = types[entries[index].id], type != entries[index].类型 else { continue }
+            entries[index].类型 = type
+            changed = true
+        }
+        guard changed else { return }
+        条目 = entries
+        保存(原因: .自动整理)
     }
 
     /// 本地先改，改完由调用方推送到平台。
@@ -305,13 +410,26 @@ final class 本地资料库: ObservableObject {
         保存()
     }
 
+    /// 登录了VNDB与 Paper Account 时在编辑页清除的日期：VNDB上清除不了，只在资料库中清除，并记下VNDB上原来的值，
+    /// 之后导入VNDB时继续保持清除（见 `本地资料库条目.VNDB已清除日期`）。
+    func 记录VNDB已清除日期(vnID: String, started: String?, finished: String?) {
+        guard 可写入, let index = 条目.firstIndex(where: { $0.id == 本地资料库条目.视觉小说ID(vnID) }) else { return }
+        var entry = 条目[index]
+        var cleared = entry.VNDB已清除日期 ?? [:]
+        if let started { cleared["started"] = started }
+        if let finished { cleared["finished"] = finished }
+        entry.应用VNDB已清除日期(cleared)
+        更新(entry)
+    }
+
     func 删除(id: String) {
         条目.removeAll { $0.id == id }
         保存()
     }
 
-    private func 保存() {
+    private func 保存(原因 reason: 资料库更改原因 = .手动编辑) {
         guard 可写入, let owner = 所有者 else { return }
+        资料库更改记录.shared.资料库已保存(owner: owner, 原因: reason)
         let values = 条目
         let url = Self.文件地址(owner: owner)
         Task.detached(priority: .utility) {
@@ -324,7 +442,21 @@ final class 本地资料库: ObservableObject {
         }
     }
 
-    nonisolated private static func 文件地址(owner: String) -> URL {
+    /// 资料库、同步记录与更改记录一起搬到新的所有者名下。Paper Account 的同步基准属于账户本身，不搬。
+    nonisolated static func 搬移资料库(从 source: String, 到 target: String) {
+        let manager = FileManager.default
+        let pairs = [
+            (文件地址(owner: source), 文件地址(owner: target)),
+            (同步状态存储.文件地址(owner: source), 同步状态存储.文件地址(owner: target)),
+            (资料库更改记录.目录(source), 资料库更改记录.目录(target)),
+        ]
+        for (from, to) in pairs where manager.fileExists(atPath: from.path()) && !manager.fileExists(atPath: to.path()) {
+            try? manager.createDirectory(at: to.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try? manager.moveItem(at: from, to: to)
+        }
+    }
+
+    nonisolated static func 文件地址(owner: String) -> URL {
         let safeOwner = owner.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? owner
         return URL.applicationSupportDirectory
             .appending(path: "本地资料库", directoryHint: .isDirectory)
@@ -423,6 +555,28 @@ enum 资料库排序 {
             .map(\.entry)
     }
 
+    /// 视觉小说还未发行：VNDB没有日期或写着“TBA”都算；只有年份或年月时按最晚的那天算（VNDB用它表示还没定下具体日期）。
+    static func 未发行(_ item: 用户列表项目) -> Bool {
+        guard let value = item.vn.released.flatMap(发行日期排序值) else { return true }
+        return value > 今天的日期值
+    }
+
+    /// 动画、漫画、轻小说还未发行或播出：没有日期时不算（可能只是平台没提供）；
+    /// 只有年份或年月时按最早的那天算，Annict之类只给年份的作品不会整年都被当作未播出。
+    static func 未发行(_ entry: 本地资料库条目) -> Bool {
+        guard let released = entry.发行日期, !released.isEmpty else { return false }
+        let parts = released.split(separator: "-").compactMap { Int($0) }
+        guard let year = parts.first else { return true }
+        let month = parts.count > 1 ? parts[1] : 1
+        let day = parts.count > 2 ? parts[2] : 1
+        return Double(year * 10_000 + month * 100 + day) > 今天的日期值
+    }
+
+    private static var 今天的日期值: Double {
+        let today = Calendar.current.dateComponents([.year, .month, .day], from: .now)
+        return Double((today.year ?? 0) * 10_000 + (today.month ?? 0) * 100 + (today.day ?? 0))
+    }
+
     /// “2019-05-31”“2019-05”“2019”以及“TBA”之类的发行日期转成可比较的数值。
     private static func 发行日期排序值(_ value: String) -> Double? {
         let parts = value.split(separator: "-").compactMap { Int($0) }
@@ -445,3 +599,95 @@ extension 本地资料库 {
     }
 }
 #endif
+
+// MARK: - 没登录VNDB时的视觉小说
+
+extension 本地资料库 {
+    private static let 默认标签名称: [Int: String] = [
+        1: "Playing", 2: "Finished", 3: "Stalled", 4: "Dropped", 5: "Wishlist", 6: "Blacklist", 7: "Voted",
+    ]
+
+    /// 没登录VNDB时，视觉小说的更改只写进本地资料库（随 Paper Account 同步），登录VNDB后再写入VNDB。
+    /// `values` 与VNDB的 PATCH /ulist 一致：labels、labels_set、labels_unset、vote、started、finished、notes。
+    func 本地写入视觉小说(vnID: String, values: [String: Any]) async throws {
+        guard let owner = 所有者, 可写入 else { throw 资料库回退错误.需要登录 }
+        let key = 本地资料库条目.视觉小说ID(vnID)
+        let existing = 条目.first { $0.id == key }
+        let item: 用户列表项目
+        if let current = existing?.vndb {
+            item = current
+        } else {
+            let details = try await VNDB服务.shared.fetchUserListDetails(vnID: vnID)
+            item = 用户列表项目(
+                id: vnID, added: Int(Date.now.timeIntervalSince1970), vote: nil, started: nil, finished: nil,
+                notes: nil, labels: [], releases: nil, vn: details
+            )
+        }
+
+        var labelIDs = Set((item.labels ?? []).map(\.id))
+        if let labels = values["labels"] as? [Int] { labelIDs = Set(labels) }
+        if let added = values["labels_set"] as? [Int] { labelIDs.formUnion(added) }
+        if let removed = values["labels_unset"] as? [Int] { labelIDs.subtract(removed) }
+        func text(_ key: String, _ current: String?) -> String? {
+            guard values.keys.contains(key) else { return current }
+            return values[key] as? String
+        }
+        let vote: Int? = values.keys.contains("vote") ? values["vote"] as? Int : item.vote
+        if vote != nil { labelIDs.insert(7) } else { labelIDs.remove(7) }
+        let names = Dictionary((item.labels ?? []).map { ($0.id, $0.label) }, uniquingKeysWith: { first, _ in first })
+        let updated = 用户列表项目(
+            id: item.id,
+            added: item.added,
+            lastmod: Int(Date.now.timeIntervalSince1970),
+            vote: vote,
+            started: text("started", item.started),
+            finished: text("finished", item.finished),
+            notes: text("notes", item.notes),
+            labels: labelIDs.sorted().map { 用户列表项目.用户列表标签(id: $0, label: names[$0] ?? Self.默认标签名称[$0] ?? "") },
+            releases: item.releases,
+            vn: item.vn
+        )
+        var entry = 本地资料库条目(vndb: updated)
+        if let existing {
+            entry.平台ID.merge(existing.平台ID) { new, _ in new }
+            entry.加入时间 = existing.加入时间
+        }
+        添加(entry)
+        var store = 同步状态存储.读取(owner: owner)
+        store.待推送VNDB.insert(key)
+        store.本地已删除.remove(key)
+        store.保存(owner: owner)
+    }
+
+    /// Bangumi番组计划上收藏的视觉小说加入资料库（只加资料库里还没有的），并记为待写入VNDB。
+    func 导入视觉小说(_ entries: [本地资料库条目], owner: String) {
+        guard owner == 所有者, 可写入 else { return }
+        let existing = Set(条目.map(\.id))
+        let added = entries.filter { !existing.contains($0.id) }
+        guard !added.isEmpty else { return }
+        var values = added
+        Bangumi中文名补全.预装(&values)
+        条目 += values
+        保存(原因: .同步)
+        var store = 同步状态存储.读取(owner: owner)
+        store.待推送VNDB.formUnion(added.map(\.id))
+        store.保存(owner: owner)
+    }
+
+    func 记录已删除视觉小说(_ keys: [String]) {
+        guard let owner = 所有者, !keys.isEmpty else { return }
+        var store = 同步状态存储.读取(owner: owner)
+        store.本地已删除.formUnion(keys)
+        store.保存(owner: owner)
+    }
+
+    func 本地删除视觉小说(vnID: String) {
+        guard let owner = 所有者, 可写入 else { return }
+        let key = 本地资料库条目.视觉小说ID(vnID)
+        删除(id: key)
+        var store = 同步状态存储.读取(owner: owner)
+        store.待推送VNDB.insert(key)
+        store.本地已删除.insert(key)
+        store.保存(owner: owner)
+    }
+}

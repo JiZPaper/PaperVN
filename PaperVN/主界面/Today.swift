@@ -1687,6 +1687,8 @@ struct Today页面: View {
     @State private var todayAtTop = true
     @State private var loadedAuxiliaryContentIdentity: String?
     @State private var duoDisplayGeometry = TodayDuo显示几何()
+    /// 滚动区域的宽度，内容按它排版（见 body）
+    @State private var todayScrollWidth: CGFloat?
     @State private var 显示Today推荐页面 = false
     /// 每天第一次打开Today时显示简报；看完或跳过后记下日期（本地时区）。
     @AppStorage("todayBriefingLastDate") private var briefingLastDate = ""
@@ -1764,12 +1766,23 @@ struct Today页面: View {
         usesWideTodayLayout ? .infinity : 680
     }
 
+    private var systemStatusNotice: 系统状态提示? {
+        #if DEBUG
+        if let sample = 系统状态提示.launchArgumentSample { return sample }
+        #endif
+        return systemStatusModel.document?.notice
+    }
+
     @ViewBuilder
     private var todayScrollContent: some View {
         VStack(
             alignment: .leading,
             spacing: usesWideTodayLayout ? 22 : 26
         ) {
+            if let notice = systemStatusNotice {
+                系统状态提示卡片(notice: notice)
+            }
+
             if let document = systemStatusModel.document,
                document.summary(at: Date()) != nil {
                 系统状态卡片(
@@ -1867,10 +1880,12 @@ struct Today页面: View {
     var body: some View {
         ScrollView(.vertical) {
             // 内容宽度固定为屏幕宽度：哪个子视图算出来比屏幕宽（例如异步载入后变长的文字），
-            // 整页也不会变得可以左右拖动。故事和活动书架自己会画到边缘外，不受影响
+            // 整页也不会变得可以左右拖动。故事和活动书架自己会画到边缘外，不受影响。
+            // 不用 containerRelativeFrame：被横屏的运行视觉小说页面盖住时，它会停在旋转途中的宽度（402+31），转回竖屏也不更新
             todayScrollContent
-                .containerRelativeFrame(.horizontal)
+                .frame(width: todayScrollWidth)
         }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { todayScrollWidth = $0 }
         .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
         .background(Color.平台分组背景.ignoresSafeArea())
         .scrollIndicators(.automatic)
@@ -1905,6 +1920,7 @@ struct Today页面: View {
                 }
             }
         }
+        .onChange(of: showsBriefing) { _, shown in 开屏弹窗状态.shared.简报显示中 = shown }
         .sheet(isPresented: $showsBriefing, onDismiss: briefingDismissed) {
             NavigationStack {
                 Today简报页面(
@@ -1956,7 +1972,7 @@ struct Today页面: View {
                 return
             }
             #endif
-            if briefingLastDate != Self.briefingDate() {
+            if briefingLastDate != Self.briefingDate(), !开屏弹窗状态.shared.正在打开作品 {
                 showsBriefing = true
             }
         }
@@ -1974,7 +1990,7 @@ struct Today页面: View {
             ))
         }
         .sheet(isPresented: $显示Today推荐页面) {
-            Today推荐页面(vndbAccount: auth.vndb账户)
+            Today推荐页面(vndbAccount: PaperAccount账户.shared.Today账户)
                 .presentationDetents([.fraction(0.98)])
                 .presentationBackgroundInteraction(.enabled)
                 .transition(.scale(scale: 0.92).combined(with: .opacity))
@@ -2352,7 +2368,7 @@ struct Today页面: View {
                 HStack(spacing: 8) {
                     ProgressView()
                         .controlSize(.small)
-                    Text("正在载入…")
+                    Text("正在加载…")
                 }
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.secondary)
@@ -2934,7 +2950,8 @@ struct Today页面: View {
                 标题: title,
                 封面: nil,
                 aniListID: parsed.aniListID,
-                bangumiID: parsed.bangumiID
+                bangumiID: parsed.bangumiID,
+                类型: parsed.类型
             ))
         } else {
             平台内容不可用视图("Today不可用", systemImage: "doc.text.image")
@@ -5460,7 +5477,7 @@ private struct Today提交资格错误: Decodable, Sendable {
 }
 
 private struct PaperVNToday推荐服务 {
-    private let baseURL = URL(string: "https://papervn.jizpaper.com/api/")!
+    private let baseURL = URL(string: "https://papervn.jizpaper.com/")!
 
     enum ServiceError: LocalizedError {
         case rateLimitExceeded
@@ -5480,7 +5497,7 @@ private struct PaperVNToday推荐服务 {
             case .duplicatePending(let message): return message
             case .duplicateRejected(let message): return message
             case .duplicateByOthers(let message): return message
-            case .unauthorized: return "需要登录VNDB账户才能提交推荐。"
+            case .unauthorized: return "需要登录Paper账户才能提交推荐。"
             case .invalidData: return "提交的数据格式不正确。"
             case .unavailable: return "服务器当前不可用，请稍后再试。"
             case .server(_, let message): return message
@@ -5496,7 +5513,7 @@ private struct PaperVNToday推荐服务 {
             case .duplicateByOthers: return "无法重复推荐"
             case .unauthorized: return "需要登录"
             case .invalidData: return "数据错误"
-            case .unavailable: return "无法载入"
+            case .unavailable: return "无法加载"
             case .server: return "服务器错误"
             }
         }
@@ -5696,6 +5713,11 @@ private struct PaperVNToday推荐服务 {
         request.httpMethod = method
         request.timeoutInterval = 20
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        // 推荐以 Paper Account 识别提交者；服务器看到令牌后忽略请求里的 vndbID
+        if PaperAccount账户.shared.isLoggedIn,
+           let token = try? await PaperAccount账户.shared.访问令牌() {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
         if let body {
             request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
             request.httpBody = try JSONEncoder().encode(body)
@@ -6016,7 +6038,7 @@ struct Today推荐页面: View {
                     HStack(spacing: 8) {
                         ProgressView()
                             .controlSize(.small)
-                        Text("正在载入…")
+                        Text("正在加载…")
                     }
                     .textCase(nil)
                     .accessibilityElement(children: .combine)
@@ -6024,7 +6046,7 @@ struct Today推荐页面: View {
             } else if let 错误 = state.错误信息 {
                 Section {
                     平台内容不可用视图(
-                        "无法载入",
+                        "无法加载",
                         systemImage: "exclamationmark.triangle",
                         description: Text(错误)
                     )
@@ -6128,7 +6150,7 @@ struct Today推荐页面: View {
         ContentUnavailableView {
             Label("需要登录", systemImage: "person.crop.circle.badge.exclamationmark")
         } description: {
-            Text("登录VNDB账户后即可推荐作品")
+            Text("在“账户”中登录Paper账户后即可推荐作品")
         }
     }
 
@@ -6470,7 +6492,7 @@ private struct 视觉小说搜索页面: View {
                         HStack(spacing: 8) {
                             ProgressView()
                                 .controlSize(.small)
-                            Text("正在载入…")
+                            Text("正在加载…")
                         }
                         .textCase(nil)
                         .accessibilityElement(children: .combine)
@@ -6525,7 +6547,7 @@ private struct 视觉小说搜索页面: View {
                             HStack(spacing: 8) {
                                 ProgressView()
                                     .controlSize(.small)
-                                Text("正在载入…")
+                                Text("正在加载…")
                             }
                             .textCase(nil)
                             .accessibilityElement(children: .combine)
@@ -6723,13 +6745,8 @@ private struct Today推荐编辑页面: View {
         NavigationStack {
             Form {
                 Section {
-                    LabeledContent("用户名") {
+                    LabeledContent("昵称") {
                         Text(vndbAccount.用户名)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    LabeledContent("VNDB ID") {
-                        Text(vndbAccount.用户ID)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -6891,7 +6908,7 @@ private struct Today推荐编辑页面: View {
                         .buttonBorderShape(.circle)
                         .tint(.blue)
                         .disabled(!可以提交)
-                        .accessibilityLabel(推荐 == nil ? "提交推荐" : "存储推荐")
+                        .accessibilityLabel(推荐 == nil ? "提交推荐" : "保存推荐")
                     }
                 }
             }

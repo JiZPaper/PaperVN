@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		5A1C0E0330F0000000000001 /* Siglus in Frameworks */ = {isa = PBXBuildFile; productRef = 5A1C0E0230F0000000000001 /* Siglus */; };
+		5A1C0E0630F0000000000001 /* KiriKiri in Frameworks */ = {isa = PBXBuildFile; productRef = 5A1C0E0530F0000000000001 /* KiriKiri */; };
 		7CE829D33011C85800E2390F /* StoreKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7CE829D23011C85800E2390F /* StoreKit.framework */; };
 		7CE829D63011C85800E2390F /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = 7CE829D53011C85800E2390F /* ZIPFoundation */; };
 /* End PBXBuildFile section */
@@ -74,6 +76,8 @@
 			files = (
 				7CE829D33011C85800E2390F /* StoreKit.framework in Frameworks */,
 				7CE829D63011C85800E2390F /* ZIPFoundation in Frameworks */,
+				5A1C0E0330F0000000000001 /* Siglus in Frameworks */,
+				5A1C0E0630F0000000000001 /* KiriKiri in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -153,6 +157,8 @@
 			name = PaperVN;
 			packageProductDependencies = (
 				7CE829D53011C85800E2390F /* ZIPFoundation */,
+				5A1C0E0230F0000000000001 /* Siglus */,
+				5A1C0E0530F0000000000001 /* KiriKiri */,
 			);
 			productName = PaperVN;
 			productReference = 7CBDCC322F5D45DC00652C1F /* PaperVN.app */;
@@ -252,6 +258,8 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				7CE829D43011C85800E2390F /* XCLocalSwiftPackageReference "Dependencies/ZIPFoundation" */,
+				5A1C0E0130F0000000000001 /* XCLocalSwiftPackageReference "Dependencies/Siglus" */,
+				5A1C0E0430F0000000000001 /* XCLocalSwiftPackageReference "Dependencies/KiriKiri" */,
 			);
 			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
@@ -459,7 +467,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_ENTITLEMENTS = PaperVN/PaperVN.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = Y3UG3Y8W6N;
 				ENABLE_PREVIEWS = YES;
@@ -478,11 +486,11 @@
 				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphoneos*]" = YES;
 				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleDefault;
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphoneos*]" = UIStatusBarStyleDefault;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
-				MARKETING_VERSION = 2.0.0;
+				MARKETING_VERSION = 2.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jizpaper.PaperVN;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -510,7 +518,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_ENTITLEMENTS = PaperVN/PaperVN.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = Y3UG3Y8W6N;
 				ENABLE_PREVIEWS = YES;
@@ -529,11 +537,11 @@
 				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphoneos*]" = YES;
 				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleDefault;
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphoneos*]" = UIStatusBarStyleDefault;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
-				MARKETING_VERSION = 2.0.0;
+				MARKETING_VERSION = 2.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jizpaper.PaperVN;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -692,6 +700,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
+		5A1C0E0130F0000000000001 /* XCLocalSwiftPackageReference "Dependencies/Siglus" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Dependencies/Siglus;
+		};
+		5A1C0E0430F0000000000001 /* XCLocalSwiftPackageReference "Dependencies/KiriKiri" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Dependencies/KiriKiri;
+		};
 		7CE829D43011C85800E2390F /* XCLocalSwiftPackageReference "Dependencies/ZIPFoundation" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Dependencies/ZIPFoundation;
@@ -699,6 +715,16 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		5A1C0E0230F0000000000001 /* Siglus */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5A1C0E0130F0000000000001 /* XCLocalSwiftPackageReference "Dependencies/Siglus" */;
+			productName = Siglus;
+		};
+		5A1C0E0530F0000000000001 /* KiriKiri */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5A1C0E0430F0000000000001 /* XCLocalSwiftPackageReference "Dependencies/KiriKiri" */;
+			productName = KiriKiri;
+		};
 		7CE829D53011C85800E2390F /* ZIPFoundation */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 7CE829D43011C85800E2390F /* XCLocalSwiftPackageReference "Dependencies/ZIPFoundation" */;

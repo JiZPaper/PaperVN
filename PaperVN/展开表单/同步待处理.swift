@@ -965,7 +965,7 @@ private struct 确认页面: View {
         }
     }
 
-    private var 说明: String { String(localized: "确认以同步动画、漫画与轻小说。") }
+    private var 说明: String { String(localized: "确认以同步动画、漫画与轻小说。同步后，仍可以在“资料库”设置的“更改记录”中回退。") }
 
     private var 资料库变化: (added: Int, modified: Int, removed: Int) {
         let before = session.本地.filter { session.新隐藏[$0.key] == nil }
@@ -1037,9 +1037,13 @@ private struct 更改行: View {
 struct 同步待处理弹出: ViewModifier {
     @ObservedObject private var sync = PaperVNSync中心.shared
     @State private var id = UUID()
+    /// 处理页面从这个按钮缩放展开。不传时用系统默认的弹出动画。
+    var 缩放来源: (id: String, namespace: Namespace.ID)? = nil
 
     func body(content: Content) -> some View {
-        content
+        let launchPopups = 开屏弹窗状态.shared
+        let splashing = launchPopups.进行中 || launchPopups.简报显示中
+        return content
             .onAppear { sync.注册弹出层级(id) }
             .onDisappear { sync.注销弹出层级(id) }
             .sheet(isPresented: Binding(
@@ -1047,7 +1051,28 @@ struct 同步待处理弹出: ViewModifier {
                 get: { sync.显示待处理 && sync.待处理 != nil && sync.弹出层级.last == id },
                 set: { if !$0 { sync.显示待处理 = false } }
             )) {
-                同步待处理页面()
+                if let 缩放来源 {
+                    同步待处理页面()
+                        .navigationTransition(.zoom(
+                            sourceID: 缩放来源.id,
+                            in: 缩放来源.namespace
+                        ))
+                } else {
+                    同步待处理页面()
+                }
+            }
+            // 和处理页面一样从最上层的页面弹出；启动时的说明、每日简报和处理页面关闭之后再弹出
+            .alert(
+                Text(verbatim: sync.不可导入提示?.标题 ?? ""),
+                isPresented: Binding(
+                    get: { sync.不可导入提示 != nil && sync.弹出层级.last == id && !sync.显示待处理 && !splashing },
+                    set: { if !$0 { sync.不可导入提示 = nil } }
+                ),
+                presenting: sync.不可导入提示
+            ) { _ in
+                Button("好") {}
+            } message: { notice in
+                Text(verbatim: notice.说明)
             }
     }
 }

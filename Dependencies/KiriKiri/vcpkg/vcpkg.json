@@ -1,0 +1,40 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "papervn-kirikiri",
+  "version-string": "1.0.0",
+  "description": "PaperVN 在 iOS 上编译 krkr2 所需的依赖。照 krkr2 的 vcpkg.json，去掉桌面专用的包，关掉 iOS 不能用的即时编译和 OpenMP。",
+  "dependencies": [
+    "7zip",
+    { "name": "blend2d", "default-features": false },
+    "boost-iostreams",
+    { "name": "boost-locale", "default-features": false },
+    "boost-phoenix",
+    "boost-spirit",
+    "bullet3",
+    "cocos2dx",
+    "ffmpeg",
+    "fmt",
+    "glm",
+    "jxrlib",
+    "libarchive",
+    "libjpeg-turbo",
+    "libogg",
+    "libpng",
+    "libvorbis",
+    "libwebp",
+    "lz4",
+    "oniguruma",
+    "openal-soft",
+    { "name": "opencv4", "default-features": false },
+    "opus",
+    { "name": "opusfile", "default-features": false },
+    "spdlog",
+    "uchardet",
+    "unrar",
+    { "name": "vcpkg-cmake", "host": true },
+    "zstd"
+  ],
+  "overrides": [
+    { "name": "opencv4", "version": "4.7.0#6" }
+  ]
+}

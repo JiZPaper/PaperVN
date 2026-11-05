@@ -1,0 +1,21 @@
+// PaperVN：Plugins.link("krkrgles.dll") 时注册
+#pragma once
+#define NCB_MODULE_NAME TJS_W("krkrgles.dll")
+// krkrgles 和吉里吉里Z 本体有同名的 GL 工具类，版本不同，这里改名避免冲突
+#define GLClipContext PaperVNGLES_GLClipContext
+#define GLEffectChain PaperVNGLES_GLEffectChain
+#define GLEffectContext PaperVNGLES_GLEffectContext
+#define GLEffectStage PaperVNGLES_GLEffectStage
+#define GLFboPool PaperVNGLES_GLFboPool
+#define GLFrameBufferObject PaperVNGLES_GLFrameBufferObject
+#define GLLutStage PaperVNGLES_GLLutStage
+#define GLPointwiseStage PaperVNGLES_GLPointwiseStage
+#define GLTexture PaperVNGLES_GLTexture
+#define GLTextureDrawer PaperVNGLES_GLTextureDrawer
+#define GLWeightedBlurStage PaperVNGLES_GLWeightedBlurStage
+#define CheckLinkStatusAndReturnProgram PaperVNGLES_CheckLinkStatusAndReturnProgram
+#define CompileProgram PaperVNGLES_CompileProgram
+#define CompileProgramWithTransformFeedback PaperVNGLES_CompileProgramWithTransformFeedback
+#define CompileShader PaperVNGLES_CompileShader
+#define LoadBinaryProgramES3 PaperVNGLES_LoadBinaryProgramES3
+#define _CheckGLErrorAndLog PaperVNGLES_CheckGLErrorAndLog

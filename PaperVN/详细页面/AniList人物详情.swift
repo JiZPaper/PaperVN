@@ -881,7 +881,7 @@ struct AniList人物详情: View {
         .font(.subheadline)
         .redacted(reason: .placeholder)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("正在载入…")
+        .accessibilityLabel("正在加载…")
     }
 
     private func descriptionContent(fillsAvailableHeight: Bool = false) -> some View {
@@ -902,7 +902,7 @@ struct AniList人物详情: View {
                 .沉浸详情文字阴影(style)
             } else {
                 简介预览文本视图(
-                    text: String(repeating: "正在载入", count: 96),
+                    text: String(repeating: "正在加载", count: 96),
                     lineLimit: 5
                 )
                 .font(.body)
@@ -936,7 +936,7 @@ struct AniList人物详情: View {
     private var failureCard: some View {
         if let errorMessage, 详情 == nil {
             VStack(alignment: .leading, spacing: 10) {
-                Label("无法载入", systemImage: "exclamationmark.triangle")
+                Label("无法加载", systemImage: "exclamationmark.triangle")
                     .font(.headline)
 
                 Text(verbatim: errorMessage)
@@ -970,7 +970,7 @@ struct AniList人物详情: View {
         .padding(.horizontal, pageHorizontalPadding)
         .redacted(reason: .placeholder)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("正在载入…")
+        .accessibilityLabel("正在加载…")
     }
 
     /// 角色：声优、出场作品；制作人员：配音的角色、参与作品；动画公司：主要作品。卡片与视觉小说角色详情相同。

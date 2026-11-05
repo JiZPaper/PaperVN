@@ -2,8 +2,9 @@ import Foundation
 
 nonisolated enum 智能搜索模型存储 {
     static let 文件名 = "PaperVNSmartSearch.pvss"
+    /// 每个格式版本一个地址：旧版 App 只认得旧格式，仍从原来的地址下载格式 3 的模型。
     static let 下载地址 = URL(
-        string: "https://r2-papervn.jizpaper.com/Resources/PaperVNSmartSearch.pvss"
+        string: "https://r2-papervn.jizpaper.com/Resources/PaperVNSmartSearch-v4.pvss"
     )!
 
     static var 目录: URL {
@@ -145,7 +146,8 @@ nonisolated final class 只读映射文件: @unchecked Sendable {
 nonisolated struct 智能搜索模型文件: @unchecked Sendable {
     /// 2：纯名称模糊匹配（名称索引 + 排序器），不再包含查询编码器。
     /// 3：加入动画、漫画、轻小说条目（排在制作人员之后，编号是 MAL ID）。
-    static let 支持的格式版本: ClosedRange<UInt32> = 2...3
+    /// 4：加入读音索引、名字标记、条目的静态特征，排序器的特征也随之改变；只支持这一版。
+    static let 支持的格式版本: ClosedRange<UInt32> = 4...4
 
     nonisolated struct 段: Decodable, Sendable {
         let offset: Int
@@ -166,9 +168,14 @@ nonisolated struct 智能搜索模型文件: @unchecked Sendable {
         let nameCount: Int
         let gramCount: Int
         let maxIDF: Double
+        let phoneticMaxIDF: Double
+        let phoneticMinQueryLength: Int
         let nameCandidateCount: Int
         let coverageCandidateCount: Int
+        let phoneticCandidateCount: Int
         let queryUnigramMaxHan: Int
+        /// docs/static 里每个条目的特征名，顺序与排序器的同名特征对应。
+        let staticFeatures: [String]
         let sections: [String: 段]
     }
 

@@ -696,7 +696,7 @@ struct Today播出表栏目: View {
             } else {
                 VStack(spacing: 12) {
                     ProgressView()
-                    Text("正在载入放送表…")
+                    Text("正在加载放送表…")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.secondary)
                 }

@@ -13,7 +13,7 @@ enum BangumiOAuth配置 {
     }
 
     /// 换取和刷新令牌要用到 client_secret，由 PaperVN Sync 服务端代办，secret 不放在 App 里。
-    static let tokenURL = URL(string: "https://papervn.jizpaper.com/api/sync/oauth/bangumi/token")!
+    static let tokenURL = URL(string: "https://papervn.jizpaper.com/sync/oauth/bangumi/token")!
 
     static var isConfigured: Bool { !clientID.isEmpty }
 
@@ -91,7 +91,7 @@ private enum Bangumi账户错误: LocalizedError {
         case .invalidCallback:
             return String(localized: "Bangumi番组计划返回了无效的登录结果。")
         case .stateMismatch:
-            return String(localized: "登录验证失败，请再试一次。")
+            return String(localized: "登录验证失败，请重试。")
         case .missingAuthorizationCode:
             return String(localized: "登录结果中缺少授权码。")
         case .invalidResponse:
@@ -345,7 +345,8 @@ final class Bangumi账户: NSObject, ObservableObject {
         return [main] + ids.filter { $0 != main && 已收藏游戏.contains($0) }
     }
 
-    func startLibrarySynchronization(vndbToken: String, userID: String) {
+    /// 把资料库中的视觉小说推送到 Bangumi。读的是本地资料库（不再读VNDB），只登录 Paper Account 或其他平台也能推送。
+    func startLibrarySynchronization() {
         guard !isSynchronizing,
               isLoggedIn,
               PaperVNSync中心.已启用,
@@ -361,11 +362,7 @@ final class Bangumi账户: NSObject, ObservableObject {
             ? 本地资料库.条目.filter { $0.类型 == .visualNovel && $0.状态 != nil }.count
             : nil
         librarySynchronizationTask = Task { [weak self] in
-            await self?.performLibrarySynchronization(
-                vndbToken: vndbToken,
-                userID: userID,
-                synchronizationID: synchronizationID
-            )
+            await self?.performLibrarySynchronization(synchronizationID: synchronizationID)
         }
     }
 
@@ -377,11 +374,7 @@ final class Bangumi账户: NSObject, ObservableObject {
         synchronizationErrorMessage = nil
     }
 
-    private func performLibrarySynchronization(
-        vndbToken: String,
-        userID: String,
-        synchronizationID: UUID
-    ) async {
+    private func performLibrarySynchronization(synchronizationID: UUID) async {
         defer {
             if librarySynchronizationID == synchronizationID {
                 librarySynchronizationID = nil
@@ -395,53 +388,42 @@ final class Bangumi账户: NSObject, ObservableObject {
             // 重新写入一致的收藏没有意义，还会刷新 Bangumi 上的更改时间
             let existing = try await 读取游戏收藏()
             已收藏游戏 = Set(existing.keys)
-            var page = 1
-            var hasMore = true
             var 写入成功数 = 0
             var 首个写入失败: Error?
-            while hasMore {
+            await 本地资料库.shared.等待载入()
+            let items = 本地资料库.shared.条目.compactMap(\.vndb)
+            待同步总数 = items.count
+            for item in items {
                 try Task.checkCancellation()
-                let response = try await VNDB服务.shared.fetchUserList(
-                    token: vndbToken,
-                    userID: userID,
-                    filter: .all,
-                    page: page,
-                    forceRefresh: page == 1
-                )
-                for item in response.results {
-                    try Task.checkCancellation()
-                    guard let status = item.primaryStatus else { continue }
-                    let rating = item.vote.map { $0 / 10 }
-                    let ids = Bangumi推送目标(vndbID: item.id)
-                    let needsWrite = ids.contains { id in
-                        guard let current = existing[id] else { return true }
-                        if current.type != collectionType(for: status) { return true }
-                        if let rating, rating != current.rate { return true }
-                        if let notes = item.notes, notes != (current.comment ?? "") { return true }
-                        return false
-                    }
-                    guard needsWrite else {
-                        已同步数 += 1
-                        continue
-                    }
-                    do {
-                        try await synchronize(
-                            vndbID: item.id,
-                            status: status,
-                            rating: rating,
-                            comment: item.notes
-                        )
-                        写入成功数 += 1
-                    } catch is CancellationError {
-                        throw CancellationError()
-                    } catch {
-                        首个写入失败 = 首个写入失败 ?? error
-                    }
-                    已同步数 += 1
-                    await Self.暂停写入节奏()
+                guard let status = item.primaryStatus else { continue }
+                let rating = item.vote.map { $0 / 10 }
+                let ids = Bangumi推送目标(vndbID: item.id)
+                let needsWrite = ids.contains { id in
+                    guard let current = existing[id] else { return true }
+                    if current.type != collectionType(for: status) { return true }
+                    if let rating, rating != current.rate { return true }
+                    if let notes = item.notes, notes != (current.comment ?? "") { return true }
+                    return false
                 }
-                hasMore = response.more
-                page += 1
+                guard needsWrite else {
+                    已同步数 += 1
+                    continue
+                }
+                do {
+                    try await synchronize(
+                        vndbID: item.id,
+                        status: status,
+                        rating: rating,
+                        comment: item.notes
+                    )
+                    写入成功数 += 1
+                } catch is CancellationError {
+                    throw CancellationError()
+                } catch {
+                    首个写入失败 = 首个写入失败 ?? error
+                }
+                已同步数 += 1
+                await Self.暂停写入节奏()
             }
             if 写入成功数 == 0, let 首个写入失败 {
                 // 全部写入都失败才算同步失败
@@ -733,7 +715,7 @@ extension Bangumi账户 {
         struct 收藏: Decodable {
             struct 条目: Decodable {
                 struct 图片: Decodable { let large: String?; let common: String? }
-                struct 标签: Decodable { let name: String }
+                struct 标签: Decodable { let name: String; let count: Int? }
                 let id: Int
                 let name: String
                 let nameCn: String?
@@ -750,6 +732,7 @@ extension Bangumi账户 {
             let type: Int
             let comment: String?
             let epStatus: Int
+            let volStatus: Int?
             let updatedAt: String?
             let subject: 条目?
         }
@@ -758,7 +741,7 @@ extension Bangumi账户 {
     }
 
     /// 读取游戏收藏（视觉小说）的状态、评分与吐槽，用来跳过已经一致的作品。
-    fileprivate func 读取游戏收藏() async throws -> [Int: (type: Int, rate: Int, comment: String?)] {
+    func 读取游戏收藏() async throws -> [Int: (type: Int, rate: Int, comment: String?)] {
         guard let accessToken = try await validAccessToken(), let username = profile?.username else {
             throw URLError(.userAuthenticationRequired)
         }
@@ -837,15 +820,20 @@ extension Bangumi账户 {
         if item.subjectType == 2 {
             type = .anime
         } else {
-            // 精简条目里没有“漫画／小说”分类，用标签区分
-            let tags = subject?.tags?.map(\.name) ?? []
-            type = tags.contains { $0.contains("小说") || $0 == "轻小说" || $0 == "ライトノベル" } ? .lightNovel : .manga
+            // 精简条目里没有“漫画／小说”分类，用标签区分。只认完整的分类标签：漫画常带“小说改”，不能按“含有小说”判断。
+            // 两种标签都有时看哪种标的人多
+            func 人数(_ names: Set<String>) -> Int {
+                subject?.tags?.filter { names.contains($0.name) }.map { $0.count ?? 1 }.max() ?? 0
+            }
+            let novel = 人数(["轻小说", "小说", "ライトノベル", "ラノベ", "轻小说分卷", "网络小说"])
+            let comic = 人数(["漫画", "漫画系列", "コミック"])
+            type = novel > comic ? .lightNovel : .manga
         }
         let name = subject?.name ?? String(item.subjectId)
         let chineseName = subject?.nameCn?.isEmpty == false ? subject?.nameCn : nil
         let total = subject?.eps
         let image = subject?.images?.large ?? subject?.images?.common
-        return 平台资料库记录(
+        var record = 平台资料库记录(
             平台: .bangumi,
             平台ID: String(item.subjectId),
             类型: type,
@@ -853,7 +841,7 @@ extension Bangumi账户 {
             标题: chineseName ?? name,
             日文标题: name,
             封面地址: image?.isEmpty == false ? image : nil,
-            快照: 同步快照(状态: status, 评分: item.rate * 10, 进度: item.epStatus),
+            快照: 同步快照(状态: status, 评分: item.rate * 10, 进度: item.epStatus, 卷数: type == .anime ? nil : item.volStatus),
             总数: (total ?? 0) > 0 ? total : nil,
             平均评分: subject?.score.flatMap { $0 > 0 ? $0 * 10 : nil },
             发行日期: subject?.date,
@@ -863,6 +851,8 @@ extension Bangumi账户 {
             // Bangumi 的 name_cn 是简体中文；name 是原名，Bangumi 没有标明语言
             多语言标题: 作品多语言标题.生成(原名: name, 罗马字: nil, 中文: chineseName)
         )
+        record.总卷数 = type == .anime ? nil : subject?.volumes.flatMap { $0 > 0 ? $0 : nil }
+        return record
     }
 
     /// 新增或修改收藏。书籍的进度随收藏一起修改；动画的进度要逐集标记为看过。
@@ -887,6 +877,7 @@ extension Bangumi账户 {
         }
         let progress = value.进度
         if type != .anime, let progress { payload["ep_status"] = progress }
+        if type != .anime, let volumes = value.卷数 { payload["vol_status"] = volumes }
         _ = try await Self.request(
             url: URL(string: "https://api.bgm.tv/v0/users/-/collections/\(subjectID)")!,
             method: "POST",

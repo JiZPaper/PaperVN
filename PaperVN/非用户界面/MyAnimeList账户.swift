@@ -323,6 +323,7 @@ final class MyAnimeList账户: ObservableObject {
         status: 资料库状态,
         score: Int?,
         progress: Int?,
+        volumes: Int? = nil,
         dates: (start: String?, finish: String?)? = nil
     ) async throws {
         let accessToken = try await validAccessToken()
@@ -333,6 +334,9 @@ final class MyAnimeList账户: ObservableObject {
         }
         if let progress {
             values[kind == .anime ? "num_watched_episodes" : "num_chapters_read"] = String(progress)
+        }
+        if kind == .manga, let volumes {
+            values["num_volumes_read"] = String(volumes)
         }
         if let dates {
             // 空字符串表示清除日期
@@ -471,6 +475,7 @@ private struct MyAnimeList列表页: Decodable {
         let score: Int?
         let numEpisodesWatched: Int?
         let numChaptersRead: Int?
+        let numVolumesRead: Int?
         let startDate: String?
         let finishDate: String?
         let updatedAt: String?
@@ -479,6 +484,7 @@ private struct MyAnimeList列表页: Decodable {
             case status, score
             case numEpisodesWatched = "num_episodes_watched"
             case numChaptersRead = "num_chapters_read"
+            case numVolumesRead = "num_volumes_read"
             case startDate = "start_date"
             case finishDate = "finish_date"
             case updatedAt = "updated_at"
@@ -533,11 +539,19 @@ struct MyAnimeList列表项: Sendable {
     let 评分: Int
     let 进度: Int
     let 总数: Int?
+    /// 漫画与轻小说读到第几卷，0 表示没有记录。
+    let 卷数: Int
+    let 总卷数: Int?
     let 平均评分: Double?
     let 发行日期: String?
     let 开始日期: String?
     let 完成日期: String?
     let 修改时间: Date?
+    /// 音乐（MV）、广告、宣传片不是作品，不导入资料库；分类为 unknown 时当作没有标明。
+    let 可导入: Bool?
+
+    /// MAL 动画的 media_type 里不是作品的分类。
+    static let 不可导入的分类: Set<String> = ["music", "cm", "pv"]
 
     fileprivate init(kind: 种类, raw: MyAnimeList列表页.项) {
         self.kind = kind
@@ -560,11 +574,14 @@ struct MyAnimeList列表项: Sendable {
             : raw.listStatus?.numChaptersRead ?? 0
         let total = kind == .anime ? raw.node.numEpisodes : raw.node.numChapters
         总数 = (total ?? 0) > 0 ? total : nil
+        卷数 = kind == .anime ? 0 : raw.listStatus?.numVolumesRead ?? 0
+        总卷数 = kind == .anime ? nil : raw.node.numVolumes.flatMap { $0 > 0 ? $0 : nil }
         平均评分 = raw.node.mean
         发行日期 = raw.node.startDate
         开始日期 = raw.listStatus?.startDate
         完成日期 = raw.listStatus?.finishDate
         修改时间 = raw.listStatus?.updatedAt.flatMap { ISO8601DateFormatter().date(from: $0) }
+        可导入 = raw.node.mediaType.flatMap { $0.isEmpty || $0 == "unknown" ? nil : !Self.不可导入的分类.contains($0) }
     }
 }
 
@@ -572,7 +589,7 @@ extension MyAnimeList列表项 {
     /// 整理成 PaperVN Sync 统一的平台记录。没有状态的记录不参与同步。
     var 平台记录: 平台资料库记录? {
         guard let 状态 else { return nil }
-        return 平台资料库记录(
+        var record = 平台资料库记录(
             平台: .myAnimeList,
             平台ID: String(id),
             类型: 类型,
@@ -580,7 +597,7 @@ extension MyAnimeList列表项 {
             标题: 标题,
             日文标题: 日文标题,
             封面地址: 封面地址,
-            快照: 同步快照(状态: 状态, 评分: 评分 * 10, 进度: 进度),
+            快照: 同步快照(状态: 状态, 评分: 评分 * 10, 进度: 进度, 卷数: 卷数),
             总数: 总数,
             平均评分: 平均评分.map { $0 * 10 },
             发行日期: 发行日期,
@@ -590,6 +607,9 @@ extension MyAnimeList列表项 {
             // MAL 的 title 是罗马字，alternative_titles.ja 是原名：韩国、中国作品也放在这里，语言按作品映射（AniList 的出品国家）改正
             多语言标题: 作品多语言标题.生成(原名: 日文标题, 原名语言: 作品映射.原名语言(类型, malID: id) ?? "ja", 罗马字: 标题, 英文: 英文标题)
         )
+        record.总卷数 = 总卷数
+        record.可导入 = 可导入
+        return record
     }
 }
 

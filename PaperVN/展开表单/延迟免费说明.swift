@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// 启动时说明PaperVN改为“延迟免费”模式：一封信，看完一次后不再显示。
-/// 这个版本启动时只弹出这封信，不弹出新功能介绍。
+/// 还没看过这封信时先弹出它，关闭后再弹出新功能介绍。
 enum 延迟免费说明 {
     static let 已读键 = "PaperVN.delayedFreeNotice.seen"
 
@@ -25,13 +25,17 @@ enum 延迟免费说明 {
     ).date ?? .now
 }
 
-/// 启动时弹出的延迟免费说明。弹出期间Today不弹出每日简报：
+/// 启动时弹出的延迟免费说明与新功能介绍。弹出期间Today不弹出每日简报：
 /// 两边同时呈现时系统只会保留一个，另一个会被忽略。
 @MainActor
 @Observable
 final class 开屏弹窗状态 {
     static let shared = 开屏弹窗状态()
-    var 进行中 = 延迟免费说明.应显示
+    var 进行中 = 延迟免费说明.应显示 || 新功能介绍.应显示
+    /// Today正在显示每日简报。PaperVN Sync的提示等它关闭后再弹出。
+    var 简报显示中 = false
+    /// 这次是从 Spotlight 打开作品进来的。每日简报不再自动弹出，否则会盖住作品详情。
+    var 正在打开作品 = false
 }
 
 struct 延迟免费说明页面: View {

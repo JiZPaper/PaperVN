@@ -72,6 +72,106 @@ struct 作品推荐模型Tests {
         #expect(boosted.map(\.编号) == ["v3", "v2"])
     }
 
+    /// a2 是续作（系列入口 a3，不可推荐）；a1 在资料库里。
+    private func 入口示例(入口成人: Bool, 用户正则: String = "") -> String {
+        let vectors: [[Int8]] = [[127, 0], [127, 20], [127, 10]]
+        let bytes = Data(vectors.flatMap { $0 }.map { UInt8(bitPattern: $0) })
+        return """
+        {"formatVersion":3,"generatedAt":"2026-11-03T00:00:00Z",
+         "parameters":{"factors":2,"regularization":0.1,"alpha":2,"alphaManga":6,"ratingBoost":1,"wishWeight":0.3,
+                       "relatedWeight":0\(用户正则)},
+         "keys":["a1","a2","a3"],
+         "series":[0,1,1],
+         "adult":[0,0,\(入口成人 ? 1 : 0)],
+         "recommendable":[1,1,0],
+         "scales":[0.007874,0.007874,0.007874],
+         "factors":"\(bytes.base64EncodedString())",
+         "related":[[],[],[]],
+         "entries":[1,2]}
+        """
+    }
+
+    @Test
+    func 推荐续作时显示系列入口() throws {
+        let liked = 作品推荐反馈(候选编号: ["a1"], 评分: nil, 状态: .completed)
+        let model = try 模型(入口示例(入口成人: false))
+        let result = model.推荐(资料库: [liked], 类型: [.anime], 包含成人内容: false, 数量: 10)
+        #expect(result.map(\.编号) == ["a3"])
+        // 入口是成人作品而不允许成人内容时，显示原来的作品
+        let adult = try 模型(入口示例(入口成人: true))
+        #expect(adult.推荐(资料库: [liked], 类型: [.anime], 包含成人内容: false, 数量: 10).map(\.编号) == ["a2"])
+        #expect(adult.推荐(资料库: [liked], 类型: [.anime], 包含成人内容: true, 数量: 10).map(\.编号) == ["a3"])
+        // 资料库里已有这个系列的作品时不推荐
+        let watched = 作品推荐反馈(候选编号: ["a3"], 评分: nil, 状态: .completed)
+        #expect(model.推荐(资料库: [liked, watched], 类型: [.anime], 包含成人内容: false, 数量: 10).isEmpty)
+    }
+
+    @Test
+    func 资料库很小时加大正则() throws {
+        let liked = 作品推荐反馈(候选编号: ["a1"], 评分: nil, 状态: .completed)
+        let plain = try #require(try 模型(入口示例(入口成人: false))
+            .推荐(资料库: [liked], 类型: [.anime], 包含成人内容: false, 数量: 1).first)
+        let adjusted = try #require(try 模型(入口示例(入口成人: false, 用户正则: #","userRegPower":1.5,"userRegRef":30"#))
+            .推荐(资料库: [liked], 类型: [.anime], 包含成人内容: false, 数量: 1).first)
+        #expect(adjusted.分数 < plain.分数)
+    }
+
+    /// 精排示例：召回分数 a2 > a3 > a4，精排只看热度（越冷门越靠前），前 2 部重新排序。
+    private func 精排示例(召回权重: Double = 0, 特征名: String = #""scoreZ","rank","collaborativeZ","related","popularity","popularityRank","quality","ratingCount","year","yearMissing","yearOffset","librarySize","typeCount","typeShare","meanRating","ratedShare","vectorNorm","anime","manga","lightNovel","visualNovel""#) -> String {
+        let vectors: [[Int8]] = [[127, 0], [127, 0], [120, 0], [110, 0]]
+        let bytes = Data(vectors.flatMap { $0 }.map { UInt8(bitPattern: $0) })
+        var weights = Array(repeating: "0", count: 21)
+        weights[4] = "-1"
+        let zeros = Array(repeating: "0", count: 21).joined(separator: ",")
+        let ones = Array(repeating: "1", count: 21).joined(separator: ",")
+        return """
+        {"formatVersion":3,"generatedAt":"2026-11-03T00:00:00Z",
+         "parameters":{"factors":2,"regularization":0.1,"alpha":2,"ratingBoost":1,"wishWeight":0.3,"relatedWeight":0},
+         "keys":["a1","a2","a3","a4"],
+         "series":[0,1,2,3],
+         "adult":[0,0,0,0],
+         "recommendable":[1,1,1,1],
+         "scales":[0.007874,0.007874,0.007874,0.007874],
+         "factors":"\(bytes.base64EncodedString())",
+         "related":[[],[],[],[]],
+         "reranker":{"candidates":2,"recallWeight":\(召回权重),"features":[\(特征名)],"mean":[\(zeros)],"std":[\(ones)],
+                     "layers":[{"inputs":21,"outputs":1,"weights":[\(weights.joined(separator: ","))],"biases":[0]}]},
+         "itemStats":{"popularity":[1,5,1,0],"popularityRank":[0,0,0,0],"quality":[0,0,0,0],"ratingCount":[0,0,0,0],
+                      "year":[2000,2001,0,2003]}}
+        """
+    }
+
+    @Test
+    func 精排按特征重新排序召回前几名() throws {
+        let liked = 作品推荐反馈(候选编号: ["a1"], 评分: nil, 状态: .completed)
+        let model = try 模型(精排示例())
+        #expect(model.精排 != nil)
+        #expect(model.推荐(资料库: [liked], 类型: [.anime], 包含成人内容: false, 数量: 10).map(\.编号) == ["a3", "a2"])
+        // 混入的召回分数足够大时，召回的顺序占上风
+        let blended = try 模型(精排示例(召回权重: 100))
+        #expect(blended.推荐(资料库: [liked], 类型: [.anime], 包含成人内容: false, 数量: 10).map(\.编号) == ["a2", "a3"])
+        // 特征对不上（新版构建脚本加了特征）时不精排，按召回分数排序
+        let other = try 模型(精排示例(特征名: Array(repeating: #""x""#, count: 21).joined(separator: ",")))
+        #expect(other.精排 == nil)
+        #expect(other.推荐(资料库: [liked], 类型: [.anime], 包含成人内容: false, 数量: 10).map(\.编号) == ["a2", "a3", "a4"])
+    }
+
+    @Test
+    func 取消的推荐不返回空结果也不改缓存() async throws {
+        var entry = 本地资料库条目(id: "vn:v4", 类型: .visualNovel, 平台ID: [:], 标题: "v4", 加入时间: nil)
+        entry.状态 = .completed
+        本地资料库.shared.预览载入([entry])
+        let url = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("PaperVNWorkRecommendations.json")
+        let before = try? Data(contentsOf: url)
+        let task = Task {
+            try await 作品推荐中心.shared.推荐(类型: Set(作品类型.allCases), 包含成人内容: false)
+        }
+        task.cancel()
+        await #expect(throws: CancellationError.self) { _ = try await task.value }
+        #expect((try? Data(contentsOf: url)) == before)
+    }
+
     @Test
     func 只读文件开头就能取得模型标识() {
         var data = Data("PVWR".utf8)
@@ -105,6 +205,31 @@ struct 作品推荐模型Tests {
         // a2、a4 属于同一系列，只推荐分数高的一部；机战作品 a3 排在后面；资料库里的 a1 和成人作品 a7 不推荐
         #expect(result.map(\.编号) == ["a2", "a3"] || result.map(\.编号) == ["a4", "a3"])
         #expect(result.allSatisfy { $0.类型 == .anime })
+    }
+
+    @Test
+    func 相关推荐只推荐同一类型并排除同一系列() throws {
+        let model = try 模型(示例)
+        let result = model.相关推荐(作品: ["a1"], 资料库: [], 类型: .anime, 包含成人内容: false, 数量: 10)
+        // a2、a4 同一系列只推荐一部；方向不同的 a3 排在后面；这部作品所在的系列和成人作品 a7 不推荐；不推荐漫画 m5
+        let anime = result.map(\.编号)
+        #expect(anime == ["a2", "a3"] || anime == ["a4", "a3"])
+        #expect(model.相关推荐(作品: ["a999"], 资料库: [], 类型: .anime, 包含成人内容: true, 数量: 10).isEmpty)
+    }
+
+    @Test
+    func 相关推荐排除资料库里的系列() throws {
+        let model = try 模型(示例)
+        let library = [作品推荐反馈(候选编号: ["a4"], 评分: nil, 状态: .completed)]
+        let result = model.相关推荐(作品: ["a1"], 资料库: library, 类型: .anime, 包含成人内容: false, 数量: 10)
+        #expect(result.map(\.编号) == ["a3"])
+    }
+
+    @Test
+    func 相关推荐加上社区推荐() throws {
+        let model = try 模型(示例.replacingOccurrences(of: #""related":[[],"#, with: #""related":[[2,1.0],"#))
+        let result = model.相关推荐(作品: ["a1"], 资料库: [], 类型: .anime, 包含成人内容: false, 数量: 10)
+        #expect(result.first?.编号 == "a3")
     }
 
     @Test

@@ -14,6 +14,8 @@ struct 同步能力: Hashable {
     var 评分步长: Int?
     var 支持进度: Bool
     var 支持的类型: Set<作品类型>
+    /// 漫画与轻小说的已读卷数（MAL、AniList、Bangumi 有）。
+    var 支持卷数 = false
     /// Bangumi 没有删除收藏的接口。
     var 支持删除 = true
     /// Bangumi 只导入：没有删除接口，资料库删掉的作品在 Bangumi 上会一直留着，所以不向 Bangumi 写入。
@@ -28,22 +30,22 @@ struct 同步能力: Hashable {
 
     /// 资料库里的评分可能来自只有 10 分制的 MAL，和其他来源比较时按 10 分制的精度，避免 78 分和 8 分被当成冲突。
     /// 各平台和自己的基线比较时仍然用平台自己的精度，所以 AniList 上 78 改成 75 也能察觉。
-    static let 本地 = 同步能力(评分步长: 10, 支持进度: true, 支持的类型: Set(作品类型.allCases))
+    static let 本地 = 同步能力(评分步长: 10, 支持进度: true, 支持的类型: Set(作品类型.allCases), 支持卷数: true)
 }
 
 extension 资料库平台 {
     var 同步能力: 同步能力 {
         switch self {
         case .myAnimeList:
-            .init(评分步长: 10, 支持进度: true, 支持的类型: [.anime, .manga, .lightNovel])
+            .init(评分步长: 10, 支持进度: true, 支持的类型: [.anime, .manga, .lightNovel], 支持卷数: true)
         case .aniList:
-            .init(评分步长: 1, 支持进度: true, 支持的类型: [.anime, .manga, .lightNovel])
+            .init(评分步长: 1, 支持进度: true, 支持的类型: [.anime, .manga, .lightNovel], 支持卷数: true)
         case .annict:
             // Annict 只记录观看状态；评分属于评论，进度需要逐集发布记录，都不同步
             .init(评分步长: nil, 支持进度: false, 支持的类型: [.anime])
         case .bangumi:
             // 视觉小说仍由原来的 Bangumi 推送处理，这里只管动画、漫画与轻小说：只从 Bangumi 导入，不写入
-            .init(评分步长: 10, 支持进度: true, 支持的类型: [.anime, .manga, .lightNovel], 支持删除: false, 支持写入: false)
+            .init(评分步长: 10, 支持进度: true, 支持的类型: [.anime, .manga, .lightNovel], 支持卷数: true, 支持删除: false, 支持写入: false)
         case .tmdb:
             // TMDB 只有想看列表和评分（0.5–10，即 10 分制下步长 5），没有进度；只同步动画
             .init(评分步长: 5, 支持进度: false, 支持的类型: [.anime], 只区分想看: true)
@@ -62,11 +64,14 @@ struct 同步快照: Codable, Hashable {
     /// 10–100，nil 表示没有评分。
     var 评分: Int?
     var 进度: Int?
+    /// 漫画与轻小说的已读卷数；旧版存下的快照没有这一项。
+    var 卷数: Int?
 
-    init(状态: 资料库状态, 评分: Int?, 进度: Int?) {
+    init(状态: 资料库状态, 评分: Int?, 进度: Int?, 卷数: Int? = nil) {
         self.状态 = 状态
         self.评分 = (评分 ?? 0) > 0 ? 评分 : nil
         self.进度 = (进度 ?? 0) > 0 ? 进度 : nil
+        self.卷数 = (卷数 ?? 0) > 0 ? 卷数 : nil
     }
 
     /// 只比较双方都支持的字段；评分按较粗的精度比较。
@@ -84,6 +89,10 @@ struct 同步快照: Codable, Hashable {
         }
         if 能力A.支持进度, 能力B.支持进度, a.状态 != .completed,
            let progressA = a.进度, let progressB = b.进度, progressA != progressB {
+            return false
+        }
+        if 能力A.支持卷数, 能力B.支持卷数, a.状态 != .completed,
+           let volumesA = a.卷数, let volumesB = b.卷数, volumesA != volumesB {
             return false
         }
         return true
@@ -107,6 +116,8 @@ struct 平台资料库记录: Codable, Hashable {
     var 封面地址: String?
     var 快照: 同步快照
     var 总数: Int?
+    /// 漫画与轻小说的总卷数。
+    var 总卷数: Int? = nil
     /// 10–100。
     var 平均评分: Double?
     var 发行日期: String?
@@ -121,6 +132,8 @@ struct 平台资料库记录: Codable, Hashable {
     var 指定键: String?
     /// 是作品的附属条目（特别篇、单行本等）：导入时并入作品，不单独成为一部作品，也不写入。
     var 附属: Bool?
+    /// 平台标明的分类能否导入：音乐、广告等不是作品的条目为 false；平台没有标明分类时为 nil。见 `同步合并.不可导入的条目`。
+    var 可导入: Bool? = nil
 
     var 键: String { 指定键 ?? 同步合并.键(类型: 类型, malID: malID, 平台: 平台, 平台ID: 平台ID) }
 }
@@ -305,6 +318,13 @@ struct 推送操作: Identifiable, Hashable {
     var id: String { "\(平台.rawValue)|\(键)" }
 }
 
+/// 当初按手动匹配写到平台上、后来被后台校准改正的记录。
+struct 撤回写入: Hashable {
+    let 平台: 资料库平台
+    let 平台ID: String
+    let 类型: 作品类型
+}
+
 /// 开始、完成日期（“2024-05-31”，也可能只有年或年月）。
 struct 同步日期: Hashable, Sendable {
     var 开始: String?
@@ -342,6 +362,10 @@ struct 同步会话 {
     var 推送: [推送操作] = []
     /// 新增时在平台上找不到对应作品，不会同步到该平台。
     var 未匹配: [资料库平台: [String]] = [:]
+    /// 拆开读取的 MAL 条目（几部作品共用一个条目）在 MAL 上原来的值：MAL ID → 值。写回时和它一样就不写。
+    var MAL拆分原值: [Int: 同步快照] = [:]
+    /// 后台校准覆盖了用户的手动匹配，要从平台上删掉的、当初按手动匹配写错的记录。
+    var 撤回写入: [撤回写入] = []
     /// 平台不支持删除（Bangumi），需要用户在平台上手动删除的作品。
     var 无法删除: [资料库平台: [String]] = [:]
     /// 分别保留时在资料库中隐藏的作品，以及它们所在的平台。
@@ -488,7 +512,7 @@ enum 同步合并 {
     }
 
     static func 快照(_ entry: 本地资料库条目) -> 同步快照 {
-        同步快照(状态: entry.状态 ?? .planning, 评分: entry.评分, 进度: entry.进度)
+        同步快照(状态: entry.状态 ?? .planning, 评分: entry.评分, 进度: entry.进度, 卷数: entry.卷数)
     }
 
     /// 平台上的条目还在，只是这次归到了另一部作品（映射、校准表更新后改了编号，或成了附属条目）：
@@ -796,7 +820,8 @@ enum 同步合并 {
     /// 采用的版本缺少的评分、进度（来源不支持，或者来源没有记录），用资料库和其他来源已有的值补上，不清空。
     private static func 补全(_ value: 同步快照, from source: 同步来源, key: String, session: 同步会话) -> 同步快照 {
         let ability = source.能力
-        guard ability.评分步长 == nil || !ability.支持进度 || value.评分 == nil || value.进度 == nil else { return value }
+        guard ability.评分步长 == nil || !ability.支持进度 || value.评分 == nil || value.进度 == nil
+                || !ability.支持卷数 || value.卷数 == nil else { return value }
         var others: [(同步快照, 同步能力)] = []
         if let local = session.本地[key] { others.append((快照(local), .本地)) }
         for library in session.可导入平台库 {
@@ -812,6 +837,10 @@ enum 同步合并 {
         if !ability.支持进度 || value.进度 == nil,
            let progress = others.first(where: { $0.1.支持进度 && $0.0.进度 != nil })?.0.进度 {
             result.进度 = progress
+        }
+        if !ability.支持卷数 || value.卷数 == nil,
+           let volumes = others.first(where: { $0.1.支持卷数 && $0.0.卷数 != nil })?.0.卷数 {
+            result.卷数 = volumes
         }
         return result
     }
@@ -841,6 +870,13 @@ enum 同步合并 {
             .lazy
             .compactMap { $0.记录[key] }
             .first
+    }
+
+    /// 平台记录里的漫画或轻小说。MAL 的 media_type 和 AniList 的 format 是明确的分类，Bangumi 只能按标签判断，排在最后。
+    static func 书籍类型(key: String, session: 同步会话) -> 作品类型? {
+        [资料库平台.myAnimeList, .aniList, .bangumi].lazy
+            .compactMap { session.平台[$0]?.记录[key]?.类型 }
+            .first { $0 == .manga || $0 == .lightNovel }
     }
 
     private static func 标题(key: String, session: 同步会话) -> String {
@@ -885,6 +921,7 @@ enum 同步合并 {
                 // 结果里没有的评分、进度表示没有记录，不清空资料库里已有的值
                 entry.评分 = value.评分 ?? entry.评分
                 entry.进度 = value.进度 ?? entry.进度
+                entry.卷数 = value.卷数 ?? entry.卷数
                 library[key] = entry
             }
         }
@@ -904,10 +941,15 @@ enum 同步合并 {
             let keepsTitles = !session.读取失败.isEmpty && session.本地[key] != nil
             let titles = keepsTitles ? [] : 多语言标题(key: key, session: session)
             if !titles.isEmpty { entry.多语言标题 = titles }
+            // 漫画还是轻小说以平台为准：资料库里的类型可能是旧版本猜错的，或者在详情页载入完之前加入时记下的
+            if entry.类型 != .anime, let type = 书籍类型(key: key, session: session) { entry.类型 = type }
             if let best = 最佳记录(key: key, session: session) {
                 if !keepsTitles { entry.标题 = best.标题 }
                 entry.封面地址 = best.封面地址 ?? entry.封面地址
                 entry.总数 = best.总数 ?? entry.总数
+                entry.总卷数 = best.总卷数 ?? entry.总卷数
+                // 旧版不记卷数：资料库里还没有时用平台上的
+                if entry.卷数 == nil { entry.卷数 = best.快照.卷数 }
                 entry.平均评分 = best.平均评分 ?? entry.平均评分
                 entry.发行日期 = best.发行日期 ?? entry.发行日期
                 entry.开始日期 = best.开始日期 ?? entry.开始日期
@@ -935,8 +977,10 @@ enum 同步合并 {
         entry.状态 = record.快照.状态
         entry.评分 = record.快照.评分
         entry.进度 = record.快照.进度
+        entry.卷数 = record.快照.卷数
         entry.封面地址 = record.封面地址
         entry.总数 = record.总数
+        entry.总卷数 = record.总卷数
         entry.日文标题 = record.日文标题
         entry.多语言标题 = 多语言标题(key: key, session: session)
         for platform in 资料库平台.动画漫画平台 {
@@ -1020,8 +1064,12 @@ enum 同步合并 {
         var target = 快照(entry)
         if target.评分 == nil { target.评分 = 现有?.评分 }
         if target.进度 == nil { target.进度 = 现有?.进度 }
+        if target.卷数 == nil { target.卷数 = 现有?.卷数 }
         if target.状态 == .completed, ability.支持进度, let total = entry.总数, (target.进度 ?? 0) < total {
             target.进度 = total
+        }
+        if target.状态 == .completed, ability.支持卷数, let total = entry.总卷数, (target.卷数 ?? 0) < total {
+            target.卷数 = total
         }
         return target
     }
@@ -1127,11 +1175,14 @@ enum 同步合并 {
         if !ability.支持进度 || target.进度 == nil {
             value.进度 = ability.支持进度 ? 现有?.进度 : nil
         }
+        if !ability.支持卷数 || target.卷数 == nil {
+            value.卷数 = ability.支持卷数 ? 现有?.卷数 : nil
+        }
         // Bangumi 的“看过”不逐集标记，动画的集数保持原样
         if platform == .bangumi, type == .anime, target.状态 == .completed {
             value.进度 = 现有?.进度
         }
-        return 同步快照(状态: value.状态, 评分: value.评分, 进度: value.进度)
+        return 同步快照(状态: value.状态, 评分: value.评分, 进度: value.进度, 卷数: value.卷数)
     }
 
     private static func 取整步长(_ score: Int, _ step: Int) -> Int {
@@ -1198,4 +1249,63 @@ extension 资料库平台 {
 
     /// 资料库的修改会写入这个平台。
     var 可导出: Bool { 同步能力.支持写入 && (同步方向 == .双向 || 同步方向 == .仅导出) }
+}
+
+// MARK: - 不能导入的条目
+
+/// 这次同步中认出的音乐（MV）、广告等不是作品的条目。
+struct 不可导入的条目: Equatable {
+    /// 这些条目在资料库里的编号。
+    var 键: Set<String> = []
+    /// 这次读到的记录里有这些条目的平台。
+    var 平台: Set<资料库平台> = []
+    /// 资料库里原来就有、这次移除的条目。
+    var 移除的条目: [本地资料库条目] = []
+    /// “平台|平台上的 ID”：资料库条目的编号还没改过来时，按它记着的平台 ID 认出来。
+    var 平台ID: Set<String> = []
+    /// 有平台标明是可以导入的作品，不会被移除。
+    var 可导入的键: Set<String> = []
+
+    func 包含(_ entry: 本地资料库条目) -> Bool {
+        guard !可导入的键.contains(entry.id) else { return false }
+        return 键.contains(entry.id) || entry.平台ID.contains { 平台ID.contains("\($0.key.rawValue)|\($0.value)") }
+    }
+}
+
+extension 同步合并 {
+    /// 音乐（MV）、广告等不是作品的条目不导入：从这次读到的记录和资料库中去掉。平台上的记录不动。
+    /// 一个条目只要有平台标明它是可以导入的作品就保留；附属条目已经并入所属的作品，不单独显示，不在此列。
+    /// `已知` 是以前同步时认出来的条目：平台没有标明分类时（例如只剩 Bangumi 上的记录）仍然不导入。
+    static func 去掉不可导入的条目(
+        _ libraries: inout [资料库平台: 平台资料库],
+        本地 local: inout [String: 本地资料库条目],
+        已知 known: Set<String>
+    ) -> 不可导入的条目 {
+        var unsupported = known
+        var supported: Set<String> = []
+        for platformLibrary in libraries.values {
+            for record in platformLibrary.记录.values where record.附属 != true {
+                switch record.可导入 {
+                case false?: unsupported.insert(record.键)
+                case true?: supported.insert(record.键)
+                case nil: break
+                }
+            }
+        }
+        var result = 不可导入的条目(键: unsupported.subtracting(supported), 可导入的键: supported)
+        guard !result.键.isEmpty else { return result }
+        for (platform, platformLibrary) in libraries {
+            let removed = platformLibrary.记录.values.filter { result.键.contains($0.键) }
+            guard !removed.isEmpty else { continue }
+            result.平台.insert(platform)
+            result.平台ID.formUnion(removed.map { "\(platform.rawValue)|\($0.平台ID)" })
+            libraries[platform]?.记录 = platformLibrary.记录.filter { !result.键.contains($0.key) }
+            libraries[platform]?.附属记录 = platformLibrary.附属记录.filter { !result.键.contains($0.键) }
+        }
+        for entry in local.values where result.包含(entry) {
+            result.移除的条目.append(entry)
+            local[entry.id] = nil
+        }
+        return result
+    }
 }

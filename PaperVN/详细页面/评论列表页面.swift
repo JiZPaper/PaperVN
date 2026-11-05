@@ -280,7 +280,7 @@ struct 评论列表页面: View {
         HStack(spacing: 8) {
             ProgressView()
                 .controlSize(.small)
-            Text("正在载入…")
+            Text("正在加载…")
         }
         .font(.footnote)
         .foregroundStyle(.secondary)
@@ -396,7 +396,7 @@ struct 评论加载占位卡片: View {
                 .frame(width: 32, height: 32)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(verbatim: "正在载入的用户名")
+                    Text(verbatim: "正在加载的用户名")
                         .font(.subheadline.weight(.semibold))
                         .lineLimit(1)
 
@@ -429,7 +429,7 @@ struct 评论加载占位卡片: View {
 
     private var 占位正文: String {
         序号.isMultiple(of: 2)
-            ? "正在载入的评论正文占位内容，长度用来撑开骨架的行数与宽度，遮蔽之后并不会显示出来。"
-            : "正在载入的评论正文占位内容，稍短一些。"
+            ? "正在加载的评论正文占位内容，长度用来撑开骨架的行数与宽度，遮蔽之后并不会显示出来。"
+            : "正在加载的评论正文占位内容，稍短一些。"
     }
 }

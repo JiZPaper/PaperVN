@@ -97,6 +97,8 @@ struct 作品详细信息: Sendable {
     var 制作人员: [人员] = []
     var 相关: [相关作品] = []
     var 外部链接: [链接] = []
+    /// 片头曲、片尾曲，来自 MAL（只有动画有）。
+    var 主题曲: [动画主题曲] = []
     /// TMDB 上的条目（“tv/123”“tv/123/season/2”“movie/123”），来自预装的作品映射。
     var TMDB路径: String?
     var TMDB评分: Double?
@@ -109,13 +111,14 @@ struct 作品详细信息: Sendable {
     var bangumiURL: URL? { bangumiID.flatMap { URL(string: "https://bgm.tv/subject/\($0)") } }
 
     /// 设置里选中的平台的评分换算到 10 分制后合成，计算方式见“评分”设置；AniList 没有人数，按人气折算。
-    var 综合评分: (分数: Double, 人数: Int?)? {
-        var ratings: [(平台: 评分平台, 分数: Double, 人数: Int?)] = []
-        if let score = MAL评分 { ratings.append((.myAnimeList, score, MAL评分人数)) }
-        if let score = Bangumi评分 { ratings.append((.bangumi, score, Bangumi评分人数)) }
-        if let score = AniList评分 { ratings.append((.aniList, Double(score) / 10, AniList人气)) }
-        if let score = TMDB评分 { ratings.append((.tmdb, score, TMDB评分人数)) }
-        return 评分设置.合成(ratings, type: 类型)
+    var 综合评分: (分数: Double, 人数: Int?)? { 评分快照.综合评分 }
+
+    /// 各平台的评分，资料库列表记下后按同样的方式合成。
+    var 评分快照: 作品评分快照 {
+        作品评分快照(
+            类型: 类型, MAL评分: MAL评分, MAL评分人数: MAL评分人数, AniList评分: AniList评分, AniList人气: AniList人气,
+            Bangumi评分: Bangumi评分, Bangumi评分人数: Bangumi评分人数, TMDB评分: TMDB评分, TMDB评分人数: TMDB评分人数
+        )
     }
 
     /// 按“简介”设置选择的简介；选中的平台没有时依次换用其他平台。
@@ -129,6 +132,56 @@ struct 作品详细信息: Sendable {
     /// 各语言的标题，按标题语言设置显示。MAL 的标题是罗马字，日文标题是原名，中文标题来自 Bangumi。
     var 多语言标题: [用户多语言标题] {
         作品多语言标题.生成(原名: 日文标题, 原名语言: 原名语言, 罗马字: 标题, 英文: 英文标题, 中文: 中文标题)
+    }
+}
+
+/// 详情页用到的各平台评分。
+nonisolated struct 作品评分快照: Codable, Hashable, Sendable {
+    var 类型: 作品类型
+    var MAL评分: Double?
+    var MAL评分人数: Int?
+    var AniList评分: Int?
+    var AniList人气: Int?
+    var Bangumi评分: Double?
+    var Bangumi评分人数: Int?
+    var TMDB评分: Double?
+    var TMDB评分人数: Int?
+
+    var 综合评分: (分数: Double, 人数: Int?)? {
+        var ratings: [(平台: 评分平台, 分数: Double, 人数: Int?)] = []
+        if let score = MAL评分 { ratings.append((.myAnimeList, score, MAL评分人数)) }
+        if let score = Bangumi评分 { ratings.append((.bangumi, score, Bangumi评分人数)) }
+        if let score = AniList评分 { ratings.append((.aniList, Double(score) / 10, AniList人气)) }
+        if let score = TMDB评分 { ratings.append((.tmdb, score, TMDB评分人数)) }
+        return 评分设置.合成(ratings, type: 类型)
+    }
+}
+
+/// 资料库里的作品打开过详情页后，记下详情页的各平台评分。资料库列表按“评分”设置合成，
+/// 和详情页显示的一致；同步记录里只有一个平台的平均评分，与详情页合成的结果常常不同。
+@MainActor
+@Observable
+final class 作品评分快照存储 {
+    static let shared = 作品评分快照存储()
+    private static let 设置键 = "workRatingSnapshots"
+
+    private var 快照们: [String: 作品评分快照]
+
+    private init() {
+        快照们 = UserDefaults.standard.data(forKey: Self.设置键)
+            .flatMap { try? JSONDecoder().decode([String: 作品评分快照].self, from: $0) } ?? [:]
+    }
+
+    func 快照(_ 作品键: String) -> 作品评分快照? {
+        快照们[作品键]
+    }
+
+    func 记下(_ 快照: 作品评分快照, 作品键: String) {
+        guard 快照们[作品键] != 快照 else { return }
+        快照们[作品键] = 快照
+        if let data = try? JSONEncoder().encode(快照们) {
+            UserDefaults.standard.set(data, forKey: Self.设置键)
+        }
     }
 }
 
@@ -313,8 +366,8 @@ actor 作品详情服务 {
         }
         struct 连载: Decodable { struct 节点: Decodable { let name: String }; let node: 节点 }
         struct 相关: Decodable {
-            struct 节点: Decodable { let id: Int; let title: String; let mainPicture: 图片?
-                enum CodingKeys: String, CodingKey { case id, title; case mainPicture = "main_picture" } }
+            struct 节点: Decodable { let id: Int; let title: String; let mainPicture: 图片?; let mediaType: String?; let alternativeTitles: 别名?
+                enum CodingKeys: String, CodingKey { case id, title; case mainPicture = "main_picture"; case mediaType = "media_type"; case alternativeTitles = "alternative_titles" } }
             let node: 节点
             let relationType: String?
             let relationTypeFormatted: String?
@@ -349,9 +402,15 @@ actor 作品详情服务 {
         let serialization: [连载]?
         let relatedAnime: [相关]?
         let relatedManga: [相关]?
+        let openingThemes: [主题曲]?
+        let endingThemes: [主题曲]?
+
+        struct 主题曲: Decodable { let id: Int; let text: String }
 
         enum CodingKeys: String, CodingKey {
             case id, title, synopsis, mean, status, genres, source, rating, studios, authors, serialization
+            case openingThemes = "opening_themes"
+            case endingThemes = "ending_themes"
             case mainPicture = "main_picture"
             case alternativeTitles = "alternative_titles"
             case startDate = "start_date"
@@ -369,9 +428,9 @@ actor 作品详情服务 {
     }
 
     private static func fetchMAL(kind: MyAnimeList列表项.种类, id: Int, accessToken: String?) async throws -> 作品详细信息 {
-        let common = "id,title,main_picture,alternative_titles,start_date,end_date,synopsis,mean,num_scoring_users,media_type,status,genres,related_anime,related_manga"
+        let common = "id,title,main_picture,alternative_titles,start_date,end_date,synopsis,mean,num_scoring_users,media_type,status,genres,related_anime{media_type,alternative_titles},related_manga{alternative_titles}"
         let fields = kind == .anime
-            ? common + ",num_episodes,average_episode_duration,start_season,source,rating,studios"
+            ? common + ",num_episodes,average_episode_duration,start_season,source,rating,studios,opening_themes,ending_themes"
             : common + ",num_volumes,num_chapters,authors{first_name,last_name},serialization{name}"
         var components = URLComponents(string: "https://api.myanimelist.net/v2/\(kind.rawValue)/\(id)")!
         components.queryItems = [URLQueryItem(name: "fields", value: fields)]
@@ -423,13 +482,35 @@ actor 作品详情服务 {
                 return author.role.map { "\(name)（\($0)）" } ?? name
             } ?? []
         detail.连载 = raw.serialization?.map(\.node.name) ?? []
+        detail.主题曲 = (raw.openingThemes ?? []).compactMap { 动画主题曲(malID: $0.id, 种类: .片头曲, 文本: $0.text) }
+            + (raw.endingThemes ?? []).compactMap { 动画主题曲(malID: $0.id, 种类: .片尾曲, 文本: $0.text) }
         // 动画按 Annict 划分作品：并在这部作品里的 MAL 特别篇（映射里的附属条目）不算相关作品
         let ownKey = "mal-\(kind == .anime ? "anime" : "manga"):\(raw.id)"
+        // 音乐（MV）、广告、宣传片不是作品，不显示（和搜索、PaperVN Sync 一致）
         let relatedAnime = (raw.relatedAnime ?? []).filter {
             作品映射.查找(.myAnimeList, 平台ID: String($0.node.id), 类型: .anime) != 作品映射.结果(键: ownKey, 附属: true)
+                && 作品搜索结果.可导入(格式: $0.node.mediaType) != false
         }
-        detail.相关 = relatedAnime.map { 作品详细信息.相关作品(kind: .anime, malID: $0.node.id, 标题: $0.node.title, 封面: $0.node.mainPicture?.medium, 关系: 关系名称($0.relationType, 原文: $0.relationTypeFormatted, 当前种类: kind)) }
-            + (raw.relatedManga ?? []).map { 作品详细信息.相关作品(kind: .manga, malID: $0.node.id, 标题: $0.node.title, 封面: $0.node.mainPicture?.medium, 关系: 关系名称($0.relationType, 原文: $0.relationTypeFormatted, 当前种类: kind)) }
+        // 相关作品的原名和英文名也取 MAL 的（和点进去的详情页同一来源）；AniList 的关系常常比 MAL 少，只靠它会有作品只剩罗马字标题
+        func 相关作品(_ item: MAL作品.相关, kind relatedKind: MyAnimeList列表项.种类) -> 作品详细信息.相关作品 {
+            let node = item.node
+            let native = node.alternativeTitles?.ja.flatMap { $0.isEmpty ? nil : $0 }
+            return 作品详细信息.相关作品(
+                kind: relatedKind,
+                malID: node.id,
+                标题: node.title,
+                封面: node.mainPicture?.medium,
+                关系: 关系名称(item.relationType, 原文: item.relationTypeFormatted, 当前种类: kind),
+                多语言标题: 作品多语言标题.生成(
+                    原名: native,
+                    原名语言: native == nil ? nil : (作品映射.原名语言(relatedKind == .anime ? .anime : .manga, malID: node.id) ?? "ja"),
+                    罗马字: node.title,
+                    英文: node.alternativeTitles?.en
+                )
+            )
+        }
+        detail.相关 = relatedAnime.map { 相关作品($0, kind: .anime) }
+            + (raw.relatedManga ?? []).map { 相关作品($0, kind: .manga) }
         return detail
     }
 
@@ -863,7 +944,12 @@ actor 作品详情服务 {
         detail.制作人员 = value.人员
         detail.外部链接 = value.链接
         for index in detail.相关.indices {
-            detail.相关[index].多语言标题 = value.相关标题[detail.相关[index].malID]
+            // AniList 标明了出品国家，优先用它的；AniList 没收录这条关系时保留 MAL 的原名
+            if let titles = value.相关标题[detail.相关[index].malID] {
+                let mal = detail.相关[index].多语言标题 ?? []
+                let 有原名 = titles.contains { $0.main && $0.lang != "ja-Latn" }
+                detail.相关[index].多语言标题 = 作品多语言标题.合并(有原名 ? [titles, mal] : [mal, titles])
+            }
             // 相关作品的封面也以 AniList 为准，点进去的详情页是同一张图
             if let cover = value.相关封面[detail.相关[index].malID] {
                 detail.相关[index].封面 = cover

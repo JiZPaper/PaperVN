@@ -37,6 +37,18 @@ case "$mode" in
 esac
 
 project_root="$(cd "$(dirname "$0")/.." && pwd)"
+
+# 视觉小说引擎库不进仓库，归档前要先在本机编译好
+for required in \
+    "Dependencies/Siglus/SiglusCore.xcframework:Tools/构建Siglus.sh" \
+    "Dependencies/KiriKiri/KiriKiriCore.xcframework:Tools/构建KiriKiri.sh" \
+    "Dependencies/KiriKiri/Sources/KiriKiri/Resources/res:Tools/构建KiriKiri.sh"; do
+    if [[ ! -e "$project_root/${required%%:*}" ]]; then
+        echo "error: 缺少 ${required%%:*}，先运行 ${required##*:}" >&2
+        exit 1
+    fi
+done
+
 timestamp="$(date +%Y%m%d-%H%M%S)"
 archive_path="$project_root/.build/archives/PaperVN-$mode-$timestamp.xcarchive"
 export_path="$project_root/.build/exports/PaperVN-$mode-$timestamp"

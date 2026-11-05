@@ -336,7 +336,7 @@ private nonisolated enum PaperVN活动服务错误: LocalizedError {
         case .invalidResponse:
             String(localized: "活动数据响应无效。")
         case .unavailable:
-            String(localized: "暂时无法载入活动。")
+            String(localized: "暂时无法加载活动。")
         }
     }
 }
@@ -1493,7 +1493,7 @@ struct PaperVN活动栏目: View {
                 loadingContent
             } else if events.isEmpty, let errorMessage {
                 unavailableContent(
-                    title: "无法载入活动",
+                    title: "无法加载活动",
                     systemImage: "wifi.exclamationmark",
                     description: errorMessage,
                     showsRetry: true
@@ -1557,7 +1557,7 @@ struct PaperVN活动栏目: View {
             HStack(spacing: 8) {
                 ProgressView()
                     .controlSize(.small)
-                Text("正在载入…")
+                Text("正在加载…")
             }
             .font(.subheadline.weight(.semibold))
             .foregroundStyle(.secondary)

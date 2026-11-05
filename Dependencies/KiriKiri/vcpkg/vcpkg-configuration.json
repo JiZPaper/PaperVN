@@ -1,0 +1,14 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg-configuration.schema.json",
+  "default-registry": {
+    "kind": "builtin",
+    "baseline": "aa40adda5352e87655b8583cfb2451d5e9e276fd"
+  },
+  "overlay-ports": [
+    "./ports",
+    "../../../../第三方源码/krkr2/vcpkg/ports"
+  ],
+  "overlay-triplets": [
+    "./triplets"
+  ]
+}

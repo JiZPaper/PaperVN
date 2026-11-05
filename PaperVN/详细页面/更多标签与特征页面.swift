@@ -71,6 +71,8 @@ struct FlowLayout: Layout {
 
 struct 更多标签页面: View {
     let tags: [视觉小说标签]
+    /// 作品名称，结果页“+”菜单里那一组的标题用
+    let 来源名称: String
     let spoilerUnlockedByProgress: Bool
 
     @Environment(\.详情内容限制方式覆盖)
@@ -103,11 +105,13 @@ struct 更多标签页面: View {
 
     init(
         tags: [视觉小说标签],
+        来源名称: String = "",
         spoilerUnlockedByProgress: Bool = false,
         showTranslatedText: Binding<Bool>,
         translatedNames: Binding<[String: String]>
     ) {
         self.tags = tags
+        self.来源名称 = 来源名称
         self.spoilerUnlockedByProgress = spoilerUnlockedByProgress
         _showTranslatedText = showTranslatedText
         _translatedNames = translatedNames
@@ -153,7 +157,7 @@ struct 更多标签页面: View {
                             .onTapGesture {
                                 guard blurred else {
                                     withAnimation(.snappy(duration: 0.2)) {
-                                        多选.轻点(浏览标签(tag), 对象: .视觉小说, 全部: 可筛选标签)
+                                        多选.轻点(浏览标签(tag), 对象: .视觉小说, 全部: 可筛选标签, 来源: 来源名称)
                                     }
                                     return
                                 }
@@ -184,7 +188,7 @@ struct 更多标签页面: View {
             }
         }
         .平台分组列表样式()
-        .支持标签多选($多选, 对象: .视觉小说, 全部: 可筛选标签)
+        .支持标签多选($多选, 对象: .视觉小说, 全部: 可筛选标签, 来源: 来源名称)
         .navigationTitle("标签（\(visibleTags.count)个）")
         .平台柔和滚动边缘(for: .top)
         .平台内联导航标题()
@@ -424,6 +428,8 @@ struct 更多标签页面: View {
 
 struct 更多特征页面: View {
     let traits: [角色特征]
+    /// 角色名称，结果页“+”菜单里那一组的标题用
+    let 来源名称: String
 
     @Environment(\.详情内容限制方式覆盖)
     private var contentRestrictionMethodOverride
@@ -451,9 +457,11 @@ struct 更多特征页面: View {
 
     init(
         traits: [角色特征],
+        来源名称: String = "",
         showTranslatedTraits: Binding<Bool>
     ) {
         self.traits = traits
+        self.来源名称 = 来源名称
         _showTranslatedTraits = showTranslatedTraits
     }
 
@@ -477,7 +485,7 @@ struct 更多特征页面: View {
                 .padding(.vertical, 12)
             }
         }
-        .支持标签多选($多选, 对象: .角色, 全部: 可筛选特征)
+        .支持标签多选($多选, 对象: .角色, 全部: 可筛选特征, 来源: 来源名称)
         .navigationTitle("特征（\(visibleTraits.count)个）")
         .平台柔和滚动边缘(for: .top)
         .平台内联导航标题()
@@ -545,24 +553,27 @@ struct 更多特征页面: View {
         let blurred = shouldBlurTrait(trait)
         let 选中: Bool? = 多选.正在选择 && !blurred ? 多选.选中(trait.id) : nil
 
-        return HStack(spacing: 6) {
-            if let 选中 {
-                Image(systemName: 选中 ? "checkmark.circle.fill" : "circle")
-                    .font(.subheadline)
-                    .foregroundStyle(选中 ? AnyShapeStyle(.tint) : AnyShapeStyle(.tertiary))
-                    .transition(.scale.combined(with: .opacity))
-            }
-            traitCapsuleContent(
-                name: displayedText(trait.name),
-                groupName: displayedText(trait.group_name)
-            )
-        }
+        return traitCapsuleContent(
+            name: displayedText(trait.name),
+            groupName: displayedText(trait.group_name)
+        )
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
         .background(
             选中 == true ? AnyShapeStyle(.tint.opacity(0.16)) : AnyShapeStyle(Color.secondary.opacity(0.12)),
             in: Capsule()
         )
+        // 勾选圈压在胶囊右上角，不占胶囊里的位置：进入勾选时胶囊不会变宽、整页不会重新排列
+        .overlay(alignment: .topTrailing) {
+            if let 选中 {
+                Image(systemName: 选中 ? "checkmark.circle.fill" : "circle")
+                    .font(.subheadline)
+                    .foregroundStyle(选中 ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                    .background(Circle().fill(.background))
+                    .offset(x: 4, y: -4)
+                    .transition(.scale.combined(with: .opacity))
+            }
+        }
         .blur(radius: blurred ? 5 : 0)
         .opacity(blurred ? 0.72 : 1)
         .contentShape(Capsule())
@@ -572,7 +583,7 @@ struct 更多特征页面: View {
         .onTapGesture {
             guard blurred else {
                 withAnimation(.snappy(duration: 0.2)) {
-                    多选.轻点(浏览特征(trait), 对象: .角色, 全部: 可筛选特征)
+                    多选.轻点(浏览特征(trait), 对象: .角色, 全部: 可筛选特征, 来源: 来源名称)
                 }
                 return
             }
@@ -666,13 +677,6 @@ struct 标签相关度行: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
-            if let 选中 {
-                Image(systemName: 选中 ? "checkmark.circle.fill" : "circle")
-                    .font(.body)
-                    .foregroundStyle(选中 ? AnyShapeStyle(.tint) : AnyShapeStyle(.tertiary))
-                    .transition(.scale.combined(with: .opacity))
-            }
-
             Text(verbatim: 名称)
                 .font(.subheadline)
                 .foregroundStyle(.primary)
@@ -682,10 +686,19 @@ struct 标签相关度行: View {
 
             Spacer(minLength: 0)
 
-            if let 数值文本 {
-                Text(verbatim: 数值文本)
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.tertiary)
+            if 数值文本 != nil || 可轻点 {
+                // 数值和勾选圈叠在同一个位置，宽度一直取两者中较宽的：进入勾选时名称不会重新换行
+                ZStack(alignment: .trailing) {
+                    Text(verbatim: 数值文本 ?? "")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.tertiary)
+                        .opacity(选中 == nil ? 1 : 0)
+                    Image(systemName: 选中 == true ? "checkmark.circle.fill" : "circle")
+                        .font(.body)
+                        .foregroundStyle(选中 == true ? AnyShapeStyle(.tint) : AnyShapeStyle(.tertiary))
+                        .opacity(选中 == nil ? 0 : 1)
+                        .scaleEffect(选中 == nil ? 0.6 : 1)
+                }
             }
         }
         .frame(maxWidth: .infinity, minHeight: 22, alignment: .leading)

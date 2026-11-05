@@ -42,3 +42,11 @@ Others/
 Tools/export_apple_developer_docs.py
 .berr.txt
 .build_errors.txt
+
+# 生成主题曲映射的进度（可以断点续跑，不进仓库）
+Tools/主题曲映射/进度/
+
+# 视觉小说引擎库：本地用 Tools/构建Siglus.sh、Tools/构建KiriKiri.sh 编译，不进仓库
+Dependencies/Siglus/SiglusCore.xcframework/
+Dependencies/KiriKiri/KiriKiriCore.xcframework/
+Dependencies/KiriKiri/Sources/KiriKiri/Resources/res/

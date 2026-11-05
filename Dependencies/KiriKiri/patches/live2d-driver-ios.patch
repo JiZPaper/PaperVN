@@ -1,0 +1,17 @@
+diff --git a/src/LAppModel.cpp b/src/LAppModel.cpp
+index 3e1335e..22d4b3a 100644
+--- a/src/LAppModel.cpp
++++ b/src/LAppModel.cpp
+@@ -650,6 +650,12 @@ LInfoModel::LoadAssets(const char *filename)
+     size_t size;
+     auto dat = this->open(path.c_str(), size);
+     if (dat) {
++        // PaperVN：JSON 损坏时 CubismModelSettingJson 只记录错误，之后取值会空指针崩溃
++        auto *check = Utils::CubismJson::Create((const csmByte*)dat.get(), size);
++        if (!check) {
++            return false;
++        }
++        Utils::CubismJson::Delete(check);
+         ICubismModelSetting* setting = new CubismModelSettingJson((const csmByte*)dat.get(), size);
+         if (setting) {
+             SetupModel(setting);

@@ -13,9 +13,14 @@ nonisolated struct 作品详情目标: Hashable {
     var bangumiID: Int? = nil
     /// 列表里已经有的各语言标题：进入详情页时直接按标题语言设置显示，不先闪一下英文或罗马字标题。
     var 多语言标题: [用户多语言标题]? = nil
+    /// 资料库里的编号和按 ID 推出的不同时（和别的作品共用 MAL 条目、用 AniList 打开的作品）。
+    var 资料库键: String? = nil
+    /// 打开前已经知道的作品类型（漫画还是轻小说）。详情还没载入时加入资料库要靠它，否则轻小说会被当成漫画。
+    var 类型: 作品类型? = nil
 
     /// 作品在资料库里的编号，和同步时的编号规则一致（有 MAL ID 用 MAL，否则用 AniList、Bangumi）。
     var 作品键: String {
+        if let 资料库键 { return 资料库键 }
         let 分组 = kind == .anime ? "anime" : "manga"
         if malID > 0 { return "mal-\(分组):\(malID)" }
         if let aniListID { return "aniList-\(分组):\(aniListID)" }
@@ -31,17 +36,25 @@ nonisolated struct 作品详情目标: Hashable {
 
 extension 本地资料库条目 {
     /// 打开详情页用的参数：有 MAL ID 用 MAL，否则用 AniList、Bangumi 的 ID（编号本身也带着平台 ID）。
+    /// 和别的作品共用一个 MAL 条目的作品（MAL 把几部记成一个分集条目）不按 MAL 打开：MAL 的标题、集数属于合在一起的条目。
     func 详情目标(标题: String) -> 作品详情目标? {
         let kind: MyAnimeList列表项.种类 = 类型 == .anime ? .anime : .manga
-        if let malID { return 作品详情目标(kind: kind, malID: malID, 标题: 标题, 封面: 封面地址) }
+        let sharesMAL = 平台ID[.myAnimeList]?.contains("#") == true
+            || (malID.flatMap { 作品映射.MAL拆分($0, 类型: 类型) } != nil)
+        if let malID, !sharesMAL { return 作品详情目标(kind: kind, malID: malID, 标题: 标题, 封面: 封面地址) }
         func 编号(_ platform: 资料库平台) -> Int? {
-            if let value = 平台ID[platform], let id = Int(value) { return id }
+            if let value = 平台ID[platform] ?? 作品映射.平台ID(id, 平台: platform, 类型: 类型), let id = Int(value) { return id }
             guard id.hasPrefix("\(platform.rawValue)-"), let value = id.split(separator: ":").last else { return nil }
             return Int(value)
         }
         let aniList = 编号(.aniList), bangumi = 编号(.bangumi)
-        guard aniList != nil || bangumi != nil else { return nil }
-        return 作品详情目标(kind: kind, malID: 0, 标题: 标题, 封面: 封面地址, aniListID: aniList, bangumiID: bangumi)
+        guard aniList != nil || bangumi != nil else {
+            return malID.map { 作品详情目标(kind: kind, malID: $0, 标题: 标题, 封面: 封面地址) }
+        }
+        return 作品详情目标(
+            kind: kind, malID: 0, 标题: 标题, 封面: 封面地址, aniListID: aniList, bangumiID: bangumi,
+            资料库键: sharesMAL ? id : nil
+        )
     }
 }
 
@@ -73,6 +86,8 @@ struct 作品详情: View {
     @State private var errorMessage: String?
     @State private var isLoading = false
     @State private var comments: [视觉小说评论] = []
+    /// 主题曲在 Apple Music 里的匹配结果，还在匹配时为 nil。
+    @State private var 主题曲匹配: [Int: AppleMusic匹配结果]?
     @State private var isLoadingComments = false
     @State private var showsMoreInfo = false
     @State private var showsRecordSheet = false
@@ -98,6 +113,8 @@ struct 作品详情: View {
     @State private var 设置版本 = 0
     @State private var isSaving = false
     @State private var actionError: String?
+    /// 加入资料库后，同一系列里还没加入的作品。
+    @State private var 系列补全结果: 系列补全.结果?
     @State private var moreCommentsPullDistance: CGFloat = 0
     @State private var moreCommentsPullIsArmed = false
     @State private var moreCommentsPullFeedbackIssued = false
@@ -120,17 +137,25 @@ struct 作品详情: View {
     @State private var heroImageTransitionProgress: CGFloat = 1
     @State private var heroImageTransitionGeneration = 0
 
+    /// “相关”里按这部作品推荐的作品（前作、续作等关系在“系列”里）。
+    @State private var 相关推荐: [作品搜索结果] = []
+    @AppStorage("contentFilterEnabled") private var contentFilterEnabled = false
+
     private var entry: 本地资料库条目? {
         library.条目.first { $0.id == 目标.作品键 }
     }
 
     private var 类型: 作品类型 {
-        detail?.类型 ?? entry?.类型 ?? (目标.kind == .anime ? .anime : .manga)
+        detail?.类型 ?? entry?.类型 ?? 目标.类型 ?? (目标.kind == .anime ? .anime : .manga)
     }
 
-    /// 详情与资料库记录里的标题合在一起，按标题语言设置选择。
+    /// 详情与资料库记录里的标题合在一起，按标题语言设置选择。资料库和列表带来的标题优先：
+    /// 详情从 MAL、AniList 读到的写法可能不同（例如列表是“ゆるキャン△ OVA”，AniList 原名是“スペシャル”），
+    /// 进入详情页后标题不应变成另一个名字。各平台都没有的语言才用详情里的。
+    /// 最后按后台“作品标题”的设置替换，和列表一致。
     private var 多语言标题: [用户多语言标题] {
-        作品多语言标题.合并([detail?.多语言标题 ?? [], entry?.多语言标题 ?? [], 目标.多语言标题 ?? []])
+        let merged = 作品多语言标题.合并([entry?.多语言标题 ?? [], 目标.多语言标题 ?? [], detail?.多语言标题 ?? []])
+        return 作品标题覆盖.shared.应用(merged, 作品键: entry?.id ?? 目标.作品键, 类型: 类型) ?? merged
     }
 
     /// 标题的各语言版本已经有了（详情读完，或者列表、资料库里带着）。没有时先不显示标题，免得先显示英文再换掉。
@@ -141,7 +166,7 @@ struct 作品详情: View {
     private var 主标题: 标题工具.标题结果 {
         标题工具.获取主标题(
             titles: 多语言标题,
-            defaultTitle: detail?.标题 ?? 目标.标题,
+            defaultTitle: entry?.标题 ?? detail?.标题 ?? 目标.标题,
             偏好: preferredTitleLang,
             回退: fallbackTitleLang,
             允许非官方: allowUnofficialTitles
@@ -167,6 +192,8 @@ struct 作品详情: View {
             .平台内联导航标题()
             .toolbar { toolbarContent }
             .task(id: 目标) { await load(forceRefresh: false) }
+            .task(id: 全部主题曲.map(\.id)) { await 匹配主题曲() }
+            .task(id: 相关推荐任务键) { await 载入相关推荐() }
             .onChange(of: colorScheme) { _, _ in
                 textSamples = [:]
                 textSampleURL = nil
@@ -215,6 +242,7 @@ struct 作品详情: View {
             .navigationDestination(isPresented: $showsAllTags) {
                 作品全部标签页面(
                     对象: .作品(类型),
+                    来源名称: 标题文本,
                     类型: detail?.类型标签 ?? [],
                     标签: detail?.标签 ?? []
                 )
@@ -242,6 +270,13 @@ struct 作品详情: View {
                 Button("好", role: .cancel) { }
             } message: {
                 Text(verbatim: actionError ?? "")
+            }
+            .系列补全提醒($系列补全结果) { works in
+                for work in works {
+                    var entry = work.条目
+                    entry.加入时间 = .now
+                    try await PaperVNSync中心.shared.添加(entry)
+                }
             }
             .onDisappear {
                 blurRevealConfirmation.cancel()
@@ -316,6 +351,35 @@ struct 作品详情: View {
 
     // MARK: 载入
 
+    /// 这部作品在推荐模型里的候选编号：有 MAL ID 用 MAL，否则用 AniList、Bangumi 的 ID。
+    private var 相关推荐编号: [String] {
+        guard let detail else { return [] }
+        let malID = 目标.malID > 0 ? 目标.malID : detail.malID
+        var keys = malID > 0 ? 作品推荐模型.候选编号(条目ID: "", 类型: detail.类型, malID: malID) : []
+        keys += 作品推荐模型.候选编号(条目ID: 目标.作品键, 类型: detail.类型, malID: nil)
+        return keys
+    }
+
+    private var 相关推荐任务键: String {
+        "\(相关推荐编号)|\(detail?.类型.rawValue ?? "")|\(contentFilterEnabled)|\(library.修订号)"
+    }
+
+    private func 载入相关推荐() async {
+        guard let type = detail?.类型 else { return }
+        let items = await 作品推荐中心.shared.相关推荐(作品: 相关推荐编号, 类型: type, 包含成人内容: !contentFilterEnabled)
+        guard !Task.isCancelled else { return }
+        相关推荐 = items.compactMap {
+            if case .作品(let work) = $0 { return work }
+            return nil
+        }
+    }
+
+    /// 已经在“系列”里的不重复显示。
+    private func 显示的相关推荐(_ detail: 作品详细信息) -> [作品搜索结果] {
+        let relatedIDs = Set(detail.相关.map(\.id))
+        return 相关推荐.filter { $0.malID == 0 || !relatedIDs.contains("\($0.详情目标.kind.rawValue):\($0.malID)") }
+    }
+
     private func load(forceRefresh: Bool) async {
         isLoading = true
         defer { isLoading = false }
@@ -341,6 +405,10 @@ struct 作品详情: View {
             withAnimation(reduceMotion ? nil : .easeOut(duration: 0.25)) {
                 detail = value
             }
+            // 资料库列表按这里的评分显示，和详情页一致
+            if let entry {
+                作品评分快照存储.shared.记下(value.评分快照, 作品键: entry.id)
+            }
             refreshTextSamples()
             if let bangumiID = value.bangumiID {
                 isLoadingComments = true
@@ -351,6 +419,28 @@ struct 作品详情: View {
             }
         } catch {
             if detail == nil { errorMessage = error.localizedDescription }
+        }
+    }
+
+    /// MAL 的片头曲、片尾曲，加上主题曲映射里的插入曲。
+    private var 全部主题曲: [动画主题曲] {
+        guard let detail, detail.kind == .anime else { return [] }
+        return detail.主题曲 + (detail.malID > 0 ? 主题曲映射.插入曲(malID: detail.malID) : [])
+    }
+
+    /// 在 Apple Music 里找主题曲：主题曲映射里有的直接用，没有的现场匹配。离开页面时任务取消，下次进入重新匹配（结果有缓存）。
+    private func 匹配主题曲() async {
+        let songs = 全部主题曲
+        guard let detail, !songs.isEmpty else { return }
+        主题曲匹配 = nil
+        let titles = [detail.日文标题, detail.标题, detail.英文标题].compactMap { $0 }.filter { !$0.isEmpty }
+        let result = await AppleMusic主题曲匹配.shared.匹配(
+            songs, 作品键: "mal-anime-\(detail.malID)", 作品标题: titles,
+            已知: 主题曲映射.已知结果(songs)
+        )
+        guard !Task.isCancelled else { return }
+        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) {
+            主题曲匹配 = result
         }
     }
 
@@ -426,20 +516,40 @@ struct 作品详情: View {
         entry.封面地址 = 目标.封面
         entry.日文标题 = detail?.日文标题
         entry.多语言标题 = detail?.多语言标题
+        entry.总卷数 = 类型 == .anime ? nil : detail?.卷数
         Task {
             defer { isSaving = false }
             do {
                 try await PaperVNSync中心.shared.添加(entry)
             } catch {
                 actionError = error.localizedDescription
+                return
             }
+            isSaving = false
+            await 检查系列补全()
         }
+    }
+
+    private func 检查系列补全() async {
+        guard 目标.malID > 0 else { return }
+        let token = myAnimeListAccount.isLoggedIn
+            ? try? await myAnimeListAccount.validAccessToken()
+            : nil
+        系列补全结果 = await 系列补全.检查(
+            kind: 目标.kind,
+            malID: 目标.malID,
+            作品键: 目标.作品键,
+            类型: 类型,
+            accessToken: token
+        )
     }
 
     // MARK: 页面结构
 
+    /// 列表里的封面优先：资料库、搜索结果和相关作品里看到的是哪张图，详情页就显示哪张，
+    /// 不会因为详情从别的平台载入了另一张封面而对不上；列表没有封面时才用详情的。
     private var imageURLs: [URL] {
-        [detail?.封面, 目标.封面]
+        [目标.封面, detail?.封面]
             .compactMap { value -> URL? in
                 guard let value,
                       let url = URL(string: value),
@@ -902,7 +1012,7 @@ struct 作品详情: View {
         }
     }
 
-    /// 优先显示 MAL 的大图；先载入的列表缩略图只在大图到之前顶上。
+    /// 按 `imageURLs` 的顺序：列表里的封面优先，详情的封面只在列表没有封面或者载入失败时顶上。
     private func shouldAcceptImage(at url: URL) -> Bool {
         let urls = imageURLs
         guard let candidate = urls.firstIndex(of: url) else { return false }
@@ -1215,17 +1325,17 @@ struct 作品详情: View {
         return HStack(alignment: .top, spacing: 10) {
             VStack(alignment: .leading, spacing: 8) {
                 metadataItem(icon: "chart.bar.xaxis", title: "评分", text: "8.50（999人评分）", style: style)
-                metadataItem(icon: "clock", title: "篇幅", text: "正在载入…", style: style)
+                metadataItem(icon: "clock", title: "篇幅", text: "正在加载…", style: style)
             }
             VStack(alignment: .leading, spacing: 8) {
-                metadataItem(icon: "calendar", title: "发行日期", text: "正在载入…", style: style)
-                metadataItem(icon: "checkmark.circle", title: "状态", text: "正在载入…", style: style)
+                metadataItem(icon: "calendar", title: "发行日期", text: "正在加载…", style: style)
+                metadataItem(icon: "checkmark.circle", title: "状态", text: "正在加载…", style: style)
             }
             .padding(.leading, 6)
         }
         .redacted(reason: .placeholder)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("正在载入…")
+        .accessibilityLabel("正在加载…")
     }
 
     /// 评分文字缩到最小（0.82）仍放不下半栏时（热门动画的评分人数很多），评分独占一行，放送状态移到“更多信息”。
@@ -1420,7 +1530,7 @@ struct 作品详情: View {
                 .沉浸详情文字阴影(style)
             } else {
                 简介预览文本视图(
-                    text: String(repeating: "正在载入", count: 96),
+                    text: String(repeating: "正在加载", count: 96),
                     lineLimit: 5
                 )
                 .font(.body)
@@ -1510,7 +1620,7 @@ struct 作品详情: View {
                     .沉浸详情文字阴影(itemStyle)
                     .高透明提亮材质背景(in: Capsule())
                     .视觉小说沉浸取样框(["tags.item.\(index)"])
-                    .标签浏览菜单(浏览标签(tag), 对象: .作品(类型), 全部: 全部, 目标: $标签浏览目标)
+                    .标签浏览菜单(浏览标签(tag), 对象: .作品(类型), 全部: 全部, 来源: 标题文本, 目标: $标签浏览目标)
             }
 
             Button {
@@ -1542,7 +1652,7 @@ struct 作品详情: View {
     private var failureCard: some View {
         if let errorMessage, detail == nil {
             VStack(alignment: .leading, spacing: 10) {
-                Label("无法载入", systemImage: "exclamationmark.triangle")
+                Label("无法加载", systemImage: "exclamationmark.triangle")
                     .font(.headline)
 
                 Text(verbatim: errorMessage)
@@ -1576,7 +1686,7 @@ struct 作品详情: View {
         .padding(.horizontal, pageHorizontalPadding)
         .redacted(reason: .placeholder)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("正在载入…")
+        .accessibilityLabel("正在加载…")
     }
 
     @ViewBuilder
@@ -1627,8 +1737,13 @@ struct 作品详情: View {
             }
         }
 
+        if !全部主题曲.isEmpty || (detail.kind == .anime && detail.malID > 0) {
+            动画主题曲区域(歌曲: 全部主题曲, 匹配结果: 主题曲匹配, 原名语言: detail.原名语言, 页面边距: pageHorizontalPadding, 作品: .init(malID: detail.malID, 名称: detail.日文标题 ?? detail.标题))
+        }
+
+        // 前作、续作、外传等关系
         if !detail.相关.isEmpty {
-            horizontalSection("相关") {
+            horizontalSection("系列") {
                 ForEach(detail.相关) { related in
                     // 不用 NavigationLink(value:)：Today 等导航栈没有注册作品详情目标，点按没有反应
                     NavigationLink {
@@ -1649,6 +1764,16 @@ struct 作品详情: View {
                         .matchedTransitionSource(id: "related-\(related.id)", in: editNamespace)
                     }
                     .buttonStyle(.plain)
+                }
+            }
+        }
+
+        // 按这部作品推荐的作品
+        let recommendations = 显示的相关推荐(detail)
+        if !recommendations.isEmpty {
+            horizontalSection("相关") {
+                ForEach(recommendations) { work in
+                    相关推荐卡片(work)
                 }
             }
         }
@@ -1678,11 +1803,40 @@ struct 作品详情: View {
         }
     }
 
+    /// 按这部作品推荐的同类作品。
+    private func 相关推荐卡片(_ work: 作品搜索结果) -> some View {
+        let sourceID = "recommended-\(work.id)"
+        return NavigationLink {
+            作品详情(目标: work.详情目标)
+                .navigationTransition(.zoom(sourceID: sourceID, in: editNamespace))
+        } label: {
+            mediaCard(
+                imageURL: work.封面,
+                title: 卡片标题(
+                    titles: 作品标题覆盖.shared.应用(work.多语言标题, 作品键: work.作品键, 类型: work.类型),
+                    defaultTitle: work.标题
+                ),
+                subtitle: nil
+            )
+            .matchedTransitionSource(id: sourceID, in: editNamespace)
+        }
+        .buttonStyle(.plain)
+    }
+
     /// 相关作品的标题按标题语言设置选择，字体规则与视觉小说详情的相关卡片相同。
+    /// 和点进去的详情页一样：资料库里的标题优先，最后按后台“作品标题”的设置替换。
     private func 相关作品标题(_ related: 作品详细信息.相关作品) -> AttributedString {
+        let key = "mal-\(related.kind == .anime ? "anime" : "manga"):\(related.malID)"
+        let entry = library.条目.first { $0.id == key }
+        let merged = 作品多语言标题.合并([entry?.多语言标题 ?? [], related.多语言标题 ?? []])
+        let type = entry?.类型 ?? (related.kind == .anime ? .anime : .manga)
+        return 卡片标题(titles: 作品标题覆盖.shared.应用(merged, 作品键: key, 类型: type) ?? merged, defaultTitle: related.标题)
+    }
+
+    private func 卡片标题(titles: [用户多语言标题]?, defaultTitle: String) -> AttributedString {
         let title = 标题工具.获取主标题(
-            titles: related.多语言标题,
-            defaultTitle: related.标题,
+            titles: titles,
+            defaultTitle: defaultTitle,
             偏好: preferredTitleLang,
             回退: fallbackTitleLang,
             允许非官方: allowUnofficialTitles
@@ -1747,7 +1901,7 @@ struct 作品详情: View {
 
     private var commentsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline) {
+            HStack {
                 Text("评论")
                     .font(.title2.weight(.bold))
                 Spacer()
@@ -1897,6 +2051,8 @@ private struct 作品全部标签页面: View {
     }
 
     let 对象: 标签浏览.种类
+    /// 作品名称，结果页“+”菜单里那一组的标题用
+    var 来源名称 = ""
     let 类型: [String]
     let 标签: [作品详细信息.标签]
 
@@ -1961,7 +2117,7 @@ private struct 作品全部标签页面: View {
                         .onTapGesture {
                             guard let tag else { return }
                             withAnimation(.snappy(duration: 0.2)) {
-                                多选.轻点(tag, 对象: 对象, 全部: 可筛选标签)
+                                多选.轻点(tag, 对象: 对象, 全部: 可筛选标签, 来源: 来源名称)
                             }
                         }
                     }
@@ -1988,7 +2144,7 @@ private struct 作品全部标签页面: View {
                             guard blurred else {
                                 guard let filterTag else { return }
                                 withAnimation(.snappy(duration: 0.2)) {
-                                    多选.轻点(filterTag, 对象: 对象, 全部: 可筛选标签)
+                                    多选.轻点(filterTag, 对象: 对象, 全部: 可筛选标签, 来源: 来源名称)
                                 }
                                 return
                             }
@@ -2010,7 +2166,7 @@ private struct 作品全部标签页面: View {
             }
         }
         .平台分组列表样式()
-        .支持标签多选($多选, 对象: 对象, 全部: 可筛选标签)
+        .支持标签多选($多选, 对象: 对象, 全部: 可筛选标签, 来源: 来源名称)
         .navigationTitle("标签")
         .平台柔和滚动边缘(for: .top)
         .平台内联导航标题()

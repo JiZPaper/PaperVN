@@ -31,6 +31,7 @@ TMDB（只有动画）
 import base64
 import collections
 import datetime
+import hashlib
 import json
 import pathlib
 import re
@@ -254,6 +255,7 @@ class Works:
         self.annict_folded = set()  # Annict 并在正篇里的作品下标
         self.tmdb_no_write = set()  # 和别的作品共用一个 TMDB 条目、不写入 TMDB 的作品下标
         self.series = {}  # 下标 → 所属系列（取系列里下标最小的作品）
+        self.split = {}  # MAL ID → [(下标, 集数, 原名, 罗马字, 英文, 原名语言), …]：MAL 把几部作品记成一个条目，按集数依次分给这几部作品
 
     def add(self, key, mal=None, anilist=None, annict=None):
         if key in self.index:
@@ -288,7 +290,7 @@ class Works:
 
     def json(self, keep=lambda row: True):
         """keep 为假的作品不写入（附属条目指向的作品始终保留）。下标随之重新编号。"""
-        needed = {index for _, _, index in self.attached}
+        needed = {index for _, _, index in self.attached} | {index for parts in self.split.values() for index, *_ in parts}
         kept = [index for index, row in enumerate(self.rows) if index in needed or keep(row)]
         renumber = {old: new for new, old in enumerate(kept)}
         # 附属条目按平台写成扁平的数字数组 [ID, 作品下标, ID, 作品下标, …]，Bangumi 单行本有十几万条，这样体积小得多
@@ -309,6 +311,11 @@ class Works:
             document["annictFolded"] = sorted(renumber[index] for index in self.annict_folded if index in renumber)
         if self.tmdb_no_write:
             document["tmdbNoWrite"] = sorted(renumber[index] for index in self.tmdb_no_write if index in renumber)
+        if self.split:
+            # MAL ID → [[作品下标, 集数, 原名, 罗马字, 英文, 原名语言], …]，按集数顺序。
+            # 标题属于各部作品自己（MAL 条目的标题是几部合在一起的），资料库和详情页都用它
+            document["split"] = {"myAnimeList": {str(mal): [[renumber[index], *rest] for index, *rest in parts]
+                                                 for mal, parts in sorted(self.split.items())}}
         if self.series:
             # [作品下标, 系列下标, …]：系列下标是同一系列里下标最小的作品
             document["series"] = [value for index, root in sorted(self.series.items())
@@ -484,6 +491,44 @@ def build_anime(directory, stats):
         works.add(key, mal=mal, anilist=ani, annict=annict)
     stats["动画：Annict作品"] = len(works.rows)
     stats["动画：Annict的MAL ID已校正"] = corrected
+
+    # 1b. MAL 把几部作品记成一个条目（分成几集）的：按 Annict（Annict 上没有的按 AniList）拆开，每一部是一部作品，
+    # MAL 条目按集数依次分给它们。arm 没有收录的作品在这里补上，AniList、Bangumi、TMDB 条目也直接指定，免得之后被当成另一部作品或对到别处。
+    # 标着 "mal": true 的那一部拥有 MAL 条目本身（编号为 mal-anime:…），映射里还没有它时用这个编号建立
+    for mal, parts in (json.load(open(CORRECTIONS)).get("split", {}) if CORRECTIONS.exists() else {}).items():
+        split = []
+        for part in parts:
+            annict, ani = part.get("annict"), part.get("anilist")
+            bangumi, tmdb = part.get("bangumi"), part.get("tmdb")
+            index = works.find("annict", annict) if annict else None
+            if index is None and ani:
+                index = works.find("aniList", ani)
+            if index is None:
+                if part.get("mal"):
+                    index = works.add(f"mal-anime:{mal}", mal=int(mal), anilist=ani, annict=annict)
+                else:
+                    key = f"aniList-anime:{ani}" if ani else f"annict-anime:{annict_node(annict)}"
+                    index = works.add(key, anilist=ani, annict=annict)
+            row = works.rows[index]
+            if ani and row[2] is None:
+                row[2] = ani
+                works.owner[("aniList", str(ani))] = index
+            if annict and row[3] is None:
+                row[3] = annict
+                works.owner[("annict", str(annict))] = index
+            if bangumi:
+                works.set_bangumi(index, bangumi)
+            if tmdb and row[5] is None:
+                row[5] = tmdb
+                works.owner[("tmdb", tmdb)] = index
+            # 标题用 AniList 上这部作品的（和详情页一致）；AniList 上没有时用校正文件里的原名
+            media = anilist.get(row[2]) or {}
+            titles = media.get("title") or {}
+            native = titles.get("native") or part["title"]
+            language = COUNTRY_LANGUAGE.get(media.get("countryOfOrigin"), "ja")
+            split.append((index, part["episodes"], native, titles.get("romaji"), titles.get("english"), language))
+        works.split[int(mal)] = split
+    stats["动画：MAL条目拆成几部作品"] = len(works.split)
 
     # 2. 没有 Annict 作品的 MAL / AniList 作品：Special 并入正篇，其余单独成为作品
     folded = 0
@@ -905,10 +950,19 @@ def chinese_titles(directory, document):
     return {group: dict(sorted(values.items(), key=lambda item: int(item[0]))) for group, values in titles.items()}
 
 
+def stamp_version(document):
+    """版本是“构建日期-内容摘要”：同一天重新生成、内容不变时版本也不变。App 按日期比较新旧，
+    按整个版本判断是不是同一份。version 放在最前面，App 只读文件开头就能知道内置映射的版本。"""
+    rest = {key: value for key, value in document.items() if key != "version"}
+    digest = hashlib.sha256(json.dumps(rest, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()[:12]
+    return {"version": f"{datetime.date.today():%Y%m%d}-{digest}", **rest}
+
+
 def add_chinese_titles(directory):
     """只给现有的映射文件补上（或更新）中文名，作品对应关系不变。"""
     document = json.loads(OUTPUT.read_text(encoding="utf-8"))
     document["chineseTitles"] = chinese_titles(directory, document)
+    document = stamp_version(document)
     OUTPUT.write_text(json.dumps(document, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     counts = "，".join(f"{group} {len(values)}" for group, values in document["chineseTitles"].items())
     print(f"中文名：{counts}；写入 {OUTPUT.relative_to(ROOT)}（{OUTPUT.stat().st_size // 1024} KB）")

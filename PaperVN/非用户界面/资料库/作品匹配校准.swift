@@ -17,8 +17,10 @@ nonisolated struct 作品对应组: Codable, Hashable, Sendable {
 
     /// 这组对应的作品在资料库里的编号：主条目在预装映射里有作品时用映射的编号，否则按 MAL、Annict、AniList、Bangumi 的顺序编号。
     func 键(类型 type: 作品类型) -> String? {
-        for (name, id) in ids {
-            if let platform = 资料库平台(rawValue: name),
+        // 按固定顺序查：字典顺序每次运行都可能不同，几个 ID 在映射里属于不同作品时（例如 TMDB 的整部剧条目属于第一季），
+        // 结果不能随机。TMDB 的剧集条目常常是整部剧，放最后
+        for platform in [资料库平台.myAnimeList, .aniList, .annict, .bangumi, .tmdb] {
+            if let id = ids[platform.rawValue],
                let mapped = 作品映射.查找(platform, 平台ID: id, 类型: type), !mapped.附属 {
                 return mapped.键
             }
@@ -32,6 +34,20 @@ nonisolated struct 作品对应组: Codable, Hashable, Sendable {
     }
 
     static func 分组(_ type: 作品类型) -> String { type == .anime ? "anime" : "manga" }
+}
+
+/// 平台把几部作品记成一个条目（分成几集）：后台审核的拆分，按集数依次分给这几部作品。目前只有 MAL。
+nonisolated struct 作品拆分: Codable, Hashable, Sendable {
+    struct 部分: Codable, Hashable, Sendable {
+        /// 平台 → 这部作品在其他平台上的 ID，用来确定它在资料库里的编号。
+        let ids: [String: String]
+        let episodes: Int
+        let title: String
+    }
+    let type: String
+    let platform: String
+    let platformID: String
+    let parts: [部分]
 }
 
 /// 同步时在某个平台上找不到、没有同步过去的作品，可以在同步任务里查看并手动匹配。
@@ -68,33 +84,42 @@ struct 匹配候选: Identifiable, Hashable {
 final class 作品匹配校准 {
     static let shared = 作品匹配校准()
 
-    private static let 校准表地址 = URL(string: "https://papervn.jizpaper.com/api/library-matches/calibrations")!
-    private static let 提交地址 = URL(string: "https://papervn.jizpaper.com/api/library-matches/reports")!
+    private static let 校准表地址 = URL(string: "https://papervn.jizpaper.com/library-matches/calibrations")!
+    private static let 提交地址 = URL(string: "https://papervn.jizpaper.com/library-matches/reports")!
 
     private struct 缓存: Codable {
         var etag: String?
         var groups: [作品对应组]
+        /// 旧的缓存里没有
+        var splits: [作品拆分]?
     }
 
     private var 缓存内容: 缓存
     /// 平台 + 分组 + ID → 所在的对应组，查找时不用每次遍历。
     private var 索引: [String: (group: 作品对应组, 附属: Bool)] = [:]
+    /// 平台 + 分组 + ID → 把它列为附属条目的对应组。同一个 ID 也可能是另一组的主条目（在一个平台上单独成作品，
+    /// 在另一个平台上并在别的作品里，例如 Fate/stay night TV reproduction 在 TMDB 上单独、在 AniList 上并在 TV 版里），
+    /// 上面的索引以主条目为准，判断“并入”时要单独查这里。
+    private var 附属索引: [String: [作品对应组]] = [:]
 
     private init() {
         缓存内容 = (try? Data(contentsOf: Self.缓存地址)).flatMap { try? JSONDecoder().decode(缓存.self, from: $0) }
-            ?? 缓存(etag: nil, groups: [])
+            ?? 缓存(etag: nil, groups: [], splits: nil)
         重建索引()
     }
+
+    /// 正在使用的校准表版本（服务器的 ETag，例如“"cal-15"”），诊断时用。
+    var 校准表版本: String? { 缓存内容.etag }
 
     /// 同步前读取最新的校准表；读取失败时继续使用上次的。
     func 更新() async {
         var request = URLRequest(url: Self.校准表地址, timeoutInterval: 10)
         if let etag = 缓存内容.etag { request.setValue(etag, forHTTPHeaderField: "If-None-Match") }
-        struct 响应: Decodable { let groups: [作品对应组] }
+        struct 响应: Decodable { let groups: [作品对应组]; let splits: [作品拆分]? }
         guard let (data, response) = try? await URLSession.shared.data(for: request),
               let http = response as? HTTPURLResponse, http.statusCode == 200,
               let value = try? JSONDecoder().decode(响应.self, from: data) else { return }
-        缓存内容 = 缓存(etag: http.value(forHTTPHeaderField: "ETag"), groups: value.groups)
+        缓存内容 = 缓存(etag: http.value(forHTTPHeaderField: "ETag"), groups: value.groups, splits: value.splits)
         重建索引()
         if let data = try? JSONEncoder().encode(缓存内容) {
             try? FileManager.default.createDirectory(at: Self.缓存地址.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -124,8 +149,9 @@ final class 作品匹配校准 {
             if known.contains(where: { group.attached?[$0.key.rawValue]?.contains($0.value) == true }) { return true }
         }
         for (knownPlatform, id) in known {
-            if let entry = 索引[Self.索引键(knownPlatform.rawValue, kind, id)], entry.附属,
-               entry.group.ids[platform.rawValue] != nil { return true }
+            if 附属索引[Self.索引键(knownPlatform.rawValue, kind, id)]?.contains(where: { $0.ids[platform.rawValue] != nil }) == true {
+                return true
+            }
         }
         return false
     }
@@ -142,6 +168,28 @@ final class 作品匹配校准 {
         }
         if let entry = 索引[Self.索引键(platform.rawValue, kind, id)] { return result(entry.group, 附属: entry.附属) }
         return nil
+    }
+
+    /// 后台审核的拆分：MAL 条目按集数顺序拆成的几部作品。优先于预装映射里的拆分。
+    func MAL拆分(_ malID: Int, 类型 type: 作品类型) -> [作品映射.拆分部分]? {
+        let kind = 作品对应组.分组(type)
+        guard let split = 缓存内容.splits?.first(where: {
+            $0.type == kind && $0.platform == 资料库平台.myAnimeList.rawValue && $0.platformID == String(malID)
+        }) else { return nil }
+        let parts = split.parts.compactMap { part -> 作品映射.拆分部分? in
+            let ids = Dictionary(uniqueKeysWithValues: part.ids.compactMap { name, id in 资料库平台(rawValue: name).map { ($0, id) } })
+            guard part.episodes > 0, let key = 作品对应组(类型: type, ids: ids).键(类型: type) else { return nil }
+            return 作品映射.拆分部分(键: key, 集数: part.episodes, 标题: part.title)
+        }
+        return parts.count == split.parts.count && parts.count >= 2 ? parts : nil
+    }
+
+    /// 后台审核过拆分的 MAL 条目。
+    var 已拆分的MAL条目: [(type: String, malID: Int)] {
+        (缓存内容.splits ?? []).compactMap { split in
+            guard split.platform == 资料库平台.myAnimeList.rawValue, let id = Int(split.platformID) else { return nil }
+            return (split.type, id)
+        }
     }
 
     struct 提交项: Encodable {
@@ -191,12 +239,31 @@ final class 作品匹配校准 {
         return success
     }
 
+    #if DEBUG
+    /// 测试用：换上指定的校准表（不写缓存），返回原来的，测试结束后换回去。
+    @discardableResult
+    func 测试用校准表(_ groups: [作品对应组], splits: [作品拆分]? = nil) -> (groups: [作品对应组], splits: [作品拆分]?) {
+        let previous = (缓存内容.groups, 缓存内容.splits)
+        缓存内容.groups = groups
+        缓存内容.splits = splits
+        重建索引()
+        return previous
+    }
+    #endif
+
     private func 重建索引() {
         索引 = [:]
+        附属索引 = [:]
         for group in 缓存内容.groups {
             for (platform, values) in group.attached ?? [:] {
-                for id in values { 索引[Self.索引键(platform, group.type, id)] = (group, true) }
+                for id in values {
+                    索引[Self.索引键(platform, group.type, id)] = (group, true)
+                    附属索引[Self.索引键(platform, group.type, id), default: []].append(group)
+                }
             }
+        }
+        // 主条目最后写：同一个 ID 在一组是主条目、在另一组是附属条目时，不论先后都以主条目为准
+        for group in 缓存内容.groups {
             for (platform, id) in group.ids { 索引[Self.索引键(platform, group.type, id)] = (group, false) }
         }
     }

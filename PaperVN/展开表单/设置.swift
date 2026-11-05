@@ -1013,7 +1013,7 @@ struct 语言与地区: View {
     }
 
     private var translationModeDescription: some View {
-        Text("“设备端模型”模式：在简介旁边显示翻译按钮，使用Apple离线翻译模型进行翻译；\n“开源项目（获取）”模式：从GitHub或PaperVN服务器获取翻译，并替换原简介文本；\n“开源项目（离线）”模式：先下载完整翻译文件，再替换原简介文本。\n尚未完成翻译的简介依然使用设备端模型自动翻译，你也可以轻点简介旁的按钮提交自己的翻译。你可以前往“关于”页面了解此开源项目的更多信息。")
+        Text("“设备端模型”模式：在简介旁边显示翻译按钮，使用Apple离线翻译模型进行翻译；\n“开源项目（获取）”模式：从GitHub或PaperVN服务器获取翻译，并替换原简介文本；\n“开源项目（离线）”模式：先下载完整翻译文件，再替换原简介文本。\n尚未完成翻译的简介依然使用设备端模型自动翻译，你也可以轻点简介旁的按钮提交自己的翻译。")
             .font(.callout)
             .foregroundStyle(translationModeTextColor)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -1672,7 +1672,7 @@ struct 网络设置: View {
                     .disabled(isCheckingNextMoeRegion)
             } footer: {
                 Text(
-                    "通过鲲Galgame间接获取原数据来源的内容。这将有助于改善部分用户的载入体验，但会受到NextMoe API的速率限制。"
+                    "通过鲲Galgame间接获取原数据来源的内容。这将有助于改善部分用户的加载体验，但会受到NextMoe API的速率限制。"
                 )
             }
         }
@@ -1691,7 +1691,7 @@ struct 网络设置: View {
             Text(verbatim: kunAccount.errorMessage ?? "")
         }
         .alert(
-            "可能导致更慢的载入速度",
+            "可能导致更慢的加载速度",
             isPresented: $showsNextMoeRegionAlert
         ) {
             Button("停用", role: .cancel) {
@@ -1849,6 +1849,7 @@ struct 资料库设置: View {
 
     @AppStorage("autoFillStartDate") private var autoFillStartDate = true
     @AppStorage("autoFillFinishDate") private var autoFillFinishDate = true
+    @AppStorage("librarySeparatesUnreleased") private var separatesUnreleased = false
     @AppStorage(评论数据来源.设置键)
     private var commentSource = 评论数据来源.combined.rawValue
     @AppStorage(PaperVNSync中心.启用设置键)
@@ -1870,11 +1871,8 @@ struct 资料库设置: View {
             Section {
                 Toggle("PaperVN Sync", isOn: $paperVNSyncEnabled)
                     .onChange(of: paperVNSyncEnabled) { _, enabled in
-                        if enabled, auth.isLoggedIn {
-                            bangumiAccount.startLibrarySynchronization(
-                                vndbToken: auth.token,
-                                userID: auth.userID
-                            )
+                        if enabled, 本地资料库.shared.所有者 != nil {
+                            bangumiAccount.startLibrarySynchronization()
                         } else if !enabled {
                             bangumiAccount.cancelLibrarySynchronization()
                         }
@@ -1886,8 +1884,26 @@ struct 资料库设置: View {
                     Text("同步任务")
                 }
                 .disabled(!paperVNSyncEnabled)
+                NavigationLink {
+                    PaperAccount页面()
+                } label: {
+                    Text("Paper Cloud")
+                }
             } header: {
                 Text("同步")
+            }
+
+            Section {
+                NavigationLink {
+                    列表信息设置页面(场景: .library, 标题: String(localized: "列表信息"))
+                } label: {
+                    Text("列表信息")
+                }
+                Toggle("分开显示未发行或未播出的作品", isOn: $separatesUnreleased)
+            } header: {
+                Text("外观")
+            } footer: {
+                Text("在“计划游玩/观看/阅读”中，将未发行或未播出的作品与其他作品分开，显示在列表底部。")
             }
 
             Section {
@@ -2130,6 +2146,7 @@ struct 搜索设置: View {
 
     @AppStorage(搜索设置偏好.独立搜索Tab设置键)
     private var independentSearchTab = 搜索设置偏好.独立搜索Tab默认值
+    @AppStorage(Spotlight索引.启用键) private var spotlightEnabled = true
     @State private var smartSearchModelState = 智能搜索模型下载状态.shared
     @AppStorage(作品类型显示设置.键(.anime)) private var animeEnabled = true
     @AppStorage(作品类型显示设置.键(.manga)) private var mangaEnabled = true
@@ -2167,12 +2184,28 @@ struct 搜索设置: View {
                 Text("搜索结果")
             }
 
+            Section {
+                NavigationLink {
+                    列表信息设置页面(场景: .search, 标题: String(localized: "列表信息"))
+                } label: {
+                    Text("列表信息")
+                }
+            } header: {
+                Text("外观")
+            }
+
             if #available(iOS 27.0, *), UIDevice.current.userInterfaceIdiom != .pad {
                 Section {
                     Toggle("独立搜索Tab", isOn: $independentSearchTab)
                 } footer: {
                     Text("将“搜索”与其他Tab分开，显示在Tab栏右侧。")
                 }
+            }
+
+            Section {
+                Toggle("在Spotlight中显示资料库", isOn: $spotlightEnabled)
+            } footer: {
+                Text("从主屏幕搜索时，显示资料库中的作品。")
             }
 
             智能搜索设置区(downloadState: smartSearchModelState)
@@ -2456,7 +2489,7 @@ private enum 储存空间删除项目: String, Identifiable {
     var message: LocalizedStringKey {
         switch self {
         case .cache:
-            "删除缓存后，所有内容都将重新载入。通常情况下，缓存会在不必要时自动删除。如果你遇到了异常的缓存占用，请向开发者提交错误报告。"
+            "删除缓存后，所有内容都将重新加载。通常情况下，缓存会在不必要时自动删除。如果你遇到了异常的缓存占用，请向开发者提交错误报告。"
         case .translations:
             "“开源项目（离线）”翻译模式依赖此翻译文件。删除后偏好翻译模式将切换为“开源项目（获取）”。"
         case .recommendationModel:
@@ -2522,7 +2555,7 @@ private struct 储存空间管理区: View {
         } header: {
             Text("缓存")
         } footer: {
-            Text("“更少”缓存策略可能让你频繁地看到载入页面；“更多”缓存策略将大幅增加缓存时间与范围，并提前载入你可能查看的内容。")
+            Text("“更少”缓存策略可能让你频繁地看到加载页面；“更多”缓存策略将大幅增加缓存时间与范围，并提前加载你可能查看的内容。")
         }
         .task { refreshSizes() }
         .alert(item: $pendingDeletion) { item in

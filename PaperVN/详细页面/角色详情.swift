@@ -377,6 +377,7 @@ struct 角色详情: View {
         .navigationDestination(isPresented: $showAllTraits) {
             更多特征页面(
                 traits: displayedDetail.traits ?? [],
+                来源名称: characterName,
                 showTranslatedTraits: $showTranslatedTraits
             )
         }
@@ -1857,7 +1858,7 @@ struct 角色详情: View {
         }
         .redacted(reason: .placeholder)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("正在载入…")
+        .accessibilityLabel("正在加载…")
     }
 
     private func immersiveCharacterMetadataItem(
@@ -1955,7 +1956,7 @@ struct 角色详情: View {
                 )
             } else {
                 简介预览文本视图(
-                    text: String(repeating: "正在载入", count: 128),
+                    text: String(repeating: "正在加载", count: 128),
                     lineLimit: 7
                 )
                 .font(.body)
@@ -2107,6 +2108,7 @@ struct 角色详情: View {
             全部: allTraits
                 .filter { !shouldHideTrait($0) && !shouldBlurTrait($0) }
                 .map(浏览特征),
+            来源: characterName,
             目标: $标签浏览目标
         )
         .onTapGesture {
@@ -2320,7 +2322,7 @@ struct 角色详情: View {
         if let errorMessage {
             VStack(alignment: .leading, spacing: 10) {
                 Label(
-                    detail == nil ? "无法载入" : "无法载入",
+                    detail == nil ? "无法加载" : "无法加载",
                     systemImage: "exclamationmark.triangle"
                 )
                 .font(.headline)
@@ -2366,7 +2368,7 @@ struct 角色详情: View {
         .padding(.horizontal, immersivePageHorizontalPadding)
         .redacted(reason: .placeholder)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("正在载入…")
+        .accessibilityLabel("正在加载…")
     }
 
     private var isShowingInitialSkeleton: Bool {

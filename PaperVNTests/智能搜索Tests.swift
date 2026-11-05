@@ -42,3 +42,25 @@ struct 智能搜索名称规范化Tests {
         #expect(!智能搜索视图模型.值得搜索("  "))
     }
 }
+
+/// 用 App 预装的模型搜索：输错、同音字、假名读音也要找到作品。
+struct 智能搜索引擎Tests {
+    private func 前五(_ 文本: String) async throws -> [String] {
+        try await 智能搜索引擎.shared.搜索(文本).命中.prefix(5).map(\.编号)
+    }
+
+    @Test
+    func 中文同音字() async throws {
+        #expect(try await 前五("命运石之们").contains("v2002"))
+    }
+
+    @Test
+    func 假名读音对上罗马字标题() async throws {
+        #expect(try await 前五("ひぐらしのなくころに").contains("v67"))
+    }
+
+    @Test
+    func 拉丁字母换位() async throws {
+        #expect(try await 前五("steins gaet").contains("v2002"))
+    }
+}

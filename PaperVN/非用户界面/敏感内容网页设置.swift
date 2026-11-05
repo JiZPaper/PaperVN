@@ -9,7 +9,7 @@ enum 敏感内容网页设置 {
     static let 已开启键 = "contentSafetyDeviceExceptionEnabled"
 
     private static let endpoint = URL(
-        string: "https://papervn.jizpaper.com/api/content-preferences/device"
+        string: "https://papervn.jizpaper.com/content-preferences/device"
     )!
     /// 旧版本通过App内隐藏入口写入的本地解锁标记，已废弃。
     private static let 旧版本地解锁键 = "contentSafetyAdvancedControlsUnlocked"
@@ -56,6 +56,37 @@ enum 敏感内容网页设置 {
 
     static func 移除旧版本地解锁(defaults: UserDefaults = .standard) {
         defaults.removeObject(forKey: 旧版本地解锁键)
+    }
+
+    /// 反馈、翻译和数据维护用设备码识别未登录的用户：请求带设备密钥，服务器只保存算出的设备码。
+    /// 不放在 Authorization 里，那里留给 Paper 账户。
+    static func 添加设备身份(to request: inout URLRequest) {
+        guard let 密钥 = 设备密钥存储.读取或创建() else { return }
+        request.setValue(密钥.map { String(format: "%02x", $0) }.joined(), forHTTPHeaderField: "X-PaperVN-Device")
+    }
+
+    static var 设备身份可用: Bool { 设备密钥存储.读取或创建() != nil }
+
+    /// 给不在主线程的服务用（简介翻译投稿）。
+    static var 设备身份值: String? {
+        设备密钥存储.读取或创建().map { $0.map { String(format: "%02x", $0) }.joined() }
+    }
+
+    private static let 已关联账户键 = "contentSafetyLinkedPaperAccount"
+
+    /// 登录 Paper 账户后关联这台设备：解除限制的设置改由账户保存，这台设备上还没有归属的内容转入账户。
+    /// 每个账户只需要成功一次，没成功时下次启动重试。
+    static func 关联Paper账户(accountID: String, token: String, defaults: UserDefaults = .standard) async {
+        guard defaults.string(forKey: 已关联账户键) != accountID else { return }
+        var request = URLRequest(url: URL(string: "https://papervn.jizpaper.com/device-link")!)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 20
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        添加设备身份(to: &request)
+        guard let (_, response) = try? await URLSession.shared.data(for: request),
+              (response as? HTTPURLResponse)?.statusCode == 200 else { return }
+        defaults.set(accountID, forKey: 已关联账户键)
+        await 同步(defaults: defaults)
     }
 
     /// 从服务器读取网站上的登记结果。网络错误时保留上次结果。

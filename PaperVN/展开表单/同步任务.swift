@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// 设置“资料库”里PaperVN Sync下方的同步任务页面：显示各平台的同步进度、问题和缺失的作品。
-/// 资料库顶部的同步状态提示也会打开这个页面。
+/// 设置“资料库”里PaperVN Sync下方的同步任务页面：显示统计信息、各平台的同步进度、问题、缺失的作品和最近更改。
+/// 资料库右上角的同步任务按钮也会打开这个页面。
 struct 同步任务页面: View {
     /// 从资料库顶部以弹出页面打开时显示关闭按钮。
     var showsCloseButton = false
@@ -39,6 +39,12 @@ private struct 同步任务内容: View {
 
     var body: some View {
         平台滚动页面 {
+            Section {
+                资料库统计图(entries: library.条目)
+            } header: {
+                Text("统计信息")
+            }
+
             if let text = PaperVNSync中心.待处理说明(sync.待处理) {
                 Section {
                     Button {
@@ -101,6 +107,14 @@ private struct 同步任务内容: View {
                 }
             }
 
+            Section {
+                NavigationLink {
+                    资料库更改记录页面()
+                } label: {
+                    Text("最近更改")
+                }
+            }
+
             if sync.隐藏数 > 0 {
                 Section {
                     Button("显示已隐藏的作品") {
@@ -113,11 +127,6 @@ private struct 同步任务内容: View {
                 }
             }
 
-            Section {
-                资料库统计图(entries: library.条目)
-            } header: {
-                Text("统计信息")
-            }
         }
         .平台分组列表样式()
         .navigationTitle("同步任务")
@@ -130,7 +139,7 @@ private struct 同步任务内容: View {
                 } label: {
                     Label("立即同步", systemImage: "arrow.triangle.2.circlepath")
                 }
-                .disabled(!auth.isLoggedIn || sync.正在同步 || bangumiProgress.isSynchronizing)
+                .disabled(library.所有者 == nil || sync.正在同步 || bangumiProgress.isSynchronizing)
             }
         }
     }
@@ -194,10 +203,14 @@ private struct 同步任务内容: View {
             return
         }
         Task {
+            // 与资料库页面的顺序一致：Paper Cloud、Bangumi 的视觉小说、VNDB、其他平台，再上传到 Paper Cloud，最后推送到 Bangumi
+            await PaperAccount账户.shared.同步资料库()
+            await sync.导入Bangumi视觉小说()
             await sync.从VNDB导入(token: token, userID: userID, forceRefresh: true)
             await sync.同步动画漫画()
+            await PaperAccount账户.shared.同步资料库()
             if paperVNSyncEnabled {
-                bangumiAccount.startLibrarySynchronization(vndbToken: token, userID: userID)
+                bangumiAccount.startLibrarySynchronization()
             }
         }
     }

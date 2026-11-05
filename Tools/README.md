@@ -42,13 +42,13 @@ python3 "Tools/收集Paparu视觉小说图像数据集.py" --skip-bangumi
 
 # 智能搜索模型
 
-搜索页的智能搜索模型（Paper智能）是一个在设备上运行的名称模糊匹配模型（`PaperVNSmartSearch.pvss`），App 安装包里预装了一份，更新放在 `https://r2-papervn.jizpaper.com/Resources/PaperVNSmartSearch.pvss`。仓库里只有模型文件和 App 端的读取、搜索代码（`PaperVN/智能搜索/`），训练方式与数据不公开。
+搜索页的智能搜索模型（Paper智能）是一个在设备上运行的名称模糊匹配模型（`PaperVNSmartSearch.pvss`），App 安装包里预装了一份，更新放在 `https://r2-papervn.jizpaper.com/Resources/PaperVNSmartSearch-v4.pvss`（格式 4；旧版 App 只认得格式 3，仍从 `Resources/PaperVNSmartSearch.pvss` 下载，那个文件不要覆盖）。仓库里只有模型文件和 App 端的读取、搜索代码（`PaperVN/智能搜索/`，公开的 `Packages/HiroIntelligence` 和服务器的 `deploy/vps/hiro-search.mjs` 是同一套逻辑，要一起改），训练方式与数据不公开。
 
 发布新模型时，`PaperVN/Resources/PaperVNSmartSearch.pvss` 必须和 R2 上的文件一致，否则装好 App 的用户会马上收到一次没有必要的更新提示：
 
 ```sh
 R2_ACCOUNT_ID=… R2_ACCESS_KEY_ID=… R2_SECRET_ACCESS_KEY=… R2_BUCKET=papervn \
-  python3 Tools/上传到R2.py PaperVN/Resources/PaperVNSmartSearch.pvss Resources/PaperVNSmartSearch.pvss
+  python3 Tools/上传到R2.py PaperVN/Resources/PaperVNSmartSearch.pvss Resources/PaperVNSmartSearch-v4.pvss
 ```
 
 # “为你推荐”模型
@@ -63,6 +63,17 @@ R2_ACCOUNT_ID=… R2_ACCESS_KEY_ID=… R2_SECRET_ACCESS_KEY=… R2_BUCKET=paperv
 ```
 
 文件格式：`PVWR`、UInt32 标识长度、标识、UInt32 原文长度、raw DEFLATE 压缩的 JSON；作品编号与智能搜索模型相同（`作品搜索结果.编号`）。
+
+# 视觉小说引擎库
+
+运行视觉小说用到的两个引擎库体积很大，不进仓库，第一次编译或归档前要在本机编好（`Tools/archive.sh` 缺库时会中止）：
+
+```sh
+Tools/构建Siglus.sh     # siglus_rs（MPL-2.0）→ Dependencies/Siglus/SiglusCore.xcframework，约 15 分钟
+Tools/构建KiriKiri.sh   # krkr2（MIT）→ Dependencies/KiriKiri/KiriKiriCore.xcframework 和界面资源，第一次约 1 小时
+```
+
+源码放在仓库外的 `../第三方源码/`：`siglus_rs`、`krkr2`、`vcpkg`（`git clone` 对应仓库即可，提交号记在 `Dependencies/Siglus/SIGLUS_RS_COMMIT` 和 `Dependencies/KiriKiri/KRKR2_COMMIT`）。需要 rustup（`aarch64-apple-ios`、`aarch64-apple-ios-sim`）以及 Homebrew 的 `nasm`、`yasm`、`bison`。PaperVN 对 krkr2 的修改在 `Dependencies/KiriKiri/patches/krkr2-ios.patch`，脚本会自动打上；两个脚本都会顺便更新许可页面用的依赖列表（`deploy/vps/legal/license/`）。
 
 # 归档与上传
 

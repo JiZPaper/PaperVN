@@ -20,7 +20,7 @@ struct 作品搜索结果: Identifiable, Hashable, Sendable, Codable {
     var 成人内容 = false
 
     var 详情目标: 作品详情目标 {
-        作品详情目标(kind: 类型 == .anime ? .anime : .manga, malID: malID, 标题: 标题, 封面: 封面, aniListID: aniListID, bangumiID: bangumiID, 多语言标题: 多语言标题)
+        作品详情目标(kind: 类型 == .anime ? .anime : .manga, malID: malID, 标题: 标题, 封面: 封面, aniListID: aniListID, bangumiID: bangumiID, 多语言标题: 多语言标题, 类型: 类型)
     }
 
     /// 资料库与作品映射里的编号，例如“mal-anime:10495”“aniList-manga:101444”。
@@ -29,6 +29,16 @@ struct 作品搜索结果: Identifiable, Hashable, Sendable, Codable {
         if malID > 0 { return "mal-\(分组):\(malID)" }
         if let aniListID { return "aniList-\(分组):\(aniListID)" }
         return "bangumi-\(分组):\(bangumiID ?? 0)"
+    }
+
+    /// 音乐（MV）、广告、宣传片不是作品，搜索结果中不显示（和 PaperVN Sync 不导入的条目一致）。
+    /// 格式按 MAL（media_type 转成大写）与 AniList（format）的写法；Bangumi 等平台的分类不在此列。
+    nonisolated static let 不可导入的格式: Set<String> = ["MUSIC", "CM", "PV"]
+
+    /// 平台标明的格式能否导入资料库；没有标明或标明“未知”时为 nil。
+    nonisolated static func 可导入(格式 format: String?) -> Bool? {
+        guard let format = format?.uppercased(), !format.isEmpty, format != "UNKNOWN" else { return nil }
+        return !不可导入的格式.contains(format)
     }
 
     nonisolated static let AniList标记: UInt32 = 0x8000_0000
@@ -227,6 +237,8 @@ final class 作品聚合搜索 {
             if let mal = media.idMal, 作品映射.查找(.myAnimeList, 平台ID: String(mal), 类型: type)?.附属 == true {
                 return nil
             }
+            // 筛选条件里已经排除了音乐，这里再保险一次
+            if 作品搜索结果.可导入(格式: media.format) == false { return nil }
             return item
         }
         for item in items { 详情缓存[item.id] = item }
@@ -272,10 +284,19 @@ final class 作品聚合搜索 {
         var 得分: [String: Double] = [:]
         var 合并: [String: 作品搜索结果] = [:]
         var 标题来源: [String: [[用户多语言标题]]] = [:]
+        // 和 PaperVN Sync 一样：MAL 或 AniList 标明是音乐等条目、又没有平台标明是作品的，不列出
+        var 不可导入: Set<String> = [], 可导入: Set<String> = []
         for index in 请求.indices {
             let (platform, type) = 请求[index]
             for (rank, candidate) in (各平台结果[index] ?? []).enumerated() {
                 guard let item = Self.结果(candidate, 平台: platform, 搜索类型: type) else { continue }
+                if platform == .myAnimeList || platform == .aniList {
+                    switch 作品搜索结果.可导入(格式: candidate.种类?.replacingOccurrences(of: " ", with: "_")) {
+                    case false?: 不可导入.insert(item.id)
+                    case true?: 可导入.insert(item.id)
+                    case nil: break
+                    }
+                }
                 // 多个平台都搜到、排得靠前的作品更可能是要找的
                 得分[item.id, default: 0] += 1 / Double(rank + 2)
                 标题来源[item.id, default: []].append(item.多语言标题)
@@ -292,6 +313,7 @@ final class 作品聚合搜索 {
         for (id, lists) in 标题来源 {
             合并[id]?.多语言标题 = 作品多语言标题.合并(lists)
         }
+        for id in 不可导入.subtracting(可导入) { 合并[id] = nil }
         return 合并.values.sorted {
             let a = 得分[$0.id] ?? 0, b = 得分[$1.id] ?? 0
             return a != b ? a > b : $0.id < $1.id

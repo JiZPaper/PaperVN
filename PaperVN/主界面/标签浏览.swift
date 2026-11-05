@@ -20,6 +20,8 @@ struct 标签浏览: Hashable, Identifiable {
     let 已选: [标签]
     /// 来源作品或角色的标签（按详情页的顺序），“+”菜单里先列出这些
     let 候选: [标签]
+    /// 来源作品或角色的名称，“+”菜单里那一组的标题用
+    var 来源名称 = ""
 
     var id: String { "\(对象)|" + 已选.map(\.值).joined(separator: ",") }
 }
@@ -35,25 +37,53 @@ extension 标签浏览.标签 {
 extension 标签浏览.种类 {
     var 是特征: Bool { self == .角色 }
 
-    /// 详情页按住标签时的菜单项。
-    var 查看单个标签标题: String {
+    /// 详情页按住标签时的菜单项。按住时标签就在菜单上方，菜单里不再写名称。
+    var 搜索单个标签标题: String {
         switch self {
-        case .视觉小说: String(localized: "查看带有此标签的视觉小说")
-        case .角色: String(localized: "查看带有此特征的角色")
-        case .作品(.anime): String(localized: "查看带有此标签的动画")
-        case .作品(.manga): String(localized: "查看带有此标签的漫画")
-        case .作品(.lightNovel): String(localized: "查看带有此标签的轻小说")
-        case .作品(.visualNovel): String(localized: "查看带有此标签的视觉小说")
+        case .视觉小说, .作品(.visualNovel): String(localized: "搜索带有此标签的视觉小说")
+        case .角色: String(localized: "搜索带有此特征的角色")
+        case .作品(.anime): String(localized: "搜索带有此标签的动画")
+        case .作品(.manga): String(localized: "搜索带有此标签的漫画")
+        case .作品(.lightNovel): String(localized: "搜索带有此标签的轻小说")
         }
     }
 
-    /// 结果页“+”菜单里来源作品或角色那一组的标题。
-    var 候选标题: String {
-        是特征 ? String(localized: "此角色的特征") : String(localized: "此作品的标签")
+    /// 全部标签页面底部的按钮：选了一个写名称（““纯爱”动画”），选了多个写数量。
+    func 搜索按钮标题(_ 已选: [标签浏览.标签]) -> String {
+        let count = 已选.count
+        if count == 0 { return String(localized: "搜索") }
+        if count == 1, let name = 已选.first?.名称 {
+            return switch self {
+            case .视觉小说, .作品(.visualNovel): String(localized: "搜索“\(name)”视觉小说")
+            case .角色: String(localized: "搜索“\(name)”角色")
+            case .作品(.anime): String(localized: "搜索“\(name)”动画")
+            case .作品(.manga): String(localized: "搜索“\(name)”漫画")
+            case .作品(.lightNovel): String(localized: "搜索“\(name)”轻小说")
+            }
+        }
+        return switch self {
+        case .视觉小说, .作品(.visualNovel): String(localized: "搜索符合\(count)个标签的视觉小说")
+        case .角色: String(localized: "搜索符合\(count)个特征的角色")
+        case .作品(.anime): String(localized: "搜索符合\(count)个标签的动画")
+        case .作品(.manga): String(localized: "搜索符合\(count)个标签的漫画")
+        case .作品(.lightNovel): String(localized: "搜索符合\(count)个标签的轻小说")
+        }
+    }
+
+    /// 结果页“+”菜单里来源作品或角色那一组的标题，例如““命运石之门”的标签”。
+    func 候选标题(来源 name: String) -> String {
+        if name.isEmpty {
+            return 是特征 ? String(localized: "此角色的特征") : String(localized: "此作品的标签")
+        }
+        return 是特征 ? String(localized: "“\(name)”的特征") : String(localized: "“\(name)”的标签")
     }
 
     var 所有标签标题: String {
         是特征 ? String(localized: "所有特征…") : String(localized: "所有标签…")
+    }
+
+    var 按标签搜索标题: String {
+        是特征 ? String(localized: "按特征搜索") : String(localized: "按标签搜索")
     }
 
     var 添加标题: String {
@@ -76,7 +106,7 @@ extension 标签浏览.种类 {
     }
 }
 
-/// 全部标签、全部特征页面的多选：轻点“选择”后勾选，底部“查看结果”；不在选择时轻点一个标签直接进入。
+/// 全部标签、全部特征页面的多选：轻点放大镜后勾选，底部按钮进入结果页；不在选择时轻点一个标签直接进入。
 struct 标签多选: Equatable {
     var 正在选择 = false
     var 已选: [标签浏览.标签] = []
@@ -87,7 +117,7 @@ struct 标签多选: Equatable {
     }
 
     /// `全部` 是页面上能筛选的所有标签，按显示顺序，进入后作为“+”菜单的候选。
-    mutating func 轻点(_ tag: 标签浏览.标签, 对象: 标签浏览.种类, 全部: [标签浏览.标签]) {
+    mutating func 轻点(_ tag: 标签浏览.标签, 对象: 标签浏览.种类, 全部: [标签浏览.标签], 来源: String) {
         if 正在选择 {
             if let index = 已选.firstIndex(where: { $0.值 == tag.值 }) {
                 已选.remove(at: index)
@@ -95,7 +125,7 @@ struct 标签多选: Equatable {
                 已选.append(tag)
             }
         } else {
-            目标 = 标签浏览(对象: 对象, 已选: [tag], 候选: 全部)
+            目标 = 标签浏览(对象: 对象, 已选: [tag], 候选: 全部, 来源名称: 来源)
         }
     }
 }
@@ -104,6 +134,7 @@ private struct 标签多选修饰器: ViewModifier {
     @Binding var 状态: 标签多选
     let 对象: 标签浏览.种类
     let 全部: [标签浏览.标签]
+    let 来源: String
 
     func body(content: Content) -> some View {
         content
@@ -116,18 +147,23 @@ private struct 标签多选修饰器: ViewModifier {
                                 状态.已选 = []
                             }
                         } label: {
-                            状态.正在选择 ? Text("取消") : Text("选择")
+                            // 按标签找作品就是搜索：放大镜进入勾选，勾选时换成关闭
+                            Image(systemName: 状态.正在选择 ? "xmark" : "magnifyingglass")
+                                .contentTransition(.symbolEffect(.replace))
                         }
+                        .accessibilityLabel(状态.正在选择 ? Text("取消") : Text(verbatim: 对象.按标签搜索标题))
                     }
                 }
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 if 状态.正在选择 {
                     Button {
-                        状态.目标 = 标签浏览(对象: 对象, 已选: 状态.已选, 候选: 全部)
+                        状态.目标 = 标签浏览(对象: 对象, 已选: 状态.已选, 候选: 全部, 来源名称: 来源)
                     } label: {
-                        Text("查看结果")
+                        Text(verbatim: 对象.搜索按钮标题(状态.已选))
                             .font(.headline)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
                             .frame(maxWidth: .infinity)
                     }
                     .buttonBorderShape(.capsule)
@@ -152,9 +188,9 @@ private struct 标签多选修饰器: ViewModifier {
 }
 
 extension View {
-    /// 全部标签、全部特征页面的“选择”按钮、底部“查看结果”和进入结果页。
-    func 支持标签多选(_ 状态: Binding<标签多选>, 对象: 标签浏览.种类, 全部: [标签浏览.标签]) -> some View {
-        modifier(标签多选修饰器(状态: 状态, 对象: 对象, 全部: 全部))
+    /// 全部标签、全部特征页面右上角的放大镜、底部的搜索按钮和进入结果页。
+    func 支持标签多选(_ 状态: Binding<标签多选>, 对象: 标签浏览.种类, 全部: [标签浏览.标签], 来源: String) -> some View {
+        modifier(标签多选修饰器(状态: 状态, 对象: 对象, 全部: 全部, 来源: 来源))
     }
 
     /// 详情页的内联标签：按住时“查看带有此标签的…”。`tag` 为 nil（模糊中或不能筛选）时没有菜单。
@@ -162,6 +198,7 @@ extension View {
         _ tag: 标签浏览.标签?,
         对象: 标签浏览.种类,
         全部: [标签浏览.标签],
+        来源: String,
         目标: Binding<标签浏览?>
     ) -> some View {
         // 菜单内容为空时系统不弹出菜单，模糊中的标签按住没有反应
@@ -169,9 +206,9 @@ extension View {
         .contextMenu {
             if let tag {
                 Button {
-                    目标.wrappedValue = 标签浏览(对象: 对象, 已选: [tag], 候选: 全部)
+                    目标.wrappedValue = 标签浏览(对象: 对象, 已选: [tag], 候选: 全部, 来源名称: 来源)
                 } label: {
-                    Label(对象.查看单个标签标题, systemImage: 对象.图标)
+                    Label(对象.搜索单个标签标题, systemImage: 对象.图标)
                 }
             }
         }
@@ -184,6 +221,7 @@ struct 标签浏览栏: View {
     /// 当前的标签（值与显示名称）
     let 标签: [标签浏览.标签]
     let 候选: [标签浏览.标签]
+    let 来源名称: String
     /// 这组条件是否还是“同时带有”（在筛选里改成“任一”或“排除”后不显示说明）
     let 同时带有: Bool
     let 移除: (String) -> Void
@@ -248,7 +286,7 @@ struct 标签浏览栏: View {
         let 可加 = 候选.filter { !已有.contains($0.值) }.prefix(8)
         return Menu {
             if !可加.isEmpty {
-                Section(对象.候选标题) {
+                Section(对象.候选标题(来源: 来源名称)) {
                     ForEach(Array(可加)) { tag in
                         Button {
                             withAnimation(.snappy(duration: 0.24)) { 添加(tag) }

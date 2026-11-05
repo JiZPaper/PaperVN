@@ -826,6 +826,11 @@ final class VNDB服务: ObservableObject, VNDB搜索服务协议 {
     private var prefetchedRecentVNIDs: Set<String> = []
     private var diskWriteTasks: [UUID: Task<Void, Never>] = [:]
     private var cacheWritesEnabled = true
+    /// VNDB 返回 429 后的冷却：期间新请求先等冷却结束，免得接着撞上限流
+    private var 限流冷却截止: ContinuousClock.Instant?
+    /// 冷却结束后逐个放行的请求时间，所有请求同时重发会再次超出限流
+    private var 冷却后放行时间: ContinuousClock.Instant?
+    private var 连续限流次数 = 0
     private var lastSearchCacheCleanupAt: Date?
     private let cacheDirectory: URL
 
@@ -1026,6 +1031,8 @@ final class VNDB服务: ObservableObject, VNDB搜索服务协议 {
         isDescending: Bool = true,
         forceRefresh: Bool = false
     ) async throws -> [用户列表项目] {
+        // 没登录VNDB时，资料库中的视觉小说就是本地资料库（随 Paper Account 同步）里的
+        if token.isEmpty { return 本地资料库.shared.条目.compactMap(\.vndb) }
         var page = 1
         var values: [用户列表项目] = []
         repeat {
@@ -1290,7 +1297,11 @@ final class VNDB服务: ObservableObject, VNDB搜索服务协议 {
         vnID: String,
         forceRefresh: Bool = false
     ) async throws -> 用户列表项目? {
-        guard !token.isEmpty, !userID.isEmpty else {
+        if token.isEmpty {
+            guard 本地资料库.shared.所有者 != nil else { throw URLError(.userAuthenticationRequired) }
+            return 本地资料库.shared.条目.first { $0.id == 本地资料库条目.视觉小说ID(vnID) }?.vndb
+        }
+        guard !userID.isEmpty else {
             throw URLError(.userAuthenticationRequired)
         }
 
@@ -1328,7 +1339,10 @@ final class VNDB服务: ObservableObject, VNDB搜索服务协议 {
         userID: String,
         vnID: String
     ) -> 用户列表项目? {
-        userItemCacheEntry(
+        if userID.isEmpty {
+            return 本地资料库.shared.条目.first { $0.id == 本地资料库条目.视觉小说ID(vnID) }?.vndb
+        }
+        return userItemCacheEntry(
             for: userItemCacheKey(userID: userID, vnID: vnID)
         )?.value
     }
@@ -1630,6 +1644,36 @@ final class VNDB服务: ObservableObject, VNDB搜索服务协议 {
             from: data
         ).results
         return 按编号排序(results, ids: ids, id: \.id)
+    }
+
+    struct 视觉小说系列节点: Codable {
+        struct 关系: Codable {
+            let id: String
+            let relation: String
+            let relation_official: Bool?
+        }
+        let id: String
+        let title: String
+        let titles: [用户多语言标题]?
+        let released: String?
+        let image: 视觉小说图片?
+        let relations: [关系]?
+    }
+
+    /// 按编号批量获取视觉小说和它们的关系，用来找出同一系列的作品（见 `系列补全`）。
+    func 按编号获取系列关系(_ ids: [String]) async throws -> [视觉小说系列节点] {
+        guard !ids.isEmpty else { return [] }
+        let body: [String: Any] = [
+            "filters": 编号筛选(ids),
+            "fields": "title,titles{lang,title,latin,official,main},released,image{url,thumbnail,sexual,violence},relations{id,relation,relation_official}",
+            "results": min(ids.count, 100),
+        ]
+        let data = try await 执行搜索请求(
+            endpoint: "vn",
+            body: body,
+            cacheKey: "vn_search_series_\(搜索缓存键(query: "", body: body))"
+        )
+        return try JSONDecoder().decode(搜索分页响应<视觉小说系列节点>.self, from: data).results
     }
 
     /// 按编号批量获取角色，字段与搜索结果相同，按传入顺序返回。
@@ -3038,6 +3082,71 @@ final class VNDB服务: ObservableObject, VNDB搜索服务协议 {
         try await patchUserList(token: token, vnID: vnID, values: values)
     }
 
+    /// 回退时把作品整条写回：标签（含状态）、评分、日期与备注都按给定的值，资料库里没有这部作品时会加进去。
+    func restoreUserListEntry(
+        token: String,
+        vnID: String,
+        labels: [Int],
+        vote: Int?,
+        started: String?,
+        finished: String?,
+        notes: String?
+    ) async throws {
+        try await patchUserList(
+            token: token,
+            vnID: vnID,
+            values: [
+                "labels": Array(Set(labels)).sorted(),
+                "vote": vote ?? NSNull(),
+                "started": started ?? NSNull(),
+                "finished": finished ?? NSNull(),
+                "notes": notes ?? NSNull(),
+            ]
+        )
+    }
+
+    /// 一批作品在VNDB上的资料库条目信息，每次最多查100部。VNDB里没有的作品不在结果中。
+    func fetchUserListDetails(vnIDs: [String]) async throws -> [String: 用户列表项目.用户列表详细信息] {
+        struct 编号: Decodable { let id: String }
+        struct 响应<Row: Decodable>: Decodable { let results: [Row] }
+        var result: [String: 用户列表项目.用户列表详细信息] = [:]
+        let ids = Array(Set(vnIDs)).sorted()
+        for start in stride(from: 0, to: ids.count, by: 100) {
+            let batch = Array(ids[start..<min(start + 100, ids.count)])
+            var request = URLRequest(url: URL(string: "\(baseURL)/vn")!)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONSerialization.data(withJSONObject: [
+                "filters": batch.count == 1 ? ["id", "=", batch[0]] as [Any] : ["or"] + batch.map { ["id", "=", $0] as [Any] },
+                "fields": "id,title,titles{lang,title,latin,official,main},image{url,thumbnail,dims,sexual,violence},rating,votecount,released",
+                "results": 100,
+            ] as [String: Any])
+            let data = try await perform(request, accepting: [200])
+            // 同一份结果按顺序解出编号和作品信息
+            let keys = try JSONDecoder().decode(响应<编号>.self, from: data).results
+            let values = try JSONDecoder().decode(响应<用户列表项目.用户列表详细信息>.self, from: data).results
+            for (key, value) in zip(keys, values) { result[key.id] = value }
+        }
+        return result
+    }
+
+    /// 资料库条目需要的作品信息（不需要登录）。没登录VNDB时把作品加入本地资料库用。
+    func fetchUserListDetails(vnID: String) async throws -> 用户列表项目.用户列表详细信息 {
+        struct 响应: Decodable { let results: [用户列表项目.用户列表详细信息] }
+        var request = URLRequest(url: URL(string: "\(baseURL)/vn")!)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "filters": ["id", "=", vnID],
+            "fields": "title,titles{lang,title,latin,official,main},image{url,thumbnail,dims,sexual,violence},rating,votecount,released",
+        ])
+        let data = try await perform(request, accepting: [200])
+        guard let details = try JSONDecoder().decode(响应.self, from: data).results.first else {
+            throw URLError(.fileDoesNotExist)
+        }
+        return details
+    }
+
     func updateUserStatus(
         token: String,
         vnID: String,
@@ -3074,7 +3183,15 @@ final class VNDB服务: ObservableObject, VNDB搜索服务协议 {
         token: String,
         vnID: String
     ) async throws {
+        // 没登录VNDB：只从本地资料库删除，登录VNDB后再同步过去
+        if token.isEmpty {
+            本地资料库.shared.本地删除视觉小说(vnID: vnID)
+            NotificationCenter.default.post(name: .paperVNLibraryDidChange, object: vnID)
+            return
+        }
         try await ensureListWritePermission(token: token)
+        // 记下在 PaperVN 中删除的作品：Bangumi 删不掉收藏，导入 Bangumi 的视觉小说时不能再把它加回来
+        本地资料库.shared.记录已删除视觉小说([本地资料库条目.视觉小说ID(vnID)])
 
         let url = URL(string: "\(baseURL)/ulist/\(vnID)")!
         var request = URLRequest(url: url)
@@ -3093,6 +3210,8 @@ final class VNDB服务: ObservableObject, VNDB搜索服务协议 {
         existingReleaseIDs: [String],
         selectedReleaseID: String?
     ) async throws {
+        // 发行版本只记录在VNDB上
+        guard !token.isEmpty else { return }
         try await ensureListWritePermission(token: token)
 
         for releaseID in existingReleaseIDs where releaseID != selectedReleaseID {
@@ -3456,6 +3575,19 @@ final class VNDB服务: ObservableObject, VNDB搜索服务协议 {
         vnID: String,
         values: [String: Any]
     ) async throws {
+        // 没登录VNDB：写进本地资料库（随 Paper Account 同步），登录VNDB后再写入VNDB
+        if token.isEmpty {
+            try await 本地资料库.shared.本地写入视觉小说(vnID: vnID, values: values)
+            NotificationCenter.default.post(name: .paperVNLibraryDidChange, object: vnID)
+            return
+        }
+        // VNDB的文档说 null 可以清除字段，但 started、finished 传 null 会返回“Invalid 'finished' member.”，
+        // 整次写入失败（这两项的验证规则没有 default => undef）。日期为空时不发送这两项，VNDB上原有的日期保留。
+        var values = values
+        for key in ["started", "finished"] where values[key] is NSNull {
+            values.removeValue(forKey: key)
+        }
+        guard !values.isEmpty else { return }
         try await ensureListWritePermission(token: token)
 
         let url = URL(string: "\(baseURL)/ulist/\(vnID)")!
@@ -3488,10 +3620,17 @@ final class VNDB服务: ObservableObject, VNDB搜索服务协议 {
         accepting statusCodes: Set<Int>
     ) async throws -> Data {
         cacheWritesEnabled = true
+        try await 等待限流冷却()
         let (data, httpResponse) = try await PaperVNConnect网络设置.发送请求(
             request,
             session: session
         )
+
+        if httpResponse.statusCode == 429 {
+            记录限流(httpResponse)
+            throw VNDB服务错误.请求过于频繁
+        }
+        连续限流次数 = 0
 
         if httpResponse.statusCode == 401 {
             throw VNDB服务错误.token无效
@@ -3499,10 +3638,6 @@ final class VNDB服务: ObservableObject, VNDB搜索服务协议 {
 
         if httpResponse.statusCode == 403 {
             throw VNDB服务错误.缺少资料库写入权限
-        }
-
-        if httpResponse.statusCode == 429 {
-            throw VNDB服务错误.请求过于频繁
         }
 
         if [500, 502, 503, 504].contains(httpResponse.statusCode) {
@@ -3519,6 +3654,39 @@ final class VNDB服务: ObservableObject, VNDB搜索服务协议 {
         }
 
         return data
+    }
+
+    private func 等待限流冷却() async throws {
+        let clock = ContinuousClock()
+        while let 截止 = 限流冷却截止 {
+            let now = clock.now
+            if now >= 截止, 冷却后放行时间.map({ now >= $0 }) ?? true {
+                限流冷却截止 = nil
+                冷却后放行时间 = nil
+                return
+            }
+            // 冷却结束后每 0.5 秒放行一个请求
+            let 放行 = 冷却后放行时间.map { max(截止, $0.advanced(by: .milliseconds(500))) } ?? 截止
+            冷却后放行时间 = 放行
+            try await Task.sleep(until: 放行, clock: clock)
+            // 等待期间又被限流时冷却会延后，重新排队
+            if let 新截止 = 限流冷却截止, 新截止 > 截止 { continue }
+            return
+        }
+    }
+
+    private func 记录限流(_ response: HTTPURLResponse) {
+        连续限流次数 += 1
+        // 优先用 Retry-After；没有时按 3、6、12 秒递增，最多 30 秒
+        let 退避秒数 = min(30, 3 << min(连续限流次数 - 1, 4))
+        let 秒数 = response.value(forHTTPHeaderField: "Retry-After")
+            .flatMap(Int.init)
+            .map { min(max($0, 1), 60) } ?? 退避秒数
+        let 截止 = ContinuousClock.now.advanced(by: .seconds(秒数))
+        if 限流冷却截止.map({ 截止 > $0 }) ?? true {
+            限流冷却截止 = 截止
+            冷却后放行时间 = nil
+        }
     }
 }
 
