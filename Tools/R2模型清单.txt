@@ -1,0 +1,2 @@
+# 不进 Git 的大模型文件：<仓库内路径> <R2对象键> <sha256>，由 Tools/R2模型.sh 维护
+PaperVN/Resources/PaperVNSmartSearch.pvss Build/PaperVNSmartSearch-efa11ae97cdae5c6.pvss efa11ae97cdae5c6fef2991fcbe3da98bf8a18d8a34f7889caa5a1e3ed5dab23

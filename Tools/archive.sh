@@ -38,6 +38,9 @@ esac
 
 project_root="$(cd "$(dirname "$0")/.." && pwd)"
 
+# 不进仓库的模型文件（智能搜索模型等）缺失时从 R2 下载。
+"$project_root/Tools/R2模型.sh" 下载
+
 # 视觉小说引擎库不进仓库，归档前要先在本机编译好
 for required in \
     "Dependencies/Siglus/SiglusCore.xcframework:Tools/构建Siglus.sh" \
