@@ -5993,6 +5993,46 @@
         }
       }
     },
+    "Paper账户登录已过期，请重新登录。" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deine Anmeldung bei Paper Account ist abgelaufen. Melde dich erneut an."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your Paper Account sign-in has expired. Sign in again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paper Accountのサインインの有効期限が切れました。もう一度サインインしてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paper 계정 로그인이 만료되었습니다. 다시 로그인하십시오."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Logowanie do konta Paper wygasło. Zaloguj się ponownie."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paper帳號登入已過期，請重新登入。"
+          }
+        }
+      }
+    },
     "PC Engine" : {
       "localizations" : {
         "de" : {
@@ -53222,6 +53262,46 @@
         }
       }
     },
+    "登录已过期" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anmeldung abgelaufen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign-In Expired"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サインインの有効期限切れ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "로그인 만료됨"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Logowanie wygasło"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登入已過期"
+          }
+        }
+      }
+    },
     "登录未完成，请重试。" : {
       "localizations" : {
         "de" : {
@@ -69156,6 +69236,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "配音的角色"
+          }
+        }
+      }
+    },
+    "重新登录以继续同步资料库。在此期间，资料库保留在此设备上。" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Melde dich erneut an, um deine Bibliothek weiter zu synchronisieren. Bis dahin bleibt deine Bibliothek auf diesem Gerät."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign in again to continue syncing your library. In the meantime, your library stays on this device."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ライブラリの同期を続けるには、もう一度サインインしてください。それまでの間、ライブラリはこのデバイスに保持されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "라이브러리 동기화를 계속하려면 다시 로그인하십시오. 그동안 라이브러리는 이 기기에 유지됩니다."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zaloguj się ponownie, aby kontynuować synchronizowanie biblioteki. Do tego czasu biblioteka pozostaje na tym urządzeniu."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新登入以繼續同步資料庫。在此期間，資料庫保留在此裝置上。"
           }
         }
       }

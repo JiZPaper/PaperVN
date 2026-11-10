@@ -7,9 +7,9 @@ public nonisolated enum 智能搜索模型错误: LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .文件无效:
-            return "Hiro智能模型文件无效或格式版本不受支持。"
+            return "智能搜索模型文件无效或格式版本不受支持。"
         case let .缺少数据(名称):
-            return "Hiro智能模型文件缺少数据：\(名称)。"
+            return "智能搜索模型文件缺少数据：\(名称)。"
         }
     }
 }
@@ -40,7 +40,7 @@ nonisolated final class 只读映射文件: @unchecked Sendable {
     }
 }
 
-/// Hiro智能的模型文件：
+/// 智能搜索模型文件：
 /// "PVSS" | 格式版本 UInt32 | 头长度 UInt32 | 头 JSON | 各段数据（16 字节对齐，小端序）。
 public nonisolated struct 智能搜索模型文件: @unchecked Sendable {
     /// 2：纯名称模糊匹配（名称索引 + 排序器），不再包含查询编码器。

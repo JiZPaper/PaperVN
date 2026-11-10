@@ -42,7 +42,7 @@ python3 "Tools/收集Paparu视觉小说图像数据集.py" --skip-bangumi
 
 # 智能搜索模型
 
-搜索页的智能搜索模型（Paper智能）是一个在设备上运行的名称模糊匹配模型（`PaperVNSmartSearch.pvss`），App 安装包里预装了一份，更新放在 `https://r2-papervn.jizpaper.com/Resources/PaperVNSmartSearch-v4.pvss`（格式 4；旧版 App 只认得格式 3，仍从 `Resources/PaperVNSmartSearch.pvss` 下载，那个文件不要覆盖）。模型文件超过 GitHub 的 100 MB 限制，不进仓库：克隆后先运行 `Tools/R2模型.sh 下载`（`archive.sh` 会自动运行），它按 `Tools/R2模型清单.txt` 从 R2 的 `Build/` 目录下载并核对校验值；换了新模型要运行 `Tools/R2模型.sh 发布 PaperVN/Resources/PaperVNSmartSearch.pvss` 上传并更新清单，再提交清单。`Build/` 只给开发用，App 不读取，上传不会触发更新提示。仓库里有 App 端的读取、搜索代码（`PaperVN/智能搜索/`，公开的 `Packages/HiroIntelligence` 和服务器的 `deploy/vps/hiro-search.mjs` 是同一套逻辑，要一起改），训练方式与数据不公开。
+搜索页的智能搜索模型（Paper智能）是一个在设备上运行的名称模糊匹配模型（`PaperVNSmartSearch.pvss`），App 安装包里预装了一份，更新放在 `https://r2-papervn.jizpaper.com/Resources/PaperVNSmartSearch-v4.pvss`（格式 4；旧版 App 只认得格式 3，仍从 `Resources/PaperVNSmartSearch.pvss` 下载，那个文件不要覆盖）。模型文件超过 GitHub 的 100 MB 限制，不进仓库：克隆后先运行 `Tools/R2模型.sh 下载`（`archive.sh` 会自动运行），它按 `Tools/R2模型清单.txt` 从 R2 的 `Build/` 目录下载并核对校验值；换了新模型要运行 `Tools/R2模型.sh 发布 PaperVN/Resources/PaperVNSmartSearch.pvss` 上传并更新清单，再提交清单。`Build/` 只给开发用，App 不读取，上传不会触发更新提示。仓库里有 App 端的读取、搜索代码（`PaperVN/智能搜索/`，公开的 `Packages/Paper Intelligence` 和服务器的 `deploy/vps/hiro-search.mjs` 是同一套逻辑，要一起改），训练方式与数据不公开。
 
 发布新模型时，`PaperVN/Resources/PaperVNSmartSearch.pvss` 必须和 R2 上的文件一致，否则装好 App 的用户会马上收到一次没有必要的更新提示：
 

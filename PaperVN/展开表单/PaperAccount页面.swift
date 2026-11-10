@@ -22,6 +22,18 @@ struct PaperAccount页面: View {
             }
 
             if let profile = account.资料 {
+                if account.登录已过期 {
+                    Section {
+                        Paper账户登录按钮(errorMessage: $errorMessage)
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                    } header: {
+                        Text("登录已过期")
+                    } footer: {
+                        Text("重新登录以继续同步资料库。在此期间，资料库保留在此设备上。")
+                    }
+                }
+
                 Section {
                     NavigationLink {
                         PaperAccount昵称页面(nickname: profile.nickname ?? "")

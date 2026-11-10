@@ -1,10 +1,10 @@
 import Foundation
 import Testing
-@testable import HiroIntelligence
+@testable import PaperIntelligence
 
-/// 用 App 里预装的模型测试；也可以用环境变量 HIRO_INTELLIGENCE_MODEL 指定其他模型文件。
+/// 用 App 里预装的模型测试；也可以用环境变量 PAPER_INTELLIGENCE_MODEL 指定其他模型文件。
 private let 模型URL: URL? = {
-    if let 路径 = ProcessInfo.processInfo.environment["HIRO_INTELLIGENCE_MODEL"] {
+    if let 路径 = ProcessInfo.processInfo.environment["PAPER_INTELLIGENCE_MODEL"] {
         return URL(fileURLWithPath: 路径)
     }
     let 预装 = URL(fileURLWithPath: #filePath)
@@ -40,8 +40,8 @@ struct 智能搜索引擎测试 {
         #expect(前五.contains("v2002"))
     }
 
-    /// 和生成模型时 Python 算出的结果比较（HIRO_INTELLIGENCE_PARITY 指定样例文件）。
-    @Test(.enabled(if: ProcessInfo.processInfo.environment["HIRO_INTELLIGENCE_PARITY"] != nil))
+    /// 和生成模型时 Python 算出的结果比较（PAPER_INTELLIGENCE_PARITY 指定样例文件）。
+    @Test(.enabled(if: ProcessInfo.processInfo.environment["PAPER_INTELLIGENCE_PARITY"] != nil))
     func 与生成模型时一致() async throws {
         struct 样例: Decodable {
             struct 结果: Decodable {
@@ -52,7 +52,7 @@ struct 智能搜索引擎测试 {
             let results: [结果]
             let null: Float
         }
-        let 路径 = ProcessInfo.processInfo.environment["HIRO_INTELLIGENCE_PARITY"]!
+        let 路径 = ProcessInfo.processInfo.environment["PAPER_INTELLIGENCE_PARITY"]!
         let 样例们 = try JSONDecoder().decode([样例].self, from: Data(contentsOf: URL(fileURLWithPath: 路径)))
         for 例 in 样例们 {
             let 结果 = try await 引擎.搜索(例.query, 数量: 400)

@@ -1,6 +1,6 @@
-# HiroIntelligence
+# Paper Intelligence
 
-PaperVN 搜索页 Hiro智能 的设备端名称模糊匹配，抽成独立的 Swift Package。读取 `.pvss` 模型文件，按名称搜索视觉小说、角色、会社、制作人员、动画、漫画和轻小说；查询文本不会离开设备。
+PaperVN 搜索页智能搜索模型（Paper智能）的设备端名称模糊匹配，抽成独立的 Swift Package。读取 `.pvss` 模型文件，按名称搜索视觉小说、角色、会社、制作人员、动画、漫画和轻小说；查询文本不会离开设备。
 
 App 里的原版代码仍在 `PaperVN/智能搜索/`，这里是同一套搜索逻辑去掉了 App 专用的部分（模型下载、存储位置、本地化文案）。修改搜索逻辑时两边要一起改。
 
@@ -19,7 +19,7 @@ App 安装包里预装的一份在 `PaperVN/Resources/PaperVNSmartSearch.pvss`�
 ## 使用
 
 ```swift
-import HiroIntelligence
+import PaperIntelligence
 
 let 引擎 = 智能搜索引擎(模型URL: 模型文件URL)
 let 结果 = try await 引擎.搜索("Ever17")
@@ -44,7 +44,7 @@ for 命中 in 结果.命中 {
 swift test
 ```
 
-默认使用 App 里预装的模型，也可以用环境变量 `HIRO_INTELLIGENCE_MODEL` 指定模型文件；找不到模型时跳过测试。环境变量 `HIRO_INTELLIGENCE_PARITY` 指定一份一致性样例（生成模型时一起输出的查询与前 5 个结果）时，会检查这里算出的结果和生成模型时的一致。
+默认使用 App 里预装的模型，也可以用环境变量 `PAPER_INTELLIGENCE_MODEL` 指定模型文件；找不到模型时跳过测试。环境变量 `PAPER_INTELLIGENCE_PARITY` 指定一份一致性样例（生成模型时一起输出的查询与前 5 个结果）时，会检查这里算出的结果和生成模型时的一致。
 
 ## 许可
 

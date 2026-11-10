@@ -2,20 +2,20 @@
 import PackageDescription
 
 let package = Package(
-    name: "HiroIntelligence",
+    name: "Paper Intelligence",
     platforms: [
         .iOS(.v18),
         .macOS(.v15),
         .visionOS(.v2),
     ],
     products: [
-        .library(name: "HiroIntelligence", targets: ["HiroIntelligence"]),
+        .library(name: "PaperIntelligence", targets: ["PaperIntelligence"]),
     ],
     targets: [
-        .target(name: "HiroIntelligence"),
+        .target(name: "PaperIntelligence"),
         .testTarget(
-            name: "HiroIntelligenceTests",
-            dependencies: ["HiroIntelligence"]
+            name: "PaperIntelligenceTests",
+            dependencies: ["PaperIntelligence"]
         ),
     ]
 )

@@ -660,11 +660,13 @@ private struct 账户页面: View {
                     PaperAccount页面()
                         .账户与设置关闭按钮(isVisible: showsCloseButton, action: closeAction)
                 } label: {
-                    accountRow("Paper账户", status: accountStatus(
-                        isLoggedIn: paperAccount.isLoggedIn,
-                        isLoading: paperAccount.正在登录,
-                        name: paperAccount.资料?.nickname
-                    ))
+                    accountRow("Paper账户", status: paperAccount.登录已过期 && !paperAccount.正在登录
+                        ? Text("登录已过期")
+                        : accountStatus(
+                            isLoggedIn: paperAccount.isLoggedIn,
+                            isLoading: paperAccount.正在登录,
+                            name: paperAccount.资料?.nickname
+                        ))
                 }
             } footer: {
                 Text("Today推荐使用Paper账户。登录后，这台设备上的反馈和数据维护内容会转入账户。")

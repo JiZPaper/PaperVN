@@ -10,6 +10,8 @@ nonisolated enum 系统状态服务类型: String, Codable, CaseIterable, Sendab
     case hiroAPI = "hiroAPI"
     case sync = "paperVNSync"
     case paperAccount = "paperAccount"
+    /// 主题曲映射的每日更新（服务器每天匹配新番的主题曲）
+    case themeSongs = "paperVNThemeSongs"
 
     var defaultName: String {
         switch self {
@@ -20,6 +22,7 @@ nonisolated enum 系统状态服务类型: String, Codable, CaseIterable, Sendab
         case .hiroAPI: return "Hiro API"
         case .sync: return "PaperVN Sync"
         case .paperAccount: return String(localized: "Paper账户")
+        case .themeSongs: return String(localized: "主题曲")
         }
     }
 }

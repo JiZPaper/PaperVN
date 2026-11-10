@@ -54,3 +54,9 @@ Dependencies/KiriKiri/下载资源/
 
 # 大模型文件不进仓库，从 R2 下载：Tools/R2模型.sh 下载（清单在 Tools/R2模型清单.txt）
 PaperVN/Resources/PaperVNSmartSearch.pvss
+
+# 内部文档，只留在本地
+docs/Apple用语术语表.md
+docs/MyAnimeList-API申请.md
+docs/PaperVN Sync新增字段审查.md
+docs/作品映射审计报告.md

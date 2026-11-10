@@ -11,6 +11,10 @@ enum PaperAccount配置 {
     static let 地址 = URL(string: "https://account.jizpaper.com/")!
     static let 自动备份键 = "paperAccountAutomaticBackup"
     static let 高级数据保护键 = "paperAccountAdvancedDataProtection"
+    /// 账户资料的副本（不含令牌）：钥匙串暂时读不出来时（例如开机后还没解锁过）仍然知道登录的是哪个账户，资料库不会换成别人的。
+    static let 资料副本键 = "paperAccountProfile"
+    /// 登录已过期、需要重新登录。
+    static let 登录已过期键 = "paperAccountSessionExpired"
 }
 
 nonisolated struct PaperAccount资料: Codable, Equatable, Sendable {
@@ -49,10 +53,12 @@ enum PaperAccount错误: LocalizedError {
     case 服务(code: String, message: String)
     case 无效响应
     case 需要恢复密钥
+    case 登录已过期
 
     var errorDescription: String? {
         switch self {
         case .未登录: String(localized: "请先登录Paper账户。")
+        case .登录已过期: String(localized: "Paper账户登录已过期，请重新登录。")
         case .需要恢复密钥: String(localized: "此账户已打开高级数据保护。输入恢复密钥以在此设备上访问Paper Cloud数据。")
         case let .服务(_, message): message
         case .无效响应: String(localized: "Paper账户暂时不可用。")
@@ -103,6 +109,8 @@ final class PaperAccount账户: ObservableObject {
     @Published private(set) var 登录挑战: String?
     /// 服务器上的高级数据保护设置，没有开启时为 nil。缓存在本机，打开页面时不用等网络。
     @Published private(set) var 高级数据保护设置: 高级数据保护.云端设置?
+    /// 登录已过期：账户资料保留（资料库仍属于这个账户，不会换成VNDB或此设备上的资料库），需要重新登录才能同步。
+    @Published private(set) var 登录已过期 = UserDefaults.standard.bool(forKey: PaperAccount配置.登录已过期键)
 
     var isLoggedIn: Bool { 资料 != nil }
     var 已开启高级数据保护: Bool { 高级数据保护设置 != nil }
@@ -120,6 +128,10 @@ final class PaperAccount账户: ObservableObject {
 
     private let 凭据存储 = 钥匙串凭据存储<PaperAccount凭据>(service: "com.jizpaper.PaperVN.paper-account")
     private var 凭据: PaperAccount凭据?
+    /// 启动时钥匙串读不出来（不是没有登录）：之后用到令牌时再读一次。
+    private var 凭据待读取 = false
+    /// 新令牌没能存进钥匙串：服务器已经换了令牌，钥匙串里的旧令牌下次启动时会被当成过期，之后用到令牌时再存一次。
+    private var 凭据待保存 = false
     private var 刷新任务: Task<PaperAccount凭据, Error>?
     private var 备份任务: Task<Void, Never>?
     private var 同步任务: Task<Void, Never>?
@@ -127,8 +139,16 @@ final class PaperAccount账户: ObservableObject {
     private let 设备验证 = PaperAccount设备验证()
 
     private init() {
-        凭据 = try? 凭据存储.read()
-        资料 = 凭据?.account
+        do {
+            凭据 = try 凭据存储.read()
+        } catch {
+            凭据待读取 = true
+        }
+        // 钥匙串暂时读不出来时用资料副本：否则资料库会被当成没有登录 Paper账户，换成VNDB名下的旧资料库
+        资料 = 凭据?.account ?? (凭据待读取 ? Self.读取资料副本() : nil)
+        if let account = 凭据?.account, let data = try? JSONEncoder().encode(account) {
+            UserDefaults.standard.set(data, forKey: PaperAccount配置.资料副本键)
+        }
         上次备份时间 = UserDefaults.standard.object(forKey: "paperAccountLastBackup") as? Date
         高级数据保护设置 = UserDefaults.standard.data(forKey: PaperAccount配置.高级数据保护键)
             .flatMap { try? JSONDecoder().decode(高级数据保护.云端设置.self, from: $0) }
@@ -202,6 +222,19 @@ final class PaperAccount账户: ObservableObject {
         // 登录后资料库改属 Paper Account（由 资料库身份 搬过去），随后同步
     }
 
+    private static func 读取资料副本() -> PaperAccount资料? {
+        UserDefaults.standard.data(forKey: PaperAccount配置.资料副本键).flatMap { try? JSONDecoder().decode(PaperAccount资料.self, from: $0) }
+    }
+
+    /// 刷新令牌被服务器拒绝（过期、设备验证失效）：保留账户资料，资料库仍属于这个账户，等用户重新登录。
+    /// 以前在这里直接清除登录，资料库会悄悄换成VNDB名下很久以前的资料库，同步时把之后的修改都当成“其他平台上的更改”。
+    private func 标记登录已过期() {
+        登录已过期 = true
+        UserDefaults.standard.set(true, forKey: PaperAccount配置.登录已过期键)
+        备份任务?.cancel()
+        备份错误 = PaperAccount错误.登录已过期.localizedDescription
+    }
+
     func 退出登录() async {
         if let refreshToken = 凭据?.refreshToken,
            let data = try? JSONSerialization.data(withJSONObject: ["refreshToken": refreshToken]) {
@@ -213,7 +246,12 @@ final class PaperAccount账户: ObservableObject {
     private func 清除本机凭据() {
         凭据存储.delete()
         凭据 = nil
+        凭据待读取 = false
+        凭据待保存 = false
         资料 = nil
+        登录已过期 = false
+        UserDefaults.standard.removeObject(forKey: PaperAccount配置.登录已过期键)
+        UserDefaults.standard.removeObject(forKey: PaperAccount配置.资料副本键)
         云端资料库 = []
         备份任务?.cancel()
         UserDefaults.standard.removeObject(forKey: "paperAccountLastBackup")
@@ -369,6 +407,10 @@ final class PaperAccount账户: ObservableObject {
     /// 资料库属于 Paper Account 时（只登录了 Paper Account 也可以），这就是资料库唯一的同步来源。
     func 同步资料库() async {
         guard isLoggedIn, 自动备份 else { return }
+        guard !登录已过期 else {
+            备份错误 = PaperAccount错误.登录已过期.localizedDescription
+            return
+        }
         if let 同步任务 {
             await 同步任务.value
             return
@@ -574,7 +616,14 @@ final class PaperAccount账户: ObservableObject {
 
     /// 其他服务（反馈、Today 推荐、翻译）使用的访问令牌，快过期时自动刷新。
     func 访问令牌() async throws -> String {
-        guard var credentials = 凭据 else { throw PaperAccount错误.未登录 }
+        if 登录已过期 { throw PaperAccount错误.登录已过期 }
+        if 凭据待读取, let stored = try? 凭据存储.read() {
+            凭据待读取 = false
+            凭据 = stored
+            if 资料 != stored.account { 资料 = stored.account }
+        }
+        if 凭据待保存, let 凭据 { 保存凭据(凭据) }
+        guard var credentials = 凭据 else { throw 凭据待读取 ? PaperAccount错误.无效响应 : PaperAccount错误.未登录 }
         if credentials.accessTokenExpiresAt.timeIntervalSinceNow < 60 {
             credentials = try await 刷新()
         }
@@ -600,10 +649,13 @@ final class PaperAccount账户: ObservableObject {
                 )
                 self.保存凭据(credentials)
                 return credentials
-            } catch let error as PaperAccount错误 where ["session_expired", "account_not_found"].contains(error.code)
-                        || error.code?.hasPrefix("app_attest") == true {
+            } catch let error as PaperAccount错误 where error.code == "account_not_found" {
+                // 账户已经删除（例如在其他设备上注销）
                 self.清除本机凭据()
                 throw error
+            } catch let error as PaperAccount错误 where error.code == "session_expired" || error.code?.hasPrefix("app_attest") == true {
+                self.标记登录已过期()
+                throw PaperAccount错误.登录已过期
             }
         }
         刷新任务 = task
@@ -612,9 +664,23 @@ final class PaperAccount账户: ObservableObject {
     }
 
     private func 保存凭据(_ credentials: PaperAccount凭据) {
-        try? 凭据存储.save(credentials)
+        do {
+            try 凭据存储.save(credentials)
+            凭据待保存 = false
+        } catch {
+            凭据待保存 = true
+        }
         凭据 = credentials
+        凭据待读取 = false
         if 资料 != credentials.account { 资料 = credentials.account }
+        if let data = try? JSONEncoder().encode(credentials.account) {
+            UserDefaults.standard.set(data, forKey: PaperAccount配置.资料副本键)
+        }
+        if 登录已过期 {
+            登录已过期 = false
+            UserDefaults.standard.removeObject(forKey: PaperAccount配置.登录已过期键)
+            备份错误 = nil
+        }
     }
 
     // MARK: 设备验证
