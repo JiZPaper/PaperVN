@@ -2975,6 +2975,86 @@
         }
       }
     },
+    "Apple Music中没有动画中的演唱阵容。" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Besetzung aus dem Anime ist nicht auf Apple Music verfügbar."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The lineup from the anime isn’t available on Apple Music."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アニメで使われた歌唱メンバーの音源はApple Musicにありません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "애니메이션에 나온 가창 구성은 Apple Music에 없습니다."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Obsada wokalna z anime nie jest dostępna w Apple Music."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Music中沒有動畫中的演唱陣容。"
+          }
+        }
+      }
+    },
+    "Apple Music中没有动画中的版本。" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Version aus dem Anime ist nicht auf Apple Music verfügbar."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The version from the anime isn’t available on Apple Music."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アニメで使われたバージョンはApple Musicにありません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "애니메이션에 나온 버전은 Apple Music에 없습니다."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wersja z anime nie jest dostępna w Apple Music."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Music中沒有動畫中的版本。"
+          }
+        }
+      }
+    },
     "Apple Music中没有这首歌" : {
       "localizations" : {
         "de" : {
@@ -3011,6 +3091,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Apple Music中沒有這首歌"
+          }
+        }
+      }
+    },
+    "Apple Music中没有这首歌的完整版。" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die vollständige Version dieses Titels ist nicht auf Apple Music verfügbar."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The full version of this song isn’t available on Apple Music."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この曲のフルバージョンはApple Musicにありません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 노래의 전체 버전은 Apple Music에 없습니다."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pełna wersja tego utworu nie jest dostępna w Apple Music."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Music中沒有這首歌的完整版。"
           }
         }
       }
@@ -3617,6 +3737,46 @@
         }
       }
     },
+    "Flash支持内容" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flash-Unterstützung"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flash support"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flashに必要なもの"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flash 지원"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "pliki obsługi Flash"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flash支援內容"
+          }
+        }
+      }
+    },
     "FM Towns" : {
       "localizations" : {
         "de" : {
@@ -4061,6 +4221,46 @@
     "JiZPaper@gmail.com" : {
       "shouldTranslate" : false
     },
+    "KiriKiri支持内容" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KiriKiri-Unterstützung"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KiriKiri support"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KiriKiriに必要なもの"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KiriKiri 지원"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "pliki obsługi KiriKiri"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KiriKiri支援內容"
+          }
+        }
+      }
+    },
     "Linux" : {
       "localizations" : {
         "de" : {
@@ -4177,6 +4377,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "macOS"
+          }
+        }
+      }
+    },
+    "MIDI音色" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MIDI-Klänge"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MIDI sounds"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MIDI音源"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MIDI 음원"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "dźwięki MIDI"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MIDI音色"
           }
         }
       }
@@ -6273,6 +6513,46 @@
         }
       }
     },
+    "Ren'Py支持内容" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ren'Py-Unterstützung"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ren'Py support"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ren'Pyに必要なもの"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ren'Py 지원"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "pliki obsługi Ren'Py"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ren'Py支援內容"
+          }
+        }
+      }
+    },
     "Sega Saturn" : {
       "localizations" : {
         "de" : {
@@ -8037,6 +8317,46 @@
         }
       }
     },
+    "下载（%@）" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Laden (%@)"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download (%@)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ダウンロード（%@）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다운로드(%@)"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pobierz (%@)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下載（%@）"
+          }
+        }
+      }
+    },
     "下载中断，下次继续" : {
       "localizations" : {
         "de" : {
@@ -8233,6 +8553,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "下載的檔案中沒有可用的簡介翻譯目錄。"
+          }
+        }
+      }
+    },
+    "下载的文件已损坏。" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die geladene Datei ist beschädigt."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The downloaded file is damaged."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ダウンロードしたファイルが壊れています。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다운로드한 파일이 손상되었습니다."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pobrany plik jest uszkodzony."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下載的檔案已毀損。"
           }
         }
       }
@@ -14341,6 +14701,46 @@
         }
       }
     },
+    "储存空间不足" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht genügend Speicherplatz verfügbar"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not Enough Storage Space"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ストレージ領域不足"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "저장 공간 부족"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Brak wolnego miejsca"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存空間不足"
+          }
+        }
+      }
+    },
     "允许非官方标题" : {
       "localizations" : {
         "de" : {
@@ -15311,36 +15711,35 @@
       }
     },
     "其他版本" : {
-      "extractionState" : "manual",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Andere Versionen"
+            "value" : "Andere Version"
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Other Versions"
+            "value" : "Other Version"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "その他のバージョン"
+            "value" : "別バージョン"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "기타 버전"
+            "value" : "다른 버전"
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Inne wersje"
+            "value" : "Inna wersja"
           }
         },
         "zh-Hant" : {
@@ -15388,6 +15787,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "其他資料庫"
+          }
+        }
+      }
+    },
+    "其他阵容" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Andere Besetzung"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Different Lineup"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "別メンバー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다른 구성"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inna obsada"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "其他陣容"
           }
         }
       }
@@ -16923,6 +17362,46 @@
         }
       }
     },
+    "删除视觉小说运行资源" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Visual-Novel-Ressourcen löschen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Visual Novel Resources"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ビジュアルノベルのリソースを削除"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "비주얼 노벨 리소스 삭제"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usuń zasoby visual novel"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刪除視覺小說執行資源"
+          }
+        }
+      }
+    },
     "删除筛选条件" : {
       "localizations" : {
         "de" : {
@@ -17561,6 +18040,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "劇透模糊等級"
+          }
+        }
+      }
+    },
+    "剪辑版本" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geschnittene Version"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edited Version"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編集バージョン"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "편집 버전"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wersja skrócona"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "剪輯版本"
           }
         }
       }
@@ -19712,46 +20231,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "發行類型"
-          }
-        }
-      }
-    },
-    "发送回复" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Antwort senden"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Send Reply"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "返信を送信"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "답장 보내기"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Wyślij odpowiedź"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "傳送回覆"
           }
         }
       }
@@ -26870,6 +27349,46 @@
         }
       }
     },
+    "已提交报告" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bericht eingereicht"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Report Submitted"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "報告を投稿しました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "보고서를 제출했습니다"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Przesłano zgłoszenie"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已送出報告"
+          }
+        }
+      }
+    },
     "已提交翻译" : {
       "localizations" : {
         "de" : {
@@ -26906,6 +27425,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已送出翻譯"
+          }
+        }
+      }
+    },
+    "已提交音乐" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Musik eingereicht"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Music Submitted"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "音楽を投稿しました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "음악을 제출했습니다"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Przesłano muzykę"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已送出音樂"
           }
         }
       }
@@ -31452,6 +32011,46 @@
         }
       }
     },
+    "找不到“game”文件夹。" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Ordner „game“ wurde nicht gefunden."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can’t find the “game” folder."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「game」フォルダが見つかりません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "‘game’ 폴더를 찾을 수 없습니다."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nie można znaleźć folderu „game”."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到「game」檔案夾。"
+          }
+        }
+      }
+    },
     "找不到此视觉小说的文件夹。" : {
       "localizations" : {
         "de" : {
@@ -35732,6 +36331,46 @@
         }
       }
     },
+    "撰写回复…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Antwort verfassen …"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Write a reply…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "返信を書く…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "답장 작성…"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Napisz odpowiedź…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "撰寫回覆⋯"
+          }
+        }
+      }
+    },
     "撰写评论…" : {
       "localizations" : {
         "de" : {
@@ -37618,6 +38257,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法下載簡介翻譯"
+          }
+        }
+      }
+    },
+    "无法下载资源" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ressourcen können nicht geladen werden"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unable to Download Resources"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リソースをダウンロードできません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "리소스를 다운로드할 수 없음"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nie można pobrać zasobów"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法下載資源"
           }
         }
       }
@@ -39619,6 +40298,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法讀取附件"
+          }
+        }
+      }
+    },
+    "无法运行此视觉小说：%@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Visual Novel kann nicht gespielt werden: %@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unable to play this visual novel: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このビジュアルノベルをプレイできません：%@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 비주얼 노벨을 플레이할 수 없습니다: %@"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nie można uruchomić tej visual novel: %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法執行此視覺小說：%@"
           }
         }
       }
@@ -45388,6 +46107,46 @@
         }
       }
     },
+    "模拟器" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Emulator"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Emulator"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "エミュレータ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "에뮬레이터"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Emulator"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模擬器"
+          }
+        }
+      }
+    },
     "模拟的资料库" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -46037,6 +46796,46 @@
         }
       }
     },
+    "正在下载资源…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ressourcen werden geladen …"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downloading Resources…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リソースをダウンロード中…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "리소스 다운로드 중…"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pobieram zasoby…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在下載資源⋯"
+          }
+        }
+      }
+    },
     "正在准备推荐…" : {
       "localizations" : {
         "de" : {
@@ -46353,6 +47152,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在安裝智慧搜尋模型⋯"
+          }
+        }
+      }
+    },
+    "正在安装资源…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ressourcen werden installiert …"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installing Resources…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リソースをインストール中…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "리소스 설치 중…"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Instaluję zasoby…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在安裝資源⋯"
           }
         }
       }
@@ -53350,46 +54189,6 @@
         }
       }
     },
-    "模拟器" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Emulator"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Emulator"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "エミュレータ"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "에뮬레이터"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Emulator"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "模擬器"
-          }
-        }
-      }
-    },
     "视觉小说标题" : {
       "localizations" : {
         "de" : {
@@ -59714,6 +60513,46 @@
         }
       }
     },
+    "要删除视觉小说运行资源吗？" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Visual-Novel-Ressourcen löschen?"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete visual novel resources?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ビジュアルノベルのリソースを削除しますか?"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "비주얼 노벨 리소스를 삭제하시겠습니까?"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usunąć zasoby visual novel?"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要刪除視覺小說執行資源嗎？"
+          }
+        }
+      }
+    },
     "要删除缓存吗？" : {
       "localizations" : {
         "de" : {
@@ -63237,6 +64076,86 @@
         }
       }
     },
+    "谢谢！你添加的音乐已提交以供审核。" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Danke! Die von dir hinzugefügte Musik wurde zur Prüfung eingereicht."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thank you! The music you added has been submitted for review."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ありがとうございます！追加した音楽を審査に投稿しました。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "감사합니다! 추가한 음악이 검토를 위해 제출되었습니다."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dziękujemy! Dodana muzyka została przesłana do sprawdzenia."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "謝謝！你加入的音樂已送出審核。"
+          }
+        }
+      }
+    },
+    "谢谢！你的报告已提交以供审核。" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Danke! Dein Bericht wurde zur Prüfung eingereicht."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thank you! Your report has been submitted for review."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ありがとうございます！報告を審査に投稿しました。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "감사합니다! 보고서가 검토를 위해 제출되었습니다."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dziękujemy! Twoje zgłoszenie zostało przesłane do sprawdzenia."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "謝謝！你的報告已送出審核。"
+          }
+        }
+      }
+    },
     "谢谢！你的翻译已提交以供审核。" : {
       "localizations" : {
         "de" : {
@@ -64898,6 +65817,46 @@
         }
       }
     },
+    "辅助点按" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sekundärklick"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Secondary Click"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "副ボタンのクリック"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "보조 클릭"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dodatkowe kliknięcie"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "輔助按鈕"
+          }
+        }
+      }
+    },
     "输入0到%lld之间的数字。" : {
       "localizations" : {
         "de" : {
@@ -65264,6 +66223,46 @@
         }
       }
     },
+    "运行此视觉小说需要下载%@。" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zum Spielen dieser Visual Novel ist der Download von %@ erforderlich."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playing this visual novel requires downloading %@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このビジュアルノベルをプレイするには、%@のダウンロードが必要です。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 비주얼 노벨을 플레이하려면 %@을(를) 다운로드해야 합니다."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aby uruchomić tę visual novel, pobierz: %@."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "執行此視覺小說需要下載%@。"
+          }
+        }
+      }
+    },
     "运行视觉小说" : {
       "localizations" : {
         "de" : {
@@ -65300,6 +66299,92 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "執行視覺小說"
+          }
+        }
+      }
+    },
+    "运行资源.字体" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schriften"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "fonts"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フォント"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "서체"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "czcionki"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "字体"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "字體"
+          }
+        }
+      }
+    },
+    "运行需要这些资源的视觉小说时将重新下载。" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sie werden erneut geladen, wenn du eine Visual Novel spielst, die sie benötigt."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "They will be downloaded again when you play a visual novel that needs them."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "これらを必要とするビジュアルノベルをプレイするときに、再度ダウンロードされます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "리소스가 필요한 비주얼 노벨을 플레이할 때 다시 다운로드됩니다."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zostaną pobrane ponownie po uruchomieniu visual novel, która ich wymaga."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "執行需要這些資源的視覺小說時將重新下載。"
           }
         }
       }
@@ -66065,6 +67150,7 @@
       }
     },
     "这项提交将在审核后公开。请勿重复提交相同内容。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -69117,6 +70203,86 @@
         }
       }
     },
+    "需要%@可用空间才能下载资源。" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ freier Speicherplatz wird benötigt, um Ressourcen zu laden."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ of free space is required to download resources."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リソースのダウンロードには、%@の空き領域が必要です。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "리소스를 다운로드하려면 %@의 여유 공간이 필요합니다."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Do pobrania zasobów potrzeba %@ wolnego miejsca."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要%@可用空間才能下載資源。"
+          }
+        }
+      }
+    },
+    "需要下载资源" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download erforderlich"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download Required"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ダウンロードが必要です"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다운로드 필요"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wymagane pobranie"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要下載資源"
+          }
+        }
+      }
+    },
     "需要先在App配置中设置%@的Client ID。" : {
       "localizations" : {
         "de" : {
@@ -70770,126 +71936,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "黑名單"
-          }
-        }
-      }
-    },
-    "辅助点按" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sekundärklick"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Secondary Click"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "副ボタンのクリック"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "보조 클릭"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dodatkowe kliknięcie"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "輔助按鈕"
-          }
-        }
-      }
-    },
-    "无法运行此视觉小说：%@" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Visual Novel kann nicht gespielt werden: %@"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Unable to play this visual novel: %@"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "このビジュアルノベルをプレイできません：%@"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "이 비주얼 노벨을 플레이할 수 없습니다: %@"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nie można uruchomić tej visual novel: %@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "無法執行此視覺小說：%@"
-          }
-        }
-      }
-    },
-    "找不到“game”文件夹。" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Der Ordner „game“ wurde nicht gefunden."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Can’t find the “game” folder."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "「game」フォルダが見つかりません。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "‘game’ 폴더를 찾을 수 없습니다."
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nie można znaleźć folderu „game”."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "找不到「game」檔案夾。"
           }
         }
       }

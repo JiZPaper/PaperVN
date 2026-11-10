@@ -3013,56 +3013,14 @@ struct 视觉小说详情: View {
     }
 
     private func commentComposer(displayName: String) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            TextField("撰写评论…", text: $commentDraft, axis: .vertical)
-                .lineLimit(3...7)
-                .textFieldStyle(.plain)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .background(
-                    Color.secondary.opacity(0.14),
-                    in: RoundedRectangle(
-                        cornerRadius: 评论卡片布局.内层圆角,
-                        style: .continuous
-                    )
-                )
-
-            HStack(spacing: 10) {
-                Text("以“\(displayName)”发布")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-
-                Spacer(minLength: 0)
-
-                Button {
-                    Task { await publishExternalComment() }
-                } label: {
-                    if isPublishingComment {
-                        ProgressView()
-                            .controlSize(.small)
-                    } else {
-                        Label("发布", systemImage: "paperplane.fill")
-                            .font(.subheadline.weight(.medium))
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-                .buttonBorderShape(.capsule)
-                .disabled(
-                    commentDraft.trimmingCharacters(
-                        in: .whitespacesAndNewlines
-                    ).isEmpty || isPublishingComment
-                )
-            }
+        评论撰写卡片(
+            占位文字: "撰写评论…",
+            内容: $commentDraft,
+            显示名称: displayName,
+            正在发布: isPublishingComment
+        ) {
+            Task { await publishExternalComment() }
         }
-        .padding(评论卡片布局.内边距)
-        .background(
-            .regularMaterial,
-            in: RoundedRectangle(
-                cornerRadius: 评论卡片布局.圆角,
-                style: .continuous
-            )
-        )
     }
 
     private func loadExternalComments(forceRefresh: Bool = false) async {

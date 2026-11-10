@@ -12,12 +12,11 @@ private enum PaperVNRootTabAccessibilityIdentifier {
 }
 
 private func paperVNRootSearchTabRole(
-    isIndependent: Bool,
-    isPad: Bool = false
+    isIndependent: Bool
 ) -> TabRole? {
     if #available(iOS 27.0, *) {
+        // iPhone 上靠 平台搜索Tab分离 让它分离并展开为搜索框
         guard isIndependent else { return nil }
-        return isPad ? .search : .prominent
     }
     return .search
 }
@@ -94,6 +93,7 @@ struct TabBar: View {
             )
         }
         .平台标签栏搜索自动激活()
+        .平台搜索Tab分离(isIndependentSearchTab)
         .平台根标签栏样式()
     }
 
@@ -125,8 +125,7 @@ private struct iPadPaperVNRoot: View {
                 systemImage: "magnifyingglass",
                 value: .search,
                 role: paperVNRootSearchTabRole(
-                    isIndependent: isIndependentSearchTab,
-                    isPad: true
+                    isIndependent: isIndependentSearchTab
                 )
             ) {
                 NavigationStack {

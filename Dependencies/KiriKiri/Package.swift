@@ -19,8 +19,6 @@ let package = Package(
         .target(
             name: "KiriKiri",
             dependencies: ["KiriKiriCore"],
-            resources: [.copy("Resources/res"), .copy("Resources/renpyweb"), .copy("Resources/soundfont"),
-                .copy("Resources/ruffle")],
             linkerSettings: [
                 .linkedFramework("OpenGLES"),
                 .linkedFramework("OpenAL"),

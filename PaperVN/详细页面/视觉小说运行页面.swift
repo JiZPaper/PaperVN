@@ -16,9 +16,16 @@ struct 视觉小说运行页面: View {
     @State private var 显示兼容提示 = false
     @State private var KiriKiri菜单: [KiriKiri菜单项]?
     @State private var 待点按菜单项: KiriKiri菜单项?
+    @State private var 资源下载 = 视觉小说运行资源下载()
+    @State private var 缺少的资源: [视觉小说运行资源包] = []
+    @State private var 显示资源提示 = false
+    @State private var 资源提示回答: CheckedContinuation<Bool, Never>?
+    @State private var 资源下载错误: String?
+    @State private var 空间不足说明: String?
 
     private enum 运行状态 {
         case 载入中
+        case 下载资源
         case 网页(网页游戏资源)
         case siglus(Siglus运行控制)
         case kirikiri(KiriKiri运行控制)
@@ -64,6 +71,32 @@ struct 视觉小说运行页面: View {
                 break
             }
         }
+        .alert("需要下载资源", isPresented: $显示资源提示) {
+            Button("下载（\(资源下载大小文本)）") { 回答资源提示(true) }
+            Button("取消", role: .cancel) { 回答资源提示(false) }
+        } message: {
+            Text("运行此视觉小说需要下载\(缺少的资源名称)。")
+        }
+        .alert("无法下载资源", isPresented: Binding(get: { 资源下载错误 != nil }, set: { _ in })) {
+            Button("重试") {
+                资源下载错误 = nil
+                回答资源提示(true)
+            }
+            Button("取消", role: .cancel) {
+                资源下载错误 = nil
+                回答资源提示(false)
+            }
+        } message: {
+            Text(verbatim: 资源下载错误 ?? "")
+        }
+        .alert("储存空间不足", isPresented: Binding(get: { 空间不足说明 != nil }, set: { _ in })) {
+            Button("好", role: .cancel) {
+                空间不足说明 = nil
+                回答资源提示(false)
+            }
+        } message: {
+            Text(verbatim: 空间不足说明 ?? "")
+        }
         .alert("可能与预期效果不符", isPresented: $显示兼容提示) {
             Button("不再显示") {
                 不再提示(兼容问题)
@@ -106,6 +139,8 @@ struct 视觉小说运行页面: View {
                 ProgressView()
                     .tint(.white)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+            case .下载资源:
+                资源下载进度
             case .网页(let resources):
                 网页游戏视图(资源: resources, vnID: vnID)
             case .kirikiri(let control):
@@ -235,6 +270,93 @@ struct 视觉小说运行页面: View {
                 错误提示(message)
             }
         }
+    }
+
+    private var 资源下载进度: some View {
+        VStack(spacing: 12) {
+            Text(资源下载.当前阶段 == .下载 ? "正在下载资源…" : "正在安装资源…")
+                .foregroundStyle(.white)
+            if 资源下载.当前阶段 == .下载 {
+                ProgressView(value: 资源下载.进度)
+                    .tint(.white)
+                    .frame(width: 240)
+                Text(verbatim: 资源下载.进度.formatted(.percent.precision(.fractionLength(0))))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            } else {
+                ProgressView()
+                    .tint(.white)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var 资源下载大小文本: String {
+        推荐模型下载状态.文件大小文本(缺少的资源.reduce(0) { $0 + $1.信息.下载大小 })
+    }
+
+    private var 缺少的资源名称: String {
+        ListFormatter.localizedString(byJoining: 缺少的资源.map(\.显示名称))
+    }
+
+    private func 回答资源提示(_ answer: Bool) {
+        资源提示回答?.resume(returning: answer)
+        资源提示回答 = nil
+    }
+
+    private func 等待回答(_ show: () -> Void) async -> Bool {
+        await withCheckedContinuation { continuation in
+            资源提示回答 = continuation
+            show()
+        }
+    }
+
+    /// 缺少资源时提示下载。选择取消就退出运行页面
+    private func 确保资源(_ packs: [视觉小说运行资源包]) async throws {
+        let missing = 视觉小说运行资源.缺少(packs)
+        guard !missing.isEmpty else { return }
+        缺少的资源 = missing
+        guard await 等待回答({ 显示资源提示 = true }) else {
+            dismiss()
+            throw CancellationError()
+        }
+        while true {
+            let previous = 状态
+            状态 = .下载资源
+            do {
+                try await 资源下载.下载(missing)
+                状态 = previous
+                return
+            } catch 视觉小说运行资源.错误.空间不足(let bytes) {
+                状态 = previous
+                _ = await 等待回答({ 空间不足说明 = 视觉小说运行资源.错误.空间不足(需要: bytes).errorDescription })
+                dismiss()
+                throw CancellationError()
+            } catch {
+                状态 = previous
+                // 退出页面时任务被取消，不用再提示
+                if Task.isCancelled { throw CancellationError() }
+                guard await 等待回答({ 资源下载错误 = error.localizedDescription }) else {
+                    dismiss()
+                    throw CancellationError()
+                }
+            }
+        }
+    }
+
+    /// 只有用到 MIDI 或 Flash 的游戏才需要下载这些资源
+    private nonisolated static func 用到的媒体资源(文件名: some Sequence<String>) -> [视觉小说运行资源包] {
+        var midi = false, flash = false
+        for name in 文件名 {
+            switch (name as NSString).pathExtension.lowercased() {
+            case "mid", "midi": midi = true
+            case "swf": flash = true
+            default: break
+            }
+            if midi && flash { break }
+        }
+        return (midi ? [.midi音色] : []) + (flash ? [.flash] : [])
     }
 
     private var 菜单按钮: some View {
@@ -397,6 +519,8 @@ struct 视觉小说运行页面: View {
                 let interpreter = try await NScripter解释器.载入(
                     游戏根目录: root, 数据文件夹: 视觉小说文件夹中心.数据文件夹(作品: vnID)
                 )
+                let media = interpreter.资源.全部文件
+                try await 确保资源(Self.用到的媒体资源(文件名: media).filter { $0 == .midi音色 })
                 状态 = .nscripter(interpreter)
                 // 有和原版不一样的地方时先提示，看完再开始，免得声音和开场在提示后面播放
                 let ignored = Set(UserDefaults.standard.stringArray(forKey: 不再提示键) ?? [])
@@ -411,6 +535,7 @@ struct 视觉小说运行页面: View {
                 }.value
                 状态 = .siglus(Siglus运行控制(项目目录: project))
             case .kirikiri:
+                try await 确保资源([.kirikiri, .字体])
                 let entry = try await Task.detached(priority: .userInitiated) {
                     try KiriKiri封包检查.检查(root)
                     guard let entry = KiriKiri封包检查.入口(root) else { throw 视觉小说运行错误.无法识别 }
@@ -420,17 +545,26 @@ struct 视觉小说运行页面: View {
                 try? FileManager.default.createDirectory(at: data, withIntermediateDirectories: true)
                 状态 = .kirikiri(KiriKiri运行控制(入口: entry, 数据文件夹: data))
             case .帧缓冲:
+                try await 确保资源([.字体])
                 let data = 视觉小说文件夹中心.数据文件夹(作品: vnID)
                 let project = try await Task.detached(priority: .userInitiated) {
                     try 帧缓冲项目目录.准备(游戏根目录: root, 数据文件夹: data)
                 }.value
                 状态 = .帧缓冲(帧缓冲游戏控制(游戏目录: project, 引擎: recognition.引擎.帧缓冲引擎名))
             case .renPy:
+                try await 确保资源([.renpy])
                 let resources = try await Task.detached(priority: .userInitiated) {
                     try 网页游戏资源(RenPy游戏根目录: root)
                 }.value
                 状态 = .网页(resources)
             case .yuris:
+                let names = await Task.detached(priority: .userInitiated) {
+                    let packed = YURIS资源库(根目录: root).封包文件名
+                    let walker = FileManager.default.enumerator(atPath: root.path)
+                    let loose = (walker?.allObjects as? [String]) ?? []
+                    return packed + loose
+                }.value
+                try await 确保资源(Self.用到的媒体资源(文件名: names))
                 let saves = 视觉小说文件夹中心.数据文件夹(作品: vnID).appending(path: "YURIS", directoryHint: .isDirectory)
                 try? FileManager.default.createDirectory(at: saves, withIntermediateDirectories: true)
                 状态 = .yuris(YURIS运行控制(游戏目录: root, 存档目录: saves))
@@ -440,6 +574,8 @@ struct 视觉小说运行页面: View {
             视觉小说游玩记录.shared.开始(作品: vnID)
             // 之前没传上去的游玩时间趁这时重试
             Task { await 视觉小说游玩记录.shared.上传() }
+        } catch is CancellationError {
+            return
         } catch {
             状态 = .错误(error.localizedDescription)
         }
@@ -458,6 +594,7 @@ struct 视觉小说运行页面: View {
     }
 
     private func 结束() {
+        回答资源提示(false)
         视觉小说游玩记录.shared.结束()
         if case .nscripter(let interpreter) = 状态 { interpreter.停止() }
         正在访问的文件夹?.stopAccessingSecurityScopedResource()

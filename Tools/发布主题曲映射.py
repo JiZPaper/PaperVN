@@ -9,7 +9,7 @@
 
 用法：
   python3 Tools/发布主题曲映射.py <输出目录>
-部署到 VPS 用 deploy/vps/deploy-themesongs.sh（它会调用这个脚本）。
+现在映射由服务器发布（deploy/vps/theme-song-map.mjs，格式相同），这个脚本只在本机测试静默更新时用。
 """
 
 import hashlib

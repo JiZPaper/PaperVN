@@ -88,6 +88,8 @@ struct 作品详情: View {
     @State private var comments: [视觉小说评论] = []
     /// 主题曲在 Apple Music 里的匹配结果，还在匹配时为 nil。
     @State private var 主题曲匹配: [Int: AppleMusic匹配结果]?
+    /// 读取到新的人工匹配时加一，让已经打开的页面重新列出主题曲并重新匹配。
+    @State private var 主题曲人工匹配版本 = 0
     @State private var isLoadingComments = false
     @State private var showsMoreInfo = false
     @State private var showsRecordSheet = false
@@ -192,7 +194,10 @@ struct 作品详情: View {
             .平台内联导航标题()
             .toolbar { toolbarContent }
             .task(id: 目标) { await load(forceRefresh: false) }
-            .task(id: 全部主题曲.map(\.id)) { await 匹配主题曲() }
+            .task(id: 全部主题曲.map(\.id) + [主题曲人工匹配版本]) { await 匹配主题曲() }
+            .onReceive(NotificationCenter.default.publisher(for: 主题曲映射.人工匹配已更新通知).receive(on: DispatchQueue.main)) { _ in
+                主题曲人工匹配版本 += 1
+            }
             .task(id: 相关推荐任务键) { await 载入相关推荐() }
             .onChange(of: colorScheme) { _, _ in
                 textSamples = [:]
@@ -424,8 +429,11 @@ struct 作品详情: View {
 
     /// MAL 的片头曲、片尾曲，加上主题曲映射里的插入曲。
     private var 全部主题曲: [动画主题曲] {
+        _ = 主题曲人工匹配版本
         guard let detail, detail.kind == .anime else { return [] }
-        return detail.主题曲 + (detail.malID > 0 ? 主题曲映射.插入曲(malID: detail.malID) : [])
+        let songs = detail.主题曲 + (detail.malID > 0 ? 主题曲映射.插入曲(malID: detail.malID) : [])
+        // 用户添加的片头曲、片尾曲在“插入曲(malID:)”里，也要排到对应的种类中，不然会被卡片折叠
+        return songs.filter { $0.种类 == .片头曲 } + songs.filter { $0.种类 == .片尾曲 } + songs.filter { $0.种类 == .插入曲 }
     }
 
     /// 在 Apple Music 里找主题曲：主题曲映射里有的直接用，没有的现场匹配。离开页面时任务取消，下次进入重新匹配（结果有缓存）。

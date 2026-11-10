@@ -1124,6 +1124,9 @@ struct 搜索: View {
     @State private var 作品组动画代次: [String: Int] = [:]
     @State private var keyboardSearchFieldClearance: CGFloat = 0
 
+    @AppStorage(搜索设置偏好.独立搜索Tab设置键)
+    private var isIndependentSearchTab = 搜索设置偏好.独立搜索Tab默认值
+
     private let externalSearchText: Binding<String>?
     private let showsSearchField: Bool
     /// 从详情页的标签进入时固定的对象与标签；搜索 Tab 本身为 nil
@@ -1287,6 +1290,13 @@ struct 搜索: View {
         UIDevice.current.userInterfaceIdiom == .pad
     }
 
+    /// iOS 27 的 iPhone 开启“独立搜索Tab”后，搜索 Tab 展开为 Tab 栏里的搜索框，
+    /// 搜索框要用默认位置，不能固定在导航栏下方
+    private var searchFieldLivesInTabBar: Bool {
+        guard #available(iOS 27.0, *) else { return false }
+        return !usesIPadSearchLayout && isIndependentSearchTab
+    }
+
     private var usesExplicitSearchToolbarItem: Bool {
         guard #available(iOS 26.0, *) else { return false }
         return usesIPadSearchLayout && showsSearchField
@@ -1308,6 +1318,12 @@ struct 搜索: View {
                 } else {
                     searchContent
                 }
+            } else if showsSearchField, searchFieldLivesInTabBar {
+                searchContent
+                    .searchable(
+                        text: searchTextBinding,
+                        prompt: Text(searchPrompt)
+                    )
             } else if showsSearchField {
                 searchContent
                     .searchable(

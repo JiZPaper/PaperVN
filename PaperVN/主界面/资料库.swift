@@ -374,7 +374,11 @@ struct 资料库: View {
                         刷新列表()
                     }
                     .onChange(of: selectedTagIDs) { _, _ in 刷新列表() }
-                    .onChange(of: separatesUnreleased) { _, _ in 刷新列表() }
+                    .onChange(of: separatesUnreleased) { _, _ in
+                        刷新列表()
+                        // 刚打开时，没有日期的作品还没读过状态
+                        library.安排检查未发行()
+                    }
                     .onChange(of: selectedType) { _, type in
                         selectedStatus = sidebarFilter.flatMap(资料库状态.init)
                             ?? Self.已存状态(for: type)

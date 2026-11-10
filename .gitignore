@@ -49,7 +49,8 @@ Tools/主题曲映射/进度/
 # 视觉小说引擎库：本地用 Tools/构建Siglus.sh、Tools/构建KiriKiri.sh 编译，不进仓库
 Dependencies/Siglus/SiglusCore.xcframework/
 Dependencies/KiriKiri/KiriKiriCore.xcframework/
-Dependencies/KiriKiri/Sources/KiriKiri/Resources/res/
+# 运行资源包改为按需下载（已上传 R2），打包前的原始文件放在这里，不进仓库
+Dependencies/KiriKiri/下载资源/
 
 # 大模型文件不进仓库，从 R2 下载：Tools/R2模型.sh 下载（清单在 Tools/R2模型清单.txt）
 PaperVN/Resources/PaperVNSmartSearch.pvss

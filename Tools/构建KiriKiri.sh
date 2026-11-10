@@ -89,8 +89,13 @@ build_slice() {
         ios-arm64-simulator) core="$core/Release-iphonesimulator-arm64/libLive2DCubismCore.a" ;;
         *) core="$core/Release-iphoneos/libLive2DCubismCore.a" ;;
     esac
-    [ -f "$core" ] && libs+=("$core")
     mkdir -p "$work/out/$name"
+    # 官方库标的最低系统版本（iOS 26.2）比 App 高，链接时每个成员都报警告；拷贝一份改标记，原文件不动
+    if [ -f "$core" ]; then
+        cp -f "$core" "$work/out/$name/libLive2DCubismCore.a"
+        python3 "$project_root/Tools/修正静态库最低系统版本.py" "$work/out/$name/libLive2DCubismCore.a" 18.0
+        libs+=("$work/out/$name/libLive2DCubismCore.a")
+    fi
     rm -rf "$work/out/$name/objects"
     python3 "$project_root/Tools/去重KiriKiri目标文件.py" "$work/out/$name/objects" "${engine[@]}" >/dev/null
     xcrun ld -r -arch arm64 -platform_version "$platform" 18.0 "$(xcrun --sdk "$sysroot" --show-sdk-version)" \
@@ -120,9 +125,10 @@ xcodebuild -create-xcframework \
     -output "$xcframework"
 
 # 5. krkr2 自带界面（菜单、提示）用到的资源和默认字体
-rm -rf "$package_dir/Sources/KiriKiri/Resources/res"
-mkdir -p "$package_dir/Sources/KiriKiri/Resources"
-cp -R "$krkr2/ui/cocos-studio" "$package_dir/Sources/KiriKiri/Resources/res"
+# 界面资源不进 App，由 Tools/打包视觉小说资源.py 打成运行时下载的资源包
+rm -rf "$package_dir/下载资源/res"
+mkdir -p "$package_dir/下载资源"
+cp -R "$krkr2/ui/cocos-studio" "$package_dir/下载资源/res"
 
 git -C "$krkr2" rev-parse HEAD > "$package_dir/KRKR2_COMMIT"
 cp "$krkr2/LICENSE" "$package_dir/LICENSE-krkr2"

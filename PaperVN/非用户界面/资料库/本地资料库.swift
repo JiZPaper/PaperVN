@@ -380,6 +380,23 @@ final class 本地资料库: ObservableObject {
         }
         // 以前导入的音乐（MV）等条目也在这些时候检查
         PaperVNSync中心.shared.安排检查不可导入的条目()
+        安排检查未发行()
+    }
+
+    private var 未发行任务: Task<Void, Never>?
+
+    /// 计划中、没有发行日期的作品按公开接口读到的状态判断是否未发行（见 `未发行判定`），供“分开显示未发行或未播出的作品”使用。
+    /// 没打开这个设置时不联网。依次执行，读到新的结果后让列表重新分组。
+    func 安排检查未发行() {
+        guard UserDefaults.standard.bool(forKey: "librarySeparatesUnreleased") else { return }
+        let previous = 未发行任务
+        未发行任务 = Task { [weak self] in
+            await previous?.value
+            guard let self, self.已载入 else { return }
+            let entries = self.条目.filter(未发行判定.需要判断)
+            guard !entries.isEmpty, await 未发行判定.读取(entries) else { return }
+            self.修订号 &+= 1
+        }
     }
 
     private func 改正书籍类型() async {
@@ -408,6 +425,8 @@ final class 本地资料库: ObservableObject {
         entry.修改时间 = .now
         条目[index] = entry
         保存()
+        // 改成计划中的作品也要判断是否未发行
+        if 未发行判定.需要判断(entry) { 安排检查未发行() }
     }
 
     /// 登录了VNDB与 Paper Account 时在编辑页清除的日期：VNDB上清除不了，只在资料库中清除，并记下VNDB上原来的值，
@@ -561,10 +580,11 @@ enum 资料库排序 {
         return value > 今天的日期值
     }
 
-    /// 动画、漫画、轻小说还未发行或播出：没有日期时不算（可能只是平台没提供）；
+    /// 动画、漫画、轻小说还未发行或播出：没有日期时光看日期分不出来（可能只是平台没提供），
+    /// 按公开接口读到的状态算（见 `未发行判定`），还没读到时不算；
     /// 只有年份或年月时按最早的那天算，Annict之类只给年份的作品不会整年都被当作未播出。
     static func 未发行(_ entry: 本地资料库条目) -> Bool {
-        guard let released = entry.发行日期, !released.isEmpty else { return false }
+        guard let released = entry.发行日期, !released.isEmpty else { return 未发行判定.已知(entry.id) == true }
         let parts = released.split(separator: "-").compactMap { Int($0) }
         guard let year = parts.first else { return true }
         let month = parts.count > 1 ? parts[1] : 1

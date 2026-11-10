@@ -1,6 +1,9 @@
 // 目录匹配：检索没找到的歌曲，直接翻歌手的全部专辑和这部作品的专辑，逐首按读音比较。
 // 只在生成映射时用：请求多，读音用 macOS 的日文分词算出来（很多歌在 Apple Music 上没有罗马字名）。
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// 采集到的原始数据存到训练数据（不进仓库），下次运行直接复用。环境变量 PAPERVN_TRAINING_DATA 可以改位置。
 enum 主题曲训练数据 {
@@ -107,6 +110,9 @@ final class 目录匹配 {
     // MARK: 读音
 
     static func 读音(_ text: String) -> String {
+        #if !canImport(Darwin)
+        return 日文读音桥.共用.分词(text).map { $0.罗马字 ?? $0.原文 }.joined()
+        #else
         let string = text as CFString
         let tokenizer = CFStringTokenizerCreate(
             nil, string, CFRangeMake(0, CFStringGetLength(string)), kCFStringTokenizerUnitWordBoundary, Locale(identifier: "ja") as CFLocale
@@ -123,6 +129,7 @@ final class 目录匹配 {
             token = CFStringTokenizerAdvanceToNextToken(tokenizer)
         }
         return output
+        #endif
     }
 
     /// 比较用的写法：去掉符号，长音、助词、训令式和黑本式的差别都抹平。

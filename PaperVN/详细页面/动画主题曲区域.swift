@@ -133,6 +133,53 @@ private struct 动画主题曲列表页面: View {
     }
 }
 
+/// 歌曲不是原版、但 Apple Music 只有这个版本时显示。轻点弹出说明。
+private struct 近似版本标签: View {
+    let 原因: 主题曲映射.近似原因
+    @Binding var 显示说明: Bool
+
+    private var 说明: LocalizedStringKey {
+        switch 原因 {
+        case .剪辑版本: "Apple Music中没有这首歌的完整版。"
+        case .其他阵容: "Apple Music中没有动画中的演唱阵容。"
+        case .其他版本: "Apple Music中没有动画中的版本。"
+        }
+    }
+
+    private var 标签: LocalizedStringKey {
+        switch 原因 {
+        case .剪辑版本: "剪辑版本"
+        case .其他阵容: "其他阵容"
+        case .其他版本: "其他版本"
+        }
+    }
+
+    var body: some View {
+        Button {
+            显示说明 = true
+        } label: {
+            Text(标签)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .fixedSize()
+                .padding(.horizontal, 7)
+                .padding(.vertical, 2)
+                .overlay(Capsule().strokeBorder(.secondary, lineWidth: 1))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .popover(isPresented: $显示说明) {
+            Text(说明)
+                .font(.footnote)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding()
+                .frame(idealWidth: 280)
+                .presentationCompactAdaptation(.popover)
+        }
+    }
+}
+
 private struct 主题曲行: View {
     let 歌曲: 动画主题曲
     let 匹配: AppleMusic匹配结果?
@@ -144,6 +191,13 @@ private struct 主题曲行: View {
 
     @Environment(\.openURL) private var openURL
     @State private var 显示报告 = false
+    @State private var 显示近似说明 = false
+
+    /// 配上的是近似版本时的原因；没找到或还没匹配上时不显示。
+    private var 近似原因: 主题曲映射.近似原因? {
+        guard 用户填写 == nil, appleMusic != nil || (匹配 == nil && 映射歌曲 != nil) else { return nil }
+        return 主题曲映射.查找近似原因(歌曲.id)
+    }
 
     private var appleMusic: AppleMusic歌曲? {
         if case .已找到(let song)? = 匹配 { song } else { nil }
@@ -157,8 +211,18 @@ private struct 主题曲行: View {
     /// 原语言的歌名：Apple Music 日本商店的写法（去掉“TV Size”等版本说明），没找到时用 MAL 的原名。
     private var 用户填写: 主题曲映射.人工显示信息? { 主题曲映射.显示信息(歌曲.id) }
 
+    /// 动画里实际用的版本的歌名和歌手：配上的是其他阵容、其他版本时，这一行仍然显示它，不显示 Apple Music 那首的。
+    private var 正确信息: 主题曲映射.正确信息? {
+        switch 近似原因 {
+        case .其他阵容?, .其他版本?: 主题曲映射.查找正确信息(歌曲.id)
+        default: nil
+        }
+    }
+
     private var 歌名: String {
         if let 用户填写 { return 用户填写.title }
+        if 近似原因 == .其他版本 { return 正确信息?.歌名 ?? 歌曲.原标题 ?? 歌曲.标题 }
+        if 近似原因 == .其他阵容, let name = 正确信息?.歌名 { return name }
         if let name = appleMusic?.标题 ?? 映射歌曲?.曲名 { return AppleMusic主题曲匹配.显示歌名(name) }
         return 歌曲.原标题 ?? 歌曲.标题
     }
@@ -170,6 +234,9 @@ private struct 主题曲行: View {
 
     private var 歌手: String {
         if let 用户填写 { return [用户填写.artist, 用户填写.album].compactMap { $0 }.joined(separator: " · ") }
+        if 近似原因 == .其他阵容 || 近似原因 == .其他版本, let name = 正确信息?.歌手 ?? 歌曲.歌手原名 ?? (歌曲.歌手.isEmpty ? nil : 歌曲.歌手) {
+            return name
+        }
         return appleMusic?.歌手 ?? 映射歌曲?.歌手 ?? 歌曲.歌手原名 ?? 歌曲.歌手
     }
 
@@ -210,6 +277,16 @@ private struct 主题曲行: View {
     }
 
     var body: some View {
+        // 标签放在主按钮外面：两个按钮不能嵌套
+        HStack(spacing: 8) {
+            主按钮
+            if let 近似原因 {
+                近似版本标签(原因: 近似原因, 显示说明: $显示近似说明)
+            }
+        }
+    }
+
+    private var 主按钮: some View {
         Button {
             if let 链接 { openURL(链接) }
         } label: {

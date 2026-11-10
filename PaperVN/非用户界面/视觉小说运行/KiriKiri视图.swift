@@ -80,7 +80,7 @@ final class KiriKiri运行控制 {
         let user = Unmanaged.passUnretained(self).toOpaque()
         let result = 入口.path.withCString { game in
             数据文件夹.path.withCString { data in
-                KiriKiri资源.路径.withCString { resources in
+                视觉小说运行资源.准备KiriKiri目录().withCString { resources in
                     papervn_kirikiri_start(game, data, resources, { userData, _ in
                         guard let userData else { return }
                         nonisolated(unsafe) let pointer = userData

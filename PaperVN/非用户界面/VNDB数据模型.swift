@@ -29,9 +29,17 @@ struct 标签: Codable {
 }
 
 enum 搜索设置偏好 {
-    static let 独立搜索Tab设置键 = "independentSearchTabEnabled"
+    // 开关隐藏后换了新键：旧键里存过“关闭”的设备否则没有办法再改回来
+    static let 独立搜索Tab设置键 = "independentSearchTabEnabled2"
 
-    static let 独立搜索Tab默认值 = false
+    /// iPhone 默认独立；iPad 没有这个开关，保持原来的不独立
+    @MainActor
+    static var 独立搜索Tab默认值: Bool {
+        UIDevice.current.userInterfaceIdiom != .pad
+    }
+
+    /// 暂时隐藏“设置”>“搜索”里的开关
+    static let 显示独立搜索Tab开关 = false
 }
 
 enum 搜索范围: String, CaseIterable, Identifiable, Hashable {

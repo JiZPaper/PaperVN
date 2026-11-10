@@ -2194,7 +2194,9 @@ struct 搜索设置: View {
                 Text("外观")
             }
 
-            if #available(iOS 27.0, *), UIDevice.current.userInterfaceIdiom != .pad {
+            if 搜索设置偏好.显示独立搜索Tab开关,
+               #available(iOS 27.0, *),
+               UIDevice.current.userInterfaceIdiom != .pad {
                 Section {
                     Toggle("独立搜索Tab", isOn: $independentSearchTab)
                 } footer: {
@@ -2470,6 +2472,7 @@ private enum 储存空间删除项目: String, Identifiable {
     case translations
     case recommendationModel
     case smartSearchModel
+    case visualNovelRuntime
 
     var id: String { rawValue }
 
@@ -2483,6 +2486,8 @@ private enum 储存空间删除项目: String, Identifiable {
             "要删除“为你推荐”模型更新吗？"
         case .smartSearchModel:
             "要删除智能搜索模型更新吗？"
+        case .visualNovelRuntime:
+            "要删除视觉小说运行资源吗？"
         }
     }
 
@@ -2496,6 +2501,8 @@ private enum 储存空间删除项目: String, Identifiable {
             "删除后将恢复使用App内置的“为你推荐”模型。"
         case .smartSearchModel:
             "删除后将恢复使用App内置的智能搜索模型。"
+        case .visualNovelRuntime:
+            "运行需要这些资源的视觉小说时将重新下载。"
         }
     }
 }
@@ -2510,6 +2517,7 @@ private struct 储存空间管理区: View {
     @State private var smartSearchModelSize: Int64 = 0
     @State private var hasDownloadedSmartSearchModel = false
     @State private var isDeletingSmartSearchModel = false
+    @State private var visualNovelRuntimeSize: Int64 = 0
     @State private var cacheSize: Int64 = 0
     @State private var translationSize: Int64 = 0
     @State private var recommendationModelSize: Int64 = 0
@@ -2585,7 +2593,8 @@ private struct 储存空间管理区: View {
 
         if hasDownloadedTranslations
             || hasDownloadedRecommendationModel
-            || hasDownloadedSmartSearchModel {
+            || hasDownloadedSmartSearchModel
+            || visualNovelRuntimeSize > 0 {
             Section {
                 if hasDownloadedTranslations {
                     storageDeletionButton(
@@ -2611,6 +2620,15 @@ private struct 储存空间管理区: View {
                         size: smartSearchModelSize,
                         isWorking: isDeletingSmartSearchModel,
                         action: { pendingDeletion = .smartSearchModel }
+                    )
+                }
+
+                if visualNovelRuntimeSize > 0 {
+                    storageDeletionButton(
+                        title: "删除视觉小说运行资源",
+                        size: visualNovelRuntimeSize,
+                        isWorking: false,
+                        action: { pendingDeletion = .visualNovelRuntime }
                     )
                 }
             }
@@ -2665,6 +2683,7 @@ private struct 储存空间管理区: View {
         smartSearchModelDownloadState.refresh()
         hasDownloadedSmartSearchModel = smartSearchModelDownloadState.hasDownloadedUpdate
         smartSearchModelSize = smartSearchModelDownloadState.downloadedSize
+        visualNovelRuntimeSize = 视觉小说运行资源.已占用大小
     }
 
     private func performDeletion(_ item: 储存空间删除项目) {
@@ -2677,7 +2696,18 @@ private struct 储存空间管理区: View {
             deleteRecommendationModel()
         case .smartSearchModel:
             deleteSmartSearchModel()
+        case .visualNovelRuntime:
+            deleteVisualNovelRuntime()
         }
+    }
+
+    private func deleteVisualNovelRuntime() {
+        do {
+            try 视觉小说运行资源.全部删除()
+        } catch {
+            deletionError = error.localizedDescription
+        }
+        refreshSizes()
     }
 
     private func clearCache() {

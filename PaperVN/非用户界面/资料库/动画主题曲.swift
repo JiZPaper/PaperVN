@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking // 主题曲映射生成器的 Linux 版
+#endif
 
 /// 动画的片头曲、片尾曲和插入曲。片头曲、片尾曲来自 MyAnimeList 的 opening_themes、ending_themes，
 /// 文本形如 `#1: "Yuusha (勇者)" by YOASOBI (eps 1-16)`：引号里是罗马字（或英文）标题，括号里是日文原名。
@@ -45,8 +48,9 @@ nonisolated struct 动画主题曲: Identifiable, Hashable, Sendable {
 
     /// 解析 MAL 的主题曲文本，格式不认识时返回 nil。
     init?(malID id: Int, 种类: 种类, 文本: String) {
-        var text = 文本.replacingOccurrences(of: "\u{00A0}", with: " ")
-            .replacingOccurrences(of: #"[\u{FE00}-\u{FE0F}]"#, with: "", options: .regularExpression)
+        // 去掉异体字选择符：不用正则，这种写法在 Linux 的 Foundation 上会把整段文字清空
+        let 去选择符 = String(String.UnicodeScalarView(文本.unicodeScalars.filter { !(0xFE00...0xFE0F).contains($0.value) }))
+        var text = 去选择符.replacingOccurrences(of: "\u{00A0}", with: " ")
             .replacingOccurrences(of: "“", with: "\"").replacingOccurrences(of: "”", with: "\"")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         var 序号: String?
@@ -363,6 +367,7 @@ nonisolated enum 主题曲文本 {
     /// 日文转成罗马字（汉字按日语读音），其他文字原样保留。
     static func 转写(_ text: String) -> String {
         guard 含日文(text) else { return text }
+        #if canImport(Darwin)
         let string = text as NSString
         let tokenizer = CFStringTokenizerCreate(
             nil, text as CFString, CFRange(location: 0, length: string.length),
@@ -380,6 +385,9 @@ nonisolated enum 主题曲文本 {
             }
         }
         return parts.joined(separator: " ")
+        #else
+        return 日文读音桥.共用.分词(text).map { $0.罗马字 ?? $0.原文 }.joined(separator: " ")
+        #endif
     }
 
     /// 罗马字的分词：去掉附加符号、小写，按非字母数字切开。

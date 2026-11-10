@@ -9,8 +9,18 @@ import Foundation
 /// 键是 AnisongDB 歌曲编号的相反数，和 `songs` 里的键对应。
 ///
 /// 文件格式：`{"version": "20261031-…", "format": 1, "songs": {"16132": [曲目编号, 歌手编号, "歌名", "歌手", "封面地址"], "21189": 0, "-11014": […]},
-/// "inserts": {"9253": [-11014]}}`
+/// "inserts": {"9253": [-11014]}, "added": {"-9000000001": "op"}, "display": {"-9000000001": {"title": …}}}`。
+/// Apple Music 没有原版、放宽标准配上的歌，歌曲数组后面多近似原因、动画里实际的歌名和歌手（旧版 App 不读）。
+/// added 是数据维护添加的歌曲（MAL 和 AnisongDB 都没有）的种类，display 是 Apple Music 里没有时用户填写的歌曲信息；
+/// 映射由服务器维护，后台的修改直接写进映射（旧版 App 从 `/library-matches/theme-song-overrides` 读同样的内容）。
 nonisolated enum 主题曲映射 {
+    /// 近似版本的原因，App 里的标签按它显示（剪辑版本、其他阵容、其他版本）。翻唱、现场版听起来不一样，不算近似，不会配上。
+    enum 近似原因: String, Sendable {
+        case 剪辑版本 = "short"
+        case 其他阵容 = "lineup"
+        case 其他版本 = "version"
+    }
+
     enum 条目: Sendable {
         case 歌曲(AppleMusic主题曲匹配.候选)
         /// 生成映射时确认 Apple Music 里没有。
@@ -21,9 +31,12 @@ nonisolated enum 主题曲映射 {
         let version: String
         let songs: [String: 值]
         let inserts: [String: [Int]]?
+        let added: [String: String]?
+        let display: [String: 人工显示信息]?
 
         enum 值: Decodable {
-            case 歌曲(trackId: Int, artistId: Int?, 歌名: String, 歌手: String, 封面: String?)
+            /// 地区：只在日本以外上架的歌（比如只在中国大陆上架的国产动画歌曲）所在的商店，日本有的不写
+            case 歌曲(trackId: Int, artistId: Int?, 歌名: String, 歌手: String, 封面: String?, 近似: String?, 正确歌名: String?, 正确歌手: String?, 地区: String?)
             case 无
 
             init(from decoder: Decoder) throws {
@@ -37,14 +50,18 @@ nonisolated enum 主题曲映射 {
                 self = .歌曲(
                     trackId: trackId, artistId: artistId,
                     歌名: try container.decode(String.self), 歌手: try container.decode(String.self),
-                    封面: try container.decodeIfPresent(String.self)
+                    封面: try container.decodeIfPresent(String.self),
+                    近似: container.isAtEnd ? nil : try container.decodeIfPresent(String.self),
+                    正确歌名: container.isAtEnd ? nil : try container.decodeIfPresent(String.self),
+                    正确歌手: container.isAtEnd ? nil : try container.decodeIfPresent(String.self),
+                    地区: container.isAtEnd ? nil : try container.decodeIfPresent(String.self)
                 )
             }
         }
     }
 
-    /// 管理后台人工匹配的结果（`/library-matches/theme-song-overrides`）：优先于映射，也能纠正自动配错的歌。
-    /// song 的写法和映射里相同，0 表示确认 Apple Music 里没有。
+    /// `/library-matches/theme-song-overrides`：服务器从映射算出的最近修改（旧版 App 每 6 小时才读一次映射，靠它每分钟更新），
+    /// 内容和映射一致，优先于本机的映射。song 的写法和映射里相同，0 表示确认 Apple Music 里没有。
     struct 人工显示信息: Decodable, Sendable {
         let title: String
         let artist: String
@@ -64,12 +81,18 @@ nonisolated enum 主题曲映射 {
             let display: 人工显示信息?
         }
         let items: [项]
+        /// 后台改过的近似版本标签，优先于映射；null 表示不是近似版本。
+        let approximate: [String: String?]?
     }
 
     private struct 表: Sendable {
         let 版本: String?
         let 条目: [Int: 条目]
         var 插入曲: [Int: [Int]] = [:]
+        var 近似: [Int: 近似原因] = [:]
+        var 正确: [Int: 正确信息] = [:]
+        var 添加种类: [Int: 动画主题曲.种类] = [:]
+        var 显示信息: [Int: 人工显示信息] = [:]
     }
 
     private static let 锁 = NSLock()
@@ -80,11 +103,35 @@ nonisolated enum 主题曲映射 {
     /// 数据维护添加的歌曲的种类（片头曲、片尾曲也可能是用户添加的）。
     nonisolated(unsafe) private static var 已载入的添加种类: [Int: 动画主题曲.种类] = [:]
     nonisolated(unsafe) private static var 已载入的显示信息: [Int: 人工显示信息] = [:]
+    nonisolated(unsafe) private static var 已载入的近似标签: [Int: 近似原因?] = [:]
+
+    /// 动画里实际用的版本。映射只为其他阵容、其他版本写这一项；片头曲、片尾曲没写时用 MAL 的。
+    struct 正确信息: Sendable {
+        let 歌名: String?
+        let 歌手: String?
+    }
+
+    static func 查找正确信息(_ 主题曲编号: Int) -> 正确信息? { 数据.正确[主题曲编号] }
+
+    /// 这首歌配上的是不是近似版本：后台改过的优先；后台换了别的歌时，映射里的标记不再适用。
+    static func 查找近似原因(_ 主题曲编号: Int) -> 近似原因? {
+        let manual = 人工匹配
+        if let value = 锁.withLock({ 已载入的近似标签[主题曲编号] }) { return value }
+        guard let reason = 数据.近似[主题曲编号] else { return nil }
+        guard let override = manual.条目[主题曲编号] else { return reason }
+        if case .歌曲(let song) = override, case .歌曲(let mapped)? = 数据.条目[主题曲编号], song.trackId == mapped.trackId { return reason }
+        return nil
+    }
 
     /// 用户填写的、不在 Apple Music 里的歌曲信息。
     static func 显示信息(_ 主题曲编号: Int) -> 人工显示信息? {
         _ = 人工匹配
-        return 锁.withLock { 已载入的显示信息[主题曲编号] }
+        return 锁.withLock { 已载入的显示信息[主题曲编号] } ?? 数据.显示信息[主题曲编号]
+    }
+
+    /// 数据维护添加的歌曲的种类：映射里写的，或旧接口读到的。
+    private static func 添加种类(_ 主题曲编号: Int) -> 动画主题曲.种类? {
+        锁.withLock { 已载入的添加种类[主题曲编号] } ?? 数据.添加种类[主题曲编号]
     }
 
     private static var 人工匹配: (条目: [Int: 条目], 插入曲: [Int: [Int]]) {
@@ -110,26 +157,47 @@ nonisolated enum 主题曲映射 {
               let file = try? JSONDecoder().decode(文件.self, from: data) else { return 表(版本: nil, 条目: [:]) }
         var entries: [Int: 条目] = [:]
         entries.reserveCapacity(file.songs.count)
+        var approximate: [Int: 近似原因] = [:]
+        var correct: [Int: 正确信息] = [:]
         for (key, value) in file.songs {
             guard let id = Int(key) else { continue }
             entries[id] = 转换(value)
+            if case let .歌曲(_, _, _, _, _, reason?, title, artist, _) = value {
+                approximate[id] = 近似原因(rawValue: reason) ?? .其他版本
+                if title != nil || artist != nil { correct[id] = 正确信息(歌名: title, 歌手: artist) }
+            }
         }
         var inserts: [Int: [Int]] = [:]
         for (key, ids) in file.inserts ?? [:] {
             if let malID = Int(key) { inserts[malID] = ids }
         }
-        return 表(版本: file.version, 条目: entries, 插入曲: inserts)
+        var added: [Int: 动画主题曲.种类] = [:]
+        for (key, kind) in file.added ?? [:] {
+            if let id = Int(key), let kind = 动画主题曲.种类(rawValue: kind) { added[id] = kind }
+        }
+        var display: [Int: 人工显示信息] = [:]
+        for (key, info) in file.display ?? [:] {
+            if let id = Int(key) { display[id] = info }
+        }
+        return 表(版本: file.version, 条目: entries, 插入曲: inserts, 近似: approximate, 正确: correct, 添加种类: added, 显示信息: display)
+    }
+
+    /// 只接受两个小写字母的地区代码，其余一律用日本商店。
+    private static func 商店地区(_ region: String?) -> String {
+        guard let region, region.count == 2, region.allSatisfy({ ("a"..."z").contains($0) }) else { return "jp" }
+        return region
     }
 
     private static func 转换(_ value: 文件.值) -> 条目 {
         switch value {
         case .无:
             .无
-        case let .歌曲(trackId, artistId, title, artist, artwork):
+        case let .歌曲(trackId, artistId, title, artist, artwork, _, _, _, region):
             .歌曲(.init(
                 trackId: trackId, artistId: artistId, 曲名: title, 歌手: artist, 专辑: "", 发行日期: "", 可播放: true,
                 封面: artwork.flatMap(URL.init(string:)),
-                链接: URL(string: "https://music.apple.com/jp/song/\(trackId)")
+                // 日本商店没有的歌用它上架的地区，否则网页和 App 都打不开
+                链接: URL(string: "https://music.apple.com/\(Self.商店地区(region))/song/\(trackId)")
             ))
         }
     }
@@ -149,6 +217,12 @@ nonisolated enum 主题曲映射 {
         }
         已载入的添加种类 = 添加种类
         已载入的显示信息 = 显示信息
+        var 近似标签: [Int: 近似原因?] = [:]
+        for (key, value) in file.approximate ?? [:] {
+            guard let id = Int(key) else { continue }
+            近似标签[id] = .some(value.map { 近似原因(rawValue: $0) ?? .其他版本 })
+        }
+        已载入的近似标签 = 近似标签
         return (entries, inserts)
     }
 
@@ -157,17 +231,18 @@ nonisolated enum 主题曲映射 {
 
     static var 版本: String? { 数据.版本 }
 
-    /// 这部作品在映射里的插入曲（都在 Apple Music 里找到了），按 AnisongDB 的顺序，后面是后台人工匹配的。名称先用日本商店的写法，界面显示的也是它。
+    /// 这部作品在映射里的插入曲（都在 Apple Music 里找到了），按 AnisongDB 的顺序，用户添加的在最前，后台人工匹配的在最后。名称先用日本商店的写法，界面显示的也是它。
     static func 插入曲(malID: Int) -> [动画主题曲] {
         let listed = 数据.插入曲[malID] ?? []
         let manual = (人工匹配.插入曲[malID] ?? []).filter { !listed.contains($0) }
-        return (listed + manual).compactMap { key in
+        // 用户添加的排在最前：卡片只列前几首，排在最后会被收进“查看全部”，采纳后像是没加上
+        let ordered = (manual + listed).filter { 添加种类($0) != nil } + listed.filter { 添加种类($0) == nil } + manual.filter { 添加种类($0) == nil }
+        return ordered.compactMap { key in
             if let display = 显示信息(key) {
-                let kind = 锁.withLock { 已载入的添加种类[key] } ?? .插入曲
-                return 动画主题曲(插入曲编号: -key, 标题: display.title, 歌手: display.artist, 别名: [], 种类: kind, 话数: display.episodes)
+                return 动画主题曲(插入曲编号: -key, 标题: display.title, 歌手: display.artist, 别名: [], 种类: 添加种类(key) ?? .插入曲, 话数: display.episodes)
             }
             guard case .歌曲(let item)? = 查找(key) else { return nil }
-            return 动画主题曲(插入曲编号: -key, 标题: item.曲名, 歌手: item.歌手, 别名: [], 种类: 锁.withLock { 已载入的添加种类[key] } ?? .插入曲)
+            return 动画主题曲(插入曲编号: -key, 标题: item.曲名, 歌手: item.歌手, 别名: [], 种类: 添加种类(key) ?? .插入曲)
         }
     }
 
@@ -195,8 +270,12 @@ nonisolated enum 主题曲映射 {
         guard (try? JSONDecoder().decode(人工匹配文件.self, from: data)) != nil else { return false }
         let loaded = 载入人工匹配(data)
         锁.withLock { 已载入的人工匹配 = loaded }
+        NotificationCenter.default.post(name: 人工匹配已更新通知, object: nil)
         return true
     }
+
+    /// 读取到新的人工匹配后发出，已经打开的详情页据此刷新主题曲。
+    static let 人工匹配已更新通知 = Notification.Name("PaperVNThemeSongOverridesDidChange")
 
     /// 下载的映射能完整读取时返回它的版本。
     static func 验证(_ data: Data) throws -> String {
@@ -257,8 +336,8 @@ actor 主题曲映射更新 {
         #endif
         return URL(string: "https://papervn.jizpaper.com/library-matches/theme-song-overrides")!
     }
-    /// 回到前台时最多每 30 分钟读取一次，和作品标题覆盖相同。
-    private static let 人工匹配检查间隔: TimeInterval = 30 * 60
+    /// 回到前台时最多每分钟读取一次：按 ETag 请求，没有变化时不下载内容，采纳后回到 App 就能看到。
+    private static let 人工匹配检查间隔: TimeInterval = 60
     private static let 人工匹配ETag键 = "themeSongOverrides.etag"
 
     private var 正在检查 = false
@@ -320,7 +399,11 @@ actor 主题曲映射更新 {
 
     /// 后台人工匹配的结果按 ETag 静默读取，没有变化时不下载内容，读取失败时继续使用上次的。
     private func 检查人工匹配() async {
-        if let 上次检查人工匹配, Date().timeIntervalSince(上次检查人工匹配) < Self.人工匹配检查间隔 { return }
+        var ignoresInterval = false
+        #if DEBUG
+        ignoresInterval = UserDefaults.standard.string(forKey: "ThemeSongOverridesURL") != nil
+        #endif
+        if !ignoresInterval, let 上次检查人工匹配, Date().timeIntervalSince(上次检查人工匹配) < Self.人工匹配检查间隔 { return }
         上次检查人工匹配 = Date()
         let defaults = UserDefaults.standard
         var request = URLRequest(url: Self.人工匹配地址, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 10)

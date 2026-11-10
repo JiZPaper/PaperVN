@@ -185,7 +185,7 @@ extern "C" int32_t papervn_kirikiri_start(const char *game_dir, const char *data
         return 0;
     }
 
-    // AppDelegate 把搜索路径设成 "res"，相对资源根目录；PaperVN 的 res 在 Swift 包的 bundle 里，
+    // AppDelegate 把搜索路径设成 "res"，相对资源根目录；PaperVN 的 res 在下载的资源包里，
     // 启动前就要设好（applicationDidFinishLaunching 里马上会读语言文件）
     std::string resources = resource_dir;
     while(!resources.empty() && resources.back() == '/') resources.pop_back();

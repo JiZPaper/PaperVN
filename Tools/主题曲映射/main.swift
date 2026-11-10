@@ -4,8 +4,13 @@
 //
 // iTunes 接口每分钟只接受大约 20 次请求，一部作品通常要“歌曲数＋1”次。进度存在 Tools/主题曲映射/进度/，
 // 中断后再运行会接着做；有请求失败（限流、网络）的作品不记结果，下次重试，不会把没检索到的歌曲记成“没有”。
+#if canImport(CryptoKit)
 import CryptoKit
+#endif
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 setvbuf(stdout, nil, _IOLBF, 0)
 
@@ -26,6 +31,9 @@ var 只写文件 = false
 var 强制重查 = false
 /// 只重查上次没找到的歌曲，找到的保留（规则只是放宽、不会让找到的变错时用，省掉大部分请求）。
 var 只查未找到 = false
+/// 每日任务（VPS）：作品数据读最新的，只匹配新出现的和上次没找到的歌，找到的保留；不够确信的只进后台清单、不进映射；
+/// “换成完整版”只查这次的作品。
+var 每日模式 = false
 var 重新检查天数 = 60.0
 var 未找到重查天数 = 14.0
 var 时限分钟: Double?
@@ -41,6 +49,7 @@ while let argument = arguments.next() {
     case "--write-only": 只写文件 = true
     case "--force": 强制重查 = true
     case "--misses-only": 强制重查 = true; 只查未找到 = true
+    case "--daily": 强制重查 = true; 只查未找到 = true; 每日模式 = true
     case "--recheck-days": 重新检查天数 = Double(arguments.next() ?? "") ?? 重新检查天数
     case "--miss-recheck-days": 未找到重查天数 = Double(arguments.next() ?? "") ?? 未找到重查天数
     case "--minutes": 时限分钟 = Double(arguments.next() ?? "")
@@ -92,6 +101,8 @@ struct 进度: Codable {
         var 歌名分: Double
         var 歌手分: Double
         var 专辑: String
+        /// 每日任务新匹配到、还不够确信：不进映射，人工确认后才生效。
+        var 待确认: Bool? = 每日模式 ? true : nil
     }
     struct 歌曲信息: Codable {
         var 种类: String
@@ -156,6 +167,10 @@ struct 进度: Codable {
     var 作品: [String: 作品] = [:]
     /// 人工校正里的曲目编号查到的日本商店信息。
     var 校正曲目: [String: 值] = [:]
+    /// 映射里日本商店没有、在别的地区上架的歌：曲目编号 → 地区。nil 表示还没检查过已有的校正曲目。
+    var 校正曲目地区: [String: String]? = nil
+    /// 已在日本商店检查过的曲目编号，不重复查。
+    var 已检查日本曲目: [Int]? = nil
 }
 
 func 读取进度() -> 进度 {
@@ -234,6 +249,9 @@ var progress = 读取进度()
 /// Apple Music API 的开发者令牌（ES256 签名的 JWT）：密钥是开发者账户里建的 MusicKit 密钥（Media Services），
 /// Key ID 与密钥路径写在 APPLE_MUSIC_KEY_ID、APPLE_MUSIC_KEY_PATH，Team ID 读 Xcode 项目。没有配置时返回 nil。
 func AppleMusic开发者令牌() -> String? {
+    // VPS 上没有 CryptoKit 和 Xcode 项目：由每日任务的外层脚本签好令牌放进环境变量
+    if let token = ProcessInfo.processInfo.environment["APPLE_MUSIC_TOKEN"], !token.isEmpty { return token }
+    #if canImport(CryptoKit)
     let keyID = 私有配置("APPLE_MUSIC_KEY_ID")
     let path = NSString(string: 私有配置("APPLE_MUSIC_KEY_PATH")).expandingTildeInPath
     let project = (try? String(contentsOf: 仓库.appending(path: "PaperVN.xcodeproj/project.pbxproj"), encoding: .utf8)) ?? ""
@@ -250,6 +268,9 @@ func AppleMusic开发者令牌() -> String? {
     let signingInput = "\(base64URL(header)).\(base64URL(payload))"
     guard let signature = try? key.signature(for: Data(signingInput.utf8)) else { return nil }
     return "\(signingInput).\(base64URL(signature.rawRepresentation))"
+    #else
+    return nil
+    #endif
 }
 
 let 令牌 = 只写文件 ? nil : AppleMusic开发者令牌()
@@ -419,6 +440,8 @@ func 目录补充(_ malID: Int) async -> Bool {
 
 /// 已经配上短版本（TV Size、Game Version 等）的歌曲，单独再找一次完整版，找到就替换，其他歌曲不动；确实没有时保留短版本。
 var 查过完整版: Set<String> = []
+/// 每日模式下这次要处理的作品；“换成完整版”只查这些。
+var 限定作品: Set<String>?
 func 换成完整版() async {
     func 是短版本(_ value: 进度.值) -> Bool {
         if case let .歌曲(_, _, title, _, _) = value { AppleMusic主题曲匹配.是短版本(title) } else { false }
@@ -440,10 +463,11 @@ func 换成完整版() async {
     /// 确实只有短版本：保留，同时列到后台，人工确认或改配。
     func 列到后台(_ song: 动画主题曲, key: String, 专辑 album: String?) async {
         var low = progress.作品[key]?.低确信 ?? [:]
-        low[String(song.id)] = .init(信息: await 未找到信息(song, 原文: nil), 歌名分: 1, 歌手分: 1, 专辑: album ?? "")
+        low[String(song.id)] = .init(信息: await 未找到信息(song, 原文: nil), 歌名分: 1, 歌手分: 1, 专辑: album ?? "", 待确认: nil) // 这首已经在映射里，只列到后台
         progress.作品[key]?.低确信 = low
     }
     for (key, work) in progress.作品 {
+        if let 限定作品, !限定作品.contains(key) { continue }
         let shortThemes = work.主题曲.filter { 是短版本($0.value) && 查过完整版.insert("\(key)/\($0.key)").inserted }
         let shortInserts = (work.插入曲 ?? []).filter { 是短版本($0.值) && 查过完整版.insert("\(key)/\($0.编号)").inserted }
         guard !shortThemes.isEmpty || !shortInserts.isEmpty, let malID = Int(key),
@@ -479,7 +503,7 @@ func 换成完整版() async {
 
 func 基础处理(_ malID: Int) async -> Bool {
     // 中断后再运行时，翻过目录的作品不用再查一遍
-    if 只查未找到, progress.作品[String(malID)]?.目录已查 == true { return false }
+    if 只查未找到, !每日模式, progress.作品[String(malID)]?.目录已查 == true { return false }
     let key = String(malID)
     var needsThemes = true
     if !强制重查, let done = progress.作品[key], done.规则版本 ?? 1 == AppleMusic主题曲匹配.规则版本 {
@@ -720,6 +744,7 @@ if !只写文件 {
     var seen = Set<Int>()
     ids = ids.filter { seen.insert($0).inserted }
     print("共 \(ids.count) 部作品，已有进度 \(progress.作品.count) 部")
+    if 每日模式 { 限定作品 = Set(ids.map(String.init)) }
 
     if 指定作品.isEmpty { await 换成完整版() }
 
@@ -741,13 +766,73 @@ if !只写文件 {
 
 // MARK: 人工校正与写出
 
-struct 校正文件: Decodable { let songs: [String: Int?] }
-let corrections = (try? JSONDecoder().decode(校正文件.self, from: Data(contentsOf: 校正URL)))?.songs ?? [:]
-let needLookup = corrections.values.compactMap { $0 }.filter { progress.校正曲目[String($0)] == nil }
-if !needLookup.isEmpty, let found = try? await 匹配器.查询曲目(needLookup, 地区: "jp") {
-    for id in needLookup {
-        if let item = found[id] { progress.校正曲目[String(id)] = 进度.值(item) } else { print("校正里的曲目 \(id) 在日本商店查不到") }
+struct 校正文件: Decodable {
+    let songs: [String: Int?]
+    let 依据: [String: String]?
+    /// 因为 Apple Music 没有原版而放宽标准配上的歌：short 只有短版本、lineup 阵容不同、version 版本不同，App 显示“近似版本”。
+    /// 值为 null 表示确认不算近似（比如 MAL 指定的就是 TV Size）。翻唱、现场版听起来不一样，不算近似，不配。
+    let 近似: [String: String?]?
+    /// 其他阵容、其他版本在 App 里显示的动画实际歌名和歌手（人工写的原语言名）；没写时用进度里的。
+    let 近似显示: [String: 显示]?
+    /// 只供后台复核的候选，不发布到 App 的歌曲映射。
+    let 不确定: [String: 候选]?
+    struct 候选: Decodable {
+        let trackId: Int
+        let title: String
+        let artist: String
+        let album: String
+        let artwork: String?
     }
+    struct 显示: Decodable { let title: String?; let artist: String? }
+}
+let 近似标记 = (try? JSONDecoder().decode(校正文件.self, from: Data(contentsOf: 校正URL)))?.近似 ?? [:]
+let 近似显示 = (try? JSONDecoder().decode(校正文件.self, from: Data(contentsOf: 校正URL)))?.近似显示 ?? [:]
+let correctionReasons = (try? JSONDecoder().decode(校正文件.self, from: Data(contentsOf: 校正URL)))?.依据 ?? [:]
+let corrections = (try? JSONDecoder().decode(校正文件.self, from: Data(contentsOf: 校正URL)))?.songs ?? [:]
+let uncertainCorrections = (try? JSONDecoder().decode(校正文件.self, from: Data(contentsOf: 校正URL)))?.不确定 ?? [:]
+let needLookup = corrections.values.compactMap { $0 }.filter { progress.校正曲目[String($0)] == nil }
+let 其他地区 = ["cn", "us", "tw", "hk", "kr"]
+/// 日本商店查不到的曲目在别的地区找；日本那次请求失败时会误判，所以先在日本再查一次确认。
+func 查找上架地区(_ ids: [Int]) async -> [Int: (地区: String, 值: 进度.值)] {
+    guard !ids.isEmpty, let again = try? await 匹配器.查询曲目(ids, 地区: "jp") else { return [:] }
+    var remaining = ids.filter { again[$0] == nil }
+    var result: [Int: (地区: String, 值: 进度.值)] = [:]
+    for 地区 in 其他地区 where !remaining.isEmpty {
+        guard let found = try? await 匹配器.查询曲目(remaining, 地区: 地区) else { continue }
+        for id in remaining { if let item = found[id] { result[id] = (地区, 进度.值(item)) } }
+        remaining = remaining.filter { found[$0] == nil }
+    }
+    return result
+}
+if progress.校正曲目地区 == nil {
+    // 第一次运行：检查已缓存的校正曲目里哪些日本商店没有
+    let cached = Array(Set(corrections.values.compactMap { $0 }.filter { progress.校正曲目[String($0)] != nil }))
+    var checked = true
+    var missing: [Int] = []
+    for chunk in stride(from: 0, to: cached.count, by: 300).map({ Array(cached[$0..<min($0 + 300, cached.count)]) }) {
+        guard let found = try? await 匹配器.查询曲目(chunk, 地区: "jp") else { checked = false; break }
+        missing += chunk.filter { found[$0] == nil }
+    }
+    if checked {
+        var regions: [String: String] = [:]
+        for (id, hit) in await 查找上架地区(missing) { regions[String(id)] = hit.地区 }
+        progress.校正曲目地区 = regions
+        存储(progress)
+    }
+}
+if !needLookup.isEmpty {
+    // 先查日本的商店（原语言写法）；只在别的地区上架的歌（比如只在中国大陆上架的国产动画歌曲）依次再查
+    var remaining = needLookup
+    if let found = try? await 匹配器.查询曲目(remaining, 地区: "jp") {
+        for id in remaining { if let item = found[id] { progress.校正曲目[String(id)] = 进度.值(item) } }
+        remaining = remaining.filter { found[$0] == nil }
+        for (id, hit) in await 查找上架地区(remaining) {
+            progress.校正曲目[String(id)] = hit.值
+            progress.校正曲目地区?[String(id)] = hit.地区
+        }
+        remaining = remaining.filter { progress.校正曲目[String($0)] == nil }
+    }
+    for id in remaining { print("校正里的曲目 \(id) 在各地区的商店都查不到") }
     存储(progress)
 }
 
@@ -780,8 +865,9 @@ var songs: [String: 进度.值] = [:]
 /// 作品（MAL ID）→ 找到了 Apple Music 歌曲的插入曲（键是插入曲编号的相反数，和 songs 里的键一致）。
 var inserts: [String: [String]] = [:]
 for (malID, work) in progress.作品 {
-    for (id, value) in work.主题曲 { songs[id] = value }
-    for entry in work.插入曲 ?? [] where entry.值 != .无 {
+    let 待确认 = Set((work.低确信 ?? [:]).filter { $0.value.待确认 == true }.keys)
+    for (id, value) in work.主题曲 { songs[id] = 待确认.contains(id) ? .无 : value }
+    for entry in work.插入曲 ?? [] where entry.值 != .无 && !待确认.contains(String(-entry.编号)) {
         songs[String(-entry.编号)] = entry.值
         inserts[malID, default: []].append(String(-entry.编号))
     }
@@ -793,13 +879,89 @@ for (id, track) in corrections {
         songs[id] = .无
     }
 }
+for id in uncertainCorrections.keys { songs[id] = .无 }
+
+// 人工校正之后再建立插入曲索引，补配的插曲才能出现在对应作品中。
+inserts.removeAll()
+for (malID, work) in progress.作品 {
+    for entry in work.插入曲 ?? [] {
+        let id = String(-entry.编号)
+        if case .歌曲? = songs[id] {
+            inserts[malID, default: []].append(id)
+        }
+    }
+}
+
+// 映射里所有歌都查一次日本商店有没有（查过的记住），没有的找出上架地区，App 用它生成链接
+do {
+    var checked = Set(progress.已检查日本曲目 ?? [])
+    let pending = Array(Set(songs.values.compactMap { value -> Int? in
+        if case let .歌曲(track, _, _, _, _) = value { return track }
+        return nil
+    }).subtracting(checked))
+    var missing: [Int] = []
+    for chunk in stride(from: 0, to: pending.count, by: 300).map({ Array(pending[$0..<min($0 + 300, pending.count)]) }) {
+        guard let found = try? await 匹配器.查询曲目(chunk, 地区: "jp") else { break }
+        missing += chunk.filter { found[$0] == nil }
+        checked.formUnion(chunk)
+    }
+    if !pending.isEmpty {
+        var regions = progress.校正曲目地区 ?? [:]
+        for (id, hit) in await 查找上架地区(missing) { regions[String(id)] = hit.地区 }
+        progress.校正曲目地区 = regions
+        progress.已检查日本曲目 = checked.sorted()
+        存储(progress)
+    }
+}
 
 // 每行一首，方便比较两个版本的差别；"version" 放在最前面，App 只读文件开头就能知道版本
 let encoder = JSONEncoder()
 encoder.outputFormatting = [.withoutEscapingSlashes]
 var lines: [String] = []
+/// 校正里没写的，配上短版本（确实没有完整版才会保留）的也算近似：每日自动匹配的新歌走这里。
+func 近似原因(_ id: String, _ value: 进度.值?) -> String? {
+    guard case let .歌曲(_, _, title, _, _)? = value else { return nil }
+    if let marked = 近似标记[id] { return marked }
+    let isShort = title.range(of: #"(?<![a-z])(?:t\.?v\.?|anime|game|ova|short|op|ed)[\s_.-]*(?:size|ver(?![a-z])|version|edit)|tvsize|(?:テレビ|アニメ|ショート|tv|ova)\s*サイズ"#, options: [.regularExpression, .caseInsensitive]) != nil
+    return isShort ? "short" : nil
+}
+/// 动画里实际的歌名和歌手。片头曲、片尾曲 App 能读 MAL，这里主要是插入曲。
+var 进度歌曲信息: [String: (歌名: String?, 歌手: String?)] = [:]
+for work in progress.作品.values {
+    for entry in work.插入曲 ?? [] { 进度歌曲信息[String(-entry.编号)] = (entry.歌名, entry.歌手) }
+    for (id, info) in work.未找到 ?? [:] {
+        进度歌曲信息[id] = (info.原标题 ?? info.标题, info.歌手原名 ?? info.歌手) // 歌手日文名是检索来的，可能是同名的别人
+    }
+    for (id, low) in work.低确信 ?? [:] {
+        let info = low.信息
+        进度歌曲信息[id] = (info.原标题 ?? info.标题, info.歌手原名 ?? info.歌手) // 歌手日文名是检索来的，可能是同名的别人
+    }
+}
 for id in songs.keys.sorted(by: { Int($0) ?? 0 < Int($1) ?? 0 }) {
-    let value = String(data: try encoder.encode(songs[id]!), encoding: .utf8)!
+    var value = String(data: try encoder.encode(songs[id]!), encoding: .utf8)!
+    // 第 6 项是近似原因，没有封面时第 5 项写 null；旧版 App 不读第 6 项
+    if let reason = 近似原因(id, songs[id]), case let .歌曲(_, _, _, _, artwork)? = songs[id] {
+        value.removeLast()
+        value += artwork == nil ? ",null,\"\(reason)\"" : ",\"\(reason)\""
+        if reason != "short" {
+            let manual = 近似显示[id]
+            let auto = 进度歌曲信息[id]
+            // 其他阵容是同一首歌，没人工写歌名时用 Apple Music 的原语言写法，不用罗马字
+            let title = manual?.title ?? (reason == "version" ? auto?.歌名 : nil)
+            let artist = manual?.artist ?? auto?.歌手
+            for text in [title, artist].map({ $0?.isEmpty == true ? nil : $0 }) {
+                value += "," + String(data: try encoder.encode(text), encoding: .utf8)!
+            }
+        }
+        value += "]"
+    }
+    // 第 9 项是上架地区，只在日本商店没有时写；前面不够的项补 null
+    if case let .歌曲(trackId, _, _, _, _)? = songs[id],
+       let region = progress.校正曲目地区?[String(trackId)],
+       let count = (try? JSONSerialization.jsonObject(with: Data(value.utf8))) as? [Any] {
+        value.removeLast()
+        value += String(repeating: ",null", count: max(0, 8 - count.count)) + ",\"\(region)\"]"
+    }
     lines.append("\"\(id)\":\(value)")
 }
 let body = lines.joined(separator: ",\n")
@@ -841,6 +1003,21 @@ struct 未匹配项: Encodable {
     var autoMatch: 自动匹配结果? = nil
     /// Bangumi 上这部作品的音乐条目，后台人工匹配时轻点检索。
     var bangumiMusic: [Bangumi音乐项]? = nil
+    /// 人工校正（Claude 判定）的结果，后台按“Claude已匹配”“Claude没有”分类显示，方便复查。
+    var claude: Claude校正? = nil
+    var review: String? = nil
+    var reviewReason: String? = nil
+    /// 近似版本的原因（short、lineup、version），后台可以改。
+    var approximate: String? = nil
+}
+
+struct Claude校正: Encodable {
+    /// nil 表示判定 Apple Music 里没有。
+    let trackId: Int?
+    var title: String? = nil
+    var artist: String? = nil
+    var artwork: String? = nil
+    let reason: String?
 }
 
 struct Bangumi音乐项: Encodable {
@@ -948,7 +1125,7 @@ for (key, work) in progress.作品 {
     guard let malID = Int(key) else { continue }
     var pending = work.主题曲.filter { $0.value == .无 }.map(\.key)
     pending += (work.插入曲 ?? []).filter { $0.值 == .无 }.map { String(-$0.编号) }
-    for id in pending where corrections[id] == nil {
+    for id in pending {
         // 插入曲的信息在进度的插入曲条目里也有（罗马字）
         let insert = work.插入曲?.first { String(-$0.编号) == id }
         guard let info = work.未找到?[id] ?? insert.map({ 进度.歌曲信息(种类: "in", 标题: $0.歌名, 歌手: $0.歌手) }) else { continue }
@@ -965,7 +1142,7 @@ for (key, work) in progress.作品 {
             }
         ))
     }
-    for (id, low) in work.低确信 ?? [:] where corrections[id] == nil {
+    for (id, low) in work.低确信 ?? [:] {
         let value = work.主题曲[id] ?? work.插入曲?.first { String(-$0.编号) == id }?.值
         guard case let .歌曲(trackId, artistId, title, artist, artwork)? = value else { continue }
         let info = low.信息
@@ -975,14 +1152,51 @@ for (key, work) in progress.作品 {
             artistJapanese: info.歌手日文名, episodes: info.话数, text: info.原文,
             autoMatch: .init(
                 trackId: trackId, artistId: artistId, title: title, artist: artist, album: low.专辑, artwork: artwork,
-                titleScore: low.歌名分, artistScore: low.歌手分
+                titleScore: low.歌名分, artistScore: low.歌手分, suggested: low.待确认
             )
+        ))
+    }
+}
+// 原本自动匹配上、后来被人工校正改过的歌（比如换成完整版）也列出来，后台能复查每一处 Claude 的判定
+let listedKeys = Set(unmatched.map(\.key))
+for (key, work) in progress.作品 {
+    guard let malID = Int(key) else { continue }
+    var entries: [(String, 进度.值, 进度.歌曲信息?)] = work.主题曲.map { ($0.key, $0.value, work.未找到?[$0.key]) }
+    entries += (work.插入曲 ?? []).map { (String(-$0.编号), $0.值, 进度.歌曲信息(种类: "in", 标题: $0.歌名, 歌手: $0.歌手)) }
+    // 近似版本也列出来，后台要能管理标签
+    for (id, value, info) in entries where (corrections[id] != nil || 近似原因(id, songs[id]) != nil) && !listedKeys.contains(id) {
+        // 校正成“没有”的歌，标题和歌手沿用原本自动匹配的那首，后台才能看到这条判定
+        var shown = songs[id] ?? value
+        if case .歌曲 = shown {} else { shown = value }
+        guard case let .歌曲(_, _, title, artist, _) = shown else { continue }
+        unmatched.append(.init(
+            key: id, malID: malID, anime: work.作品名, rank: ranks[malID], kind: info?.种类 ?? "op", number: info?.序号,
+            title: info?.标题 ?? title, originalTitle: info?.原标题 ?? title, artist: info?.歌手 ?? artist,
+            originalArtist: info?.歌手原名 ?? artist, artistJapanese: info?.歌手日文名, episodes: info?.话数, text: info?.原文
         ))
     }
 }
 unmatched = unmatched.map { item in
     var item = item
     item.bangumiMusic = progress.作品[String(item.malID)]?.Bangumi音乐?.map { .init(relation: $0.关系, name: $0.名称) }
+    item.approximate = 近似原因(item.key, songs[item.key])
+    if let correction = corrections[item.key] {
+        var claude = Claude校正(trackId: correction, reason: correctionReasons[item.key])
+        if let track = correction, case let .歌曲(_, _, title, artist, artwork)? = progress.校正曲目[String(track)] {
+            claude.title = title
+            claude.artist = artist
+            claude.artwork = artwork
+        }
+        item.claude = claude
+    }
+    if let candidate = uncertainCorrections[item.key] {
+        item.claude = nil
+        item.review = "unsure"
+        item.reviewReason = correctionReasons[item.key]
+        item.autoMatch = .init(trackId: candidate.trackId, artistId: nil,
+            title: candidate.title, artist: candidate.artist, album: candidate.album,
+            artwork: candidate.artwork, titleScore: 1, artistScore: 0, suggested: true)
+    }
     return item
 }
 unmatched.sort { ($0.rank ?? .max, $0.key) < ($1.rank ?? .max, $1.key) }
@@ -992,6 +1206,8 @@ missesEncoder.dateEncodingStrategy = .iso8601
 missesEncoder.outputFormatting = [.withoutEscapingSlashes]
 let missesURL = 进度URL.deletingLastPathComponent().appending(path: "PaperVNThemeSongMisses.json")
 try missesEncoder.encode(未匹配清单(version: version, generatedAt: .now, items: unmatched)).write(to: missesURL, options: .atomic)
-let lowCount = unmatched.filter { $0.autoMatch != nil }.count
-let suggestedCount = unmatched.filter { $0.autoMatch?.suggested == true }.count
-print("已写出待人工处理清单：\(unmatched.count) 首（没匹配到 \(unmatched.count - lowCount) 首，其中插入曲 \(unmatched.filter { $0.kind == "in" && $0.autoMatch == nil }.count) 首；确信度不高 \(lowCount - suggestedCount) 首；只有建议 \(suggestedCount) 首）")
+let open = unmatched.filter { $0.claude == nil }
+let lowCount = open.filter { $0.autoMatch != nil }.count
+let suggestedCount = open.filter { $0.autoMatch?.suggested == true }.count
+let claudeNone = unmatched.filter { $0.claude != nil && $0.claude?.trackId == nil }.count
+print("已写出待人工处理清单：\(open.count) 首（没匹配到 \(open.count - lowCount) 首，其中插入曲 \(open.filter { $0.kind == "in" && $0.autoMatch == nil }.count) 首；确信度不高 \(lowCount - suggestedCount) 首；只有建议 \(suggestedCount) 首）；另有 Claude 判定 \(unmatched.count - open.count) 首（其中没有 \(claudeNone) 首）供复查")

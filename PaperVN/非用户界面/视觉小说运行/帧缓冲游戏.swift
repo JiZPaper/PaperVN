@@ -50,7 +50,7 @@ final class 帧缓冲游戏控制 {
     fileprivate func 打开() {
         guard handle == nil, 错误 == nil else { return }
         // 这几个引擎默认找桌面系统的字体路径，iOS 上要明确给一个
-        _ = (KiriKiri资源.路径 as NSString).appendingPathComponent("NotoSansCJK-Regular.ttc").withCString { game_add_font_file($0) }
+        _ = 视觉小说运行资源.字体文件.path.withCString { game_add_font_file($0) }
         var failure: UnsafeMutablePointer<CChar>?
         handle = 游戏目录.path.withCString { root in
             引擎.withCString { engine in game_fb_open(root, engine, nil, &failure) }

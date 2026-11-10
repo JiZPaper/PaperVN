@@ -45,7 +45,7 @@ project_root="$(cd "$(dirname "$0")/.." && pwd)"
 for required in \
     "Dependencies/Siglus/SiglusCore.xcframework:Tools/构建Siglus.sh" \
     "Dependencies/KiriKiri/KiriKiriCore.xcframework:Tools/构建KiriKiri.sh" \
-    "Dependencies/KiriKiri/Sources/KiriKiri/Resources/res:Tools/构建KiriKiri.sh"; do
+    "Dependencies/KiriKiri/下载资源/res:Tools/构建KiriKiri.sh"; do
     if [[ ! -e "$project_root/${required%%:*}" ]]; then
         echo "error: 缺少 ${required%%:*}，先运行 ${required##*:}" >&2
         exit 1

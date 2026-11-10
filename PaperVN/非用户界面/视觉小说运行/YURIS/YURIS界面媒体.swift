@@ -135,6 +135,7 @@ final class YURIS界面媒体: NSObject {
 
     func 打开Flash(_ file: URL, 区域 area: CGRect, 画面 screen: CGSize, 元数据: @escaping (Int, Double) -> Void) {
         关闭Flash()
+        guard 视觉小说运行资源.已安装(.flash) else { return }
         区域 = area
         画面 = screen
         元数据回调 = 元数据
@@ -271,7 +272,7 @@ private final class YURISFlash资源: NSObject, WKURLSchemeHandler {
             data = try? Data(contentsOf: 影片, options: .mappedIfSafe)
             type = "application/x-shockwave-flash"
         } else if path.hasPrefix("/ruffle/"), !path.contains("..") {
-            let file = KiriKiri资源.Ruffle目录.appending(path: String(path.dropFirst("/ruffle/".count)))
+            let file = 视觉小说运行资源.Ruffle目录.appending(path: String(path.dropFirst("/ruffle/".count)))
             data = try? Data(contentsOf: file, options: .mappedIfSafe)
             type = file.pathExtension == "wasm" ? "application/wasm" : "text/javascript"
         }

@@ -90,7 +90,7 @@ extension 数据维护提交 {
     /// 调试用：和示例反馈一起在 `-FeedbackUpdateSample` 下显示。
     static var 示例: [数据维护提交] {
         let json = """
-        [{"id":"DM3","kind":"musicMismatch","status":"discussion","author":null,"authorID":"a1","isOwn":false,"support":3,"oppose":1,"myVote":0,"replyCount":2,"createdAt":"2026-10-29T08:00:00Z","work":"葬送のフリーレン","title":"勇者","artist":"YOASOBI","note":"片尾曲匹配到了同名的另一首歌。"},
+        [{"id":"DM3","kind":"musicMismatch","status":"discussion","author":null,"authorID":"a1","isOwn":false,"support":3,"oppose":1,"myVote":0,"replyCount":2,"createdAt":"2026-10-29T08:00:00Z","work":"葬送のフリーレン","title":"勇者","artist":"YOASOBI","note":"片尾曲匹配到了同名的另一首歌。","replies":[{"id":"R1","author":"示例用户","authorID":"a2","official":false,"text":"确实，应该是YOASOBI的那首。","state":"public","isOwn":false,"createdAt":"2026-10-30T08:00:00Z"},{"id":"R2","author":null,"authorID":"me","official":false,"text":"我也遇到了。","state":"pending","isOwn":true,"createdAt":"2026-10-31T08:00:00Z"}]},
         {"id":"TR5","kind":"translation","status":"discussion","author":null,"authorID":"me","isOwn":true,"support":1,"oppose":0,"myVote":0,"replyCount":0,"createdAt":"2026-10-28T08:00:00Z","work":"サクラノ詩","language":"zh-Hans","source":"Summary","suggestion":"简介译文"},
         {"id":"DM1","kind":"translationError","status":"pending","author":null,"authorID":"me","isOwn":true,"support":0,"oppose":0,"myVote":0,"replyCount":0,"createdAt":"2026-10-27T08:00:00Z","work":"白昼夢の青写真","note":"第二段人名译错了。"}]
         """
@@ -275,6 +275,19 @@ enum 数据维护屏蔽 {
     }
 }
 
+#if DEBUG
+/// 调试用：`-DataMaintenanceSubmittedSample` 的 `music` 是添加音乐，其他值是报告音乐匹配错误。
+struct 数据维护已提交预览: Identifiable {
+    let id: String
+
+    var 内容: 数据维护提交页面.提交内容 {
+        id == "music"
+            ? .添加音乐(malID: 52991, 作品: "葬送のフリーレン")
+            : .音乐匹配错误(malID: 52991, 作品: "葬送のフリーレン", 歌曲键: 1, 种类: .片尾曲, 歌名: "勇者", 歌手: "YOASOBI", 当前曲目: nil)
+    }
+}
+#endif
+
 // MARK: - 列表
 
 /// 和反馈列表行同一排版：第一行标题和日期，第二行类型和状态。
@@ -329,6 +342,7 @@ struct 数据维护详情页面: View {
     @State private var 屏蔽 = 数据维护屏蔽.全部
     @State private var 编辑中的翻译: VNDB简介翻译投稿记录?
     @EnvironmentObject private var auth: 用户登录
+    @ObservedObject private var paperAccount = PaperAccount账户.shared
 
     private let service = 数据维护服务()
     private var 当前: 数据维护提交 { item ?? 初始内容 }
@@ -388,12 +402,23 @@ struct 数据维护详情页面: View {
                     ForEach(replies) { reply in
                         回复行(reply)
                     }
-                    TextField("回复", text: $回复内容, axis: .vertical)
-                        .lineLimit(1...5)
-                    Button("发送回复", action: 发送回复)
-                        .disabled(正在发送 || 回复内容.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 } header: {
                     Text("回复")
+                }
+
+                Section {
+                    // 内容和详情页的 Bangumi 吐槽相同；背景用分组列表的行背景，材质在这里和页面背景分不开
+                    评论撰写卡片(
+                        占位文字: "撰写回复…",
+                        内容: $回复内容,
+                        显示名称: paperAccount.isLoggedIn
+                            ? paperAccount.资料?.nickname ?? String(localized: "未设置昵称")
+                            : String(localized: "匿名"),
+                        正在发布: 正在发送,
+                        使用卡片背景: false,
+                        发布: 发送回复
+                    )
+                    .listRowInsets(EdgeInsets())
                 } footer: {
                     Text("回复将在审核后显示。")
                 }
@@ -405,7 +430,8 @@ struct 数据维护详情页面: View {
             }
         }
         .平台分组列表样式()
-        .仅顶部可下拉关闭()
+        // 推入的详情页不能轻扫关闭弹窗：上滑会被系统的关闭手势抢走，滑不到回复。用左上角返回。
+        .interactiveDismissDisabled()
         .navigationTitle(当前.kind.名称)
         .平台内联导航标题()
         .toolbar {
@@ -464,12 +490,13 @@ struct 数据维护详情页面: View {
                 Image(systemName: selected ? "\(systemImage).fill" : systemImage)
             }
             .frame(maxWidth: .infinity)
-            // 玻璃按钮的符号不跟随 tint，图标和文字直接设同一种颜色
             .foregroundStyle(selected ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
         }
         .controlSize(.large)
-        // 选中后整个按钮用强调色填充
-        .modifier(Senkou按钮样式(突出: selected))
+        .buttonBorderShape(.capsule)
+        // 选中后整个按钮用强调色填充；未选中用灰色，不用液态玻璃
+        .tint(selected ? Color.accentColor : Color.secondary)
+        .modifier(投票按钮样式(突出: selected))
     }
 
     private func 回复行(_ reply: 数据维护回复) -> some View {
@@ -553,6 +580,19 @@ struct 数据维护详情页面: View {
     }
 }
 
+/// bordered 系列在 iOS 26 上也不是液态玻璃。
+private struct 投票按钮样式: ViewModifier {
+    let 突出: Bool
+
+    func body(content: Content) -> some View {
+        if 突出 {
+            content.buttonStyle(.borderedProminent)
+        } else {
+            content.buttonStyle(.bordered)
+        }
+    }
+}
+
 // MARK: - 提交
 
 /// 从作品详情打开：报告音乐匹配错误、添加音乐、报告简介翻译错误。
@@ -564,6 +604,10 @@ struct 数据维护提交页面: View {
     }
 
     let 内容: 提交内容
+    #if DEBUG
+    /// 调试用：打开后直接显示提交成功的提示。
+    var 显示已提交示例 = false
+    #endif
 
     @ObservedObject private var paperAccount = PaperAccount账户.shared
     @Environment(\.dismiss) private var dismiss
@@ -585,6 +629,20 @@ struct 数据维护提交页面: View {
         case .音乐匹配错误: "报告音乐匹配错误"
         case .添加音乐: "添加音乐"
         case .简介翻译错误: "报告简介翻译错误"
+        }
+    }
+
+    private var 已提交标题: LocalizedStringKey {
+        switch 内容 {
+        case .添加音乐: "已提交音乐"
+        case .音乐匹配错误, .简介翻译错误: "已提交报告"
+        }
+    }
+
+    private var 已提交说明: LocalizedStringKey {
+        switch 内容 {
+        case .添加音乐: "谢谢！你添加的音乐已提交以供审核。"
+        case .音乐匹配错误, .简介翻译错误: "谢谢！你的报告已提交以供审核。"
         }
     }
 
@@ -667,11 +725,16 @@ struct 数据维护提交页面: View {
             .alert(item: $提示) { value in
                 Alert(title: Text(verbatim: value.title), message: Text(verbatim: value.message), dismissButton: .default(Text("好")))
             }
-            .alert("已提交", isPresented: $已提交) {
+            .alert(已提交标题, isPresented: $已提交) {
                 Button("好") { dismiss() }
             } message: {
-                Text("这项提交将在审核后公开。请勿重复提交相同内容。")
+                Text(已提交说明)
             }
+            #if DEBUG
+            .task {
+                if 显示已提交示例 { 已提交 = true }
+            }
+            #endif
         }
     }
 

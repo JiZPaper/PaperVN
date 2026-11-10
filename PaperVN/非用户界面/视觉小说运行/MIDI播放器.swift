@@ -14,7 +14,8 @@ final class MIDI播放器 {
     var 音量: Float = 1 { didSet { 引擎.mainMixerNode.outputVolume = 音量 } }
 
     init?(数据 data: Data, 循环: Bool) {
-        guard data.prefix(4) == Data("MThd".utf8) else { return nil }
+        guard data.prefix(4) == Data("MThd".utf8),
+              视觉小说运行资源.已安装(.midi音色) else { return nil }
         let description = AudioComponentDescription(
             componentType: kAudioUnitType_MusicDevice, componentSubType: kAudioUnitSubType_MIDISynth,
             componentManufacturer: kAudioUnitManufacturer_Apple, componentFlags: 0, componentFlagsMask: 0)
@@ -23,7 +24,7 @@ final class MIDI播放器 {
         引擎.connect(合成器, to: 引擎.mainMixerNode, format: nil)
         // 这个音色库在多声部时峰值会超过 1，留些余量免得削波
         合成器.volume = 0.5
-        var bank = KiriKiri资源.MIDI音色库 as CFURL
+        var bank = 视觉小说运行资源.MIDI音色库 as CFURL
         let unit = 合成器.audioUnit
         let status = withUnsafeMutablePointer(to: &bank) {
             AudioUnitSetProperty(unit, kMusicDeviceProperty_SoundBankURL, kAudioUnitScope_Global, 0,

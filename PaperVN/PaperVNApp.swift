@@ -27,6 +27,10 @@ struct PaperVNApp: App {
     @State private var showsFeedbackDiagnosticsSample = false
     /// 调试用：`-RunVisualNovelSample v7=/path/to/game` 把文件夹设为这部作品的文件夹并直接运行。
     @State private var 运行示例作品: String?
+    /// 调试用：`-DataMaintenanceSubmittedSample report` 或 `music` 打开提交页并显示提交成功的提示。
+    @State private var 数据维护已提交示例: 数据维护已提交预览?
+    /// 调试用：`-DataMaintenanceDetailSample` 直接打开数据维护详情，看回复卡片。
+    @State private var 显示数据维护详情示例 = false
     #endif
 
     init() {
@@ -146,6 +150,17 @@ struct PaperVNApp: App {
             .平台近全屏弹窗()
         }
         #if DEBUG
+        .sheet(isPresented: $显示数据维护详情示例) {
+            NavigationStack {
+                数据维护详情页面(初始内容: 数据维护提交.示例[0]) {}
+            }
+            .environmentObject(auth)
+            .平台近全屏弹窗()
+        }
+        .sheet(item: $数据维护已提交示例) { sample in
+            数据维护提交页面(内容: sample.内容, 显示已提交示例: true)
+                .平台近全屏弹窗()
+        }
         .sheet(isPresented: $showsFeedbackDiagnosticsSample) {
             快速反馈页面(title: "诊断信息预览", description: "")
                 .environmentObject(auth)
@@ -201,6 +216,18 @@ struct PaperVNApp: App {
                     try? await 视觉小说文件夹中心.shared.设置(URL(fileURLWithPath: path), 作品: vnID)
                     try? await Task.sleep(for: .milliseconds(800))
                     运行示例作品 = vnID
+                }
+            }
+            if ProcessInfo.processInfo.arguments.contains("-DataMaintenanceDetailSample") {
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(600))
+                    显示数据维护详情示例 = true
+                }
+            }
+            if let value = UserDefaults.standard.string(forKey: "DataMaintenanceSubmittedSample") {
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(600))
+                    数据维护已提交示例 = 数据维护已提交预览(id: value)
                 }
             }
             if 快速反馈页面.调试预览 {

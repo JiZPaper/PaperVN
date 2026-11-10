@@ -14,9 +14,6 @@ struct 反馈与参与菜单: View {
                 showFeedbackSheet = true
             } label: {
                 Label("反馈", systemImage: "exclamationmark.bubble")
-                if let hint = feedbackUpdates.提示 {
-                    Text(verbatim: hint)
-                }
             }
 
             Button {

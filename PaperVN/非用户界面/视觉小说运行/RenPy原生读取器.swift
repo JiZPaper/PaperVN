@@ -18,7 +18,7 @@ nonisolated final class RenPy原生读取器: 网页游戏资源读取器, @unch
     }
 
     init(游戏根目录 root: URL) throws {
-        运行库 = KiriKiri资源.RenPy运行库
+        运行库 = 视觉小说运行资源.RenPy运行库
         let manager = FileManager.default
         guard let name = try manager.contentsOfDirectory(atPath: root.path).first(where: { $0.lowercased() == "game" }) else {
             throw 错误.缺少game文件夹

@@ -24,6 +24,7 @@ trap 'rm -rf "$BUILD"' EXIT
 swiftc -O -default-isolation MainActor \
   "$ROOT/PaperVN/非用户界面/资料库/动画主题曲.swift" \
   "$ROOT/Tools/主题曲映射/目录匹配.swift" \
+  "$ROOT/Tools/主题曲映射/Linux读音.swift" \
   "$ROOT/Tools/主题曲映射/main.swift" \
   -o "$BUILD/生成主题曲映射"
 

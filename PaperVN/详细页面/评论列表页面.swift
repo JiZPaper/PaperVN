@@ -1,5 +1,74 @@
 import SwiftUI
 
+/// 撰写评论的卡片：作品详情的 Bangumi 吐槽、数据维护的回复共用。
+struct 评论撰写卡片: View {
+    let 占位文字: LocalizedStringKey
+    @Binding var 内容: String
+    let 显示名称: String
+    let 正在发布: Bool
+    /// 放在分组列表里时由行背景当卡片，这里不再画材质。
+    var 使用卡片背景 = true
+    let 发布: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            TextField(占位文字, text: $内容, axis: .vertical)
+                .lineLimit(3...7)
+                .textFieldStyle(.plain)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(
+                    Color.secondary.opacity(0.14),
+                    in: RoundedRectangle(
+                        cornerRadius: 评论卡片布局.内层圆角,
+                        style: .continuous
+                    )
+                )
+
+            HStack(spacing: 10) {
+                Text("以“\(显示名称)”发布")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+
+                Spacer(minLength: 0)
+
+                Button(action: 发布) {
+                    if 正在发布 {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        // 不用 Label：List 里 Label 的图标会染成强调色，放在强调色按钮上就看不见了
+                        HStack(spacing: 6) {
+                            Image(systemName: "paperplane.fill")
+                                .accessibilityHidden(true)
+                            Text("发布")
+                        }
+                        .font(.subheadline.weight(.medium))
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.capsule)
+                .disabled(
+                    内容.trimmingCharacters(
+                        in: .whitespacesAndNewlines
+                    ).isEmpty || 正在发布
+                )
+            }
+        }
+        .padding(评论卡片布局.内边距)
+        .background {
+            if 使用卡片背景 {
+                RoundedRectangle(
+                    cornerRadius: 评论卡片布局.圆角,
+                    style: .continuous
+                )
+                .fill(.regularMaterial)
+            }
+        }
+    }
+}
+
 private extension View {
     @ViewBuilder
     func 评论容器背景(使用背景模糊: Bool) -> some View {

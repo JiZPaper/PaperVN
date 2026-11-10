@@ -172,6 +172,9 @@ nonisolated final class YURIS资源库: @unchecked Sendable {
         return current
     }
 
+    /// 封包里的文件名（小写），启动前用来判断要不要下载资源
+    var 封包文件名: [String] { Array(索引.keys) }
+
     /// 不在封包里的文件（swf 只能这样放）
     func 散放文件地址(_ name: String) -> URL? {
         散放地址(规范(name))
