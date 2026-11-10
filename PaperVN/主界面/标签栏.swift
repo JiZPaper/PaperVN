@@ -12,12 +12,11 @@ private enum PaperVNRootTabAccessibilityIdentifier {
 }
 
 private func paperVNRootSearchTabRole(
-    isIndependent: Bool,
-    isPad: Bool = false
+    isIndependent: Bool
 ) -> TabRole? {
     if #available(iOS 27.0, *) {
+        // iPhone 上靠 平台搜索Tab分离 让它分离并展开为搜索框
         guard isIndependent else { return nil }
-        return isPad ? .search : .prominent
     }
     return .search
 }
@@ -33,14 +32,6 @@ struct TabBar: View {
 
     var body: some View {
         rootContent
-        .onChange(of: selectedTab) { _, newTab in
-            switch newTab {
-            case .today:
-                推荐后台分析中心.shared.设置Today分析暂停(true)
-            default:
-                推荐后台分析中心.shared.设置Today分析暂停(false)
-            }
-        }
         .onChange(of: urlRouter.pendingRequest, initial: true) { _, request in
             guard let request else { return }
             selectedTab = .today
@@ -102,6 +93,7 @@ struct TabBar: View {
             )
         }
         .平台标签栏搜索自动激活()
+        .平台搜索Tab分离(isIndependentSearchTab)
         .平台根标签栏样式()
     }
 
@@ -133,8 +125,7 @@ private struct iPadPaperVNRoot: View {
                 systemImage: "magnifyingglass",
                 value: .search,
                 role: paperVNRootSearchTabRole(
-                    isIndependent: isIndependentSearchTab,
-                    isPad: true
+                    isIndependent: isIndependentSearchTab
                 )
             ) {
                 NavigationStack {
@@ -255,6 +246,7 @@ private struct TabBarPreviewHost: View {
             .environmentObject(用户登录(previewing: true))
             .environmentObject(鲲Galgame账户(previewing: true))
             .environmentObject(Bangumi账户(previewing: true))
+            .environmentObject(MyAnimeList账户(previewing: true))
             .environmentObject(家长控制中心.shared)
             .environmentObject(PaperVNURLRouter())
     }

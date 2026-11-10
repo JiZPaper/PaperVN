@@ -2,6 +2,7 @@ import Combine
 import Foundation
 import SwiftUI
 
+/// 旧版视觉小说评分设置，只用于迁移到 `评分设置`。
 enum 评分数据来源: String, CaseIterable, Identifiable {
     static let 设置键 = "visualNovelRatingSource"
 
@@ -111,12 +112,15 @@ private struct 视觉小说外部ID文件: Decodable {
 final class 视觉小说外部ID目录: @unchecked Sendable {
     static let shared = 视觉小说外部ID目录()
     private let values: [String: 视觉小说外部ID]
+    /// Bangumi 条目 → 对应文件里的VNDB作品。
+    private let vndbByBangumi: [Int: [String]]
 
     private init(bundle: Bundle = .main) {
         guard let url = bundle.url(forResource: "vndb_id_connector", withExtension: "json"),
               let data = try? Data(contentsOf: url),
               let file = try? JSONDecoder().decode(视觉小说外部ID文件.self, from: data) else {
             values = [:]
+            vndbByBangumi = [:]
             return
         }
 
@@ -136,18 +140,36 @@ final class 视觉小说外部ID目录: @unchecked Sendable {
                 steam[vndbID, default: []].append(id)
             }
         }
+        var reverse: [Int: [String]] = [:]
+        for (vndbID, ids) in bangumi { for id in ids { reverse[id, default: []].append(vndbID) } }
+        vndbByBangumi = reverse
         let keys = Set(bangumi.keys).union(steam.keys)
         values = Dictionary(uniqueKeysWithValues: keys.map { key in
             (key, 视觉小说外部ID(bangumiIDs: bangumi[key] ?? [], steamIDs: steam[key] ?? []))
         })
     }
 
+    /// 把 Bangumi 条目对应到VNDB作品的查找函数。一个条目对应几部作品时，取共用条目的归属或以它为主条目的那部；
+    /// 仍然分不清时不对应，免得导入错的作品。没有对应的条目（一般游戏）返回 nil。
+    func Bangumi反查() -> (Int) -> String? {
+        let mapping = 作品映射.视觉小说Bangumi反查()
+        let reverse = vndbByBangumi
+        return { bangumiID in
+            if let owner = mapping.归属[bangumiID] { return owner }
+            let candidates = Set((reverse[bangumiID] ?? []) + (mapping.条目[bangumiID] ?? []))
+            if candidates.count == 1 { return candidates.first }
+            return candidates.first { 作品映射.视觉小说Bangumi主条目($0) == bangumiID }
+        }
+    }
+
     func ids(for vndbID: String) -> 视觉小说外部ID {
         let normalizedID = vndbID
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
-        return values[normalizedID]
-            ?? 视觉小说外部ID(bangumiIDs: [], steamIDs: [])
+        if let value = values[normalizedID] { return value }
+        // 对应文件里没有的作品，用作品映射里从 Wikidata 补充的 Bangumi 条目
+        let extra = 作品映射.视觉小说补充Bangumi条目(normalizedID).map { [$0] } ?? []
+        return 视觉小说外部ID(bangumiIDs: extra, steamIDs: [])
     }
 }
 
@@ -318,16 +340,18 @@ final class 视觉小说外部数据服务: ObservableObject {
     }
 
     func rating(vndbID: String, vndbRating: Double?, vndbVoteCount: Int?, forceRefresh: Bool = false) async -> 统一视觉小说评分? {
-        let vndbValue = vndbRating.map { 统一视觉小说评分(score: $0 / 10, voteCount: vndbVoteCount) }
-        switch 评分数据来源.current {
-        case .vndb: return vndbValue
-        case .bangumi: return await bangumiRating(vndbID: vndbID, forceRefresh: forceRefresh)
-        case .combined:
-            let bangumiValue = await bangumiRating(vndbID: vndbID, forceRefresh: forceRefresh)
-            guard let vndbValue else { return bangumiValue }
-            guard let bangumiValue else { return vndbValue }
-            let weight = min(max(UserDefaults.standard.object(forKey: "combinedRatingVNDBWeight") as? Double ?? 0.5, 0.1), 0.9)
-            return 统一视觉小说评分(score: vndbValue.score * weight + bangumiValue.score * (1 - weight), voteCount: (vndbValue.voteCount ?? 0) + (bangumiValue.voteCount ?? 0))
+        // 按“评分”设置里视觉小说选中的平台合成
+        let sources = 评分设置.已选平台(.visualNovel)
+        var ratings: [(平台: 评分平台, 分数: Double, 人数: Int?)] = []
+        if sources.contains(.vndb), let vndbRating {
+            ratings.append((.vndb, vndbRating / 10, vndbVoteCount))
+        }
+        if sources.contains(.bangumi),
+           let bangumiValue = await bangumiRating(vndbID: vndbID, forceRefresh: forceRefresh) {
+            ratings.append((.bangumi, bangumiValue.score, bangumiValue.voteCount))
+        }
+        return 评分设置.合成(ratings, type: .visualNovel).map {
+            统一视觉小说评分(score: $0.分数, voteCount: $0.人数)
         }
     }
 
@@ -516,8 +540,16 @@ final class 视觉小说外部数据服务: ObservableObject {
         return result
     }
 
+    /// 读取任意 Bangumi 条目的吐槽（动画、漫画、轻小说详情页用）。
+    func bangumiComments(subjectID: Int) async throws -> [视觉小说评论] {
+        try await bangumiComments(ids: [subjectID])
+    }
+
     private func bangumiComments(vndbID: String) async throws -> [视觉小说评论] {
-        let ids = 视觉小说外部ID目录.shared.ids(for: vndbID).bangumiIDs
+        try await bangumiComments(ids: 视觉小说外部ID目录.shared.ids(for: vndbID).bangumiIDs)
+    }
+
+    private func bangumiComments(ids: [Int]) async throws -> [视觉小说评论] {
         guard !ids.isEmpty else { return [] }
         let 访问令牌 = await Bangumi账户.有效访问令牌()
         let requests = ids.compactMap { id -> 评论请求? in
@@ -843,10 +875,10 @@ struct 视觉小说统一评分标签: View {
     let vndbVoteCount: Int?
     var includesVoteCount = false
 
-    @AppStorage(评分数据来源.设置键)
-    private var ratingSource = 评分数据来源.combined.rawValue
-    @AppStorage("combinedRatingVNDBWeight")
-    private var vndbWeight = 0.5
+    @AppStorage(评分设置.来源键(.visualNovel))
+    private var ratingSources = ""
+    @AppStorage(评分设置.方式键(.visualNovel))
+    private var ratingMethod = 评分计算方式.weighted.rawValue
     @State private var rating: 统一视觉小说评分?
 
     init(
@@ -859,14 +891,15 @@ struct 视觉小说统一评分标签: View {
         self.vndbRating = vndbRating
         self.vndbVoteCount = vndbVoteCount
         self.includesVoteCount = includesVoteCount
-        let initial = 评分数据来源.current == .bangumi ? nil : vndbRating.map {
+        let initial = 评分设置.已选平台(.visualNovel) != [.vndb] ? nil : vndbRating.map {
             统一视觉小说评分(score: $0 / 10, voteCount: vndbVoteCount)
         }
         _rating = State(initialValue: initial)
     }
 
     var body: some View {
-        Group {
+        // 不用 Group：Group 把修饰符分给每个子视图，还没有评分时没有子视图，.task 不会运行，评分永远载入不出来
+        ZStack {
             if let rating {
                 HStack(spacing: 2) {
                     Image(systemName: "chart.bar.xaxis")
@@ -876,7 +909,54 @@ struct 视觉小说统一评分标签: View {
         }
         .font(.caption2)
         .foregroundStyle(.secondary)
-        .task(id: "\(vndbID)|\(ratingSource)|\(vndbWeight)") {
+        .task(id: "\(vndbID)|\(ratingSources)|\(ratingMethod)") {
+            rating = await 视觉小说外部数据服务.shared.rating(
+                vndbID: vndbID,
+                vndbRating: vndbRating,
+                vndbVoteCount: vndbVoteCount
+            )
+        }
+    }
+}
+
+/// 读取与 `视觉小说统一评分标签` 相同的评分，显示交给调用方；还没有评分时什么都不显示。
+/// 作品列表的各种样式（胶囊、表格等）用它，评分不存在时不会留下空的胶囊或空行。
+struct 视觉小说统一评分内容<Content: View>: View {
+    let vndbID: String
+    let vndbRating: Double?
+    let vndbVoteCount: Int?
+    @ViewBuilder let content: (String) -> Content
+
+    @AppStorage(评分设置.来源键(.visualNovel))
+    private var ratingSources = ""
+    @AppStorage(评分设置.方式键(.visualNovel))
+    private var ratingMethod = 评分计算方式.weighted.rawValue
+    @State private var rating: 统一视觉小说评分?
+
+    init(
+        vndbID: String,
+        vndbRating: Double?,
+        vndbVoteCount: Int?,
+        @ViewBuilder content: @escaping (String) -> Content
+    ) {
+        self.vndbID = vndbID
+        self.vndbRating = vndbRating
+        self.vndbVoteCount = vndbVoteCount
+        self.content = content
+        let initial = 评分设置.已选平台(.visualNovel) != [.vndb] ? nil : vndbRating.map {
+            统一视觉小说评分(score: $0 / 10, voteCount: vndbVoteCount)
+        }
+        _rating = State(initialValue: initial)
+    }
+
+    var body: some View {
+        // 同上，不用 Group。还没有评分时 ZStack 宽度为 0，列表的元数据布局不给它留位置
+        ZStack {
+            if let rating {
+                content(rating.shortText)
+            }
+        }
+        .task(id: "\(vndbID)|\(ratingSources)|\(ratingMethod)") {
             rating = await 视觉小说外部数据服务.shared.rating(
                 vndbID: vndbID,
                 vndbRating: vndbRating,

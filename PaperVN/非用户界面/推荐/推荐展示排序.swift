@@ -26,36 +26,57 @@ nonisolated enum 推荐展示排序 {
         现在: Date,
         calendar: Calendar = .current
     ) -> [探索推荐] {
+        排列(
+            recommendations,
+            编号: { $0.visualNovel.id },
+            分数: { $0.score },
+            曝光: 曝光,
+            种子: 种子,
+            现在: 现在,
+            calendar: calendar
+        )
+    }
+
+    /// 任意推荐（视觉小说、动画、漫画与轻小说）都按同样的规则展示。
+    static func 排列<推荐>(
+        _ recommendations: [推荐],
+        编号: (推荐) -> String,
+        分数: (推荐) -> Double,
+        曝光: [String: 推荐曝光记录],
+        种子: String,
+        现在: Date,
+        calendar: Calendar = .current
+    ) -> [推荐] {
         let day = 日序号(现在, calendar: calendar)
         let ranked = recommendations
             .filter {
-                !是否隐藏($0.visualNovel.id, 曝光: 曝光, 现在: 现在, calendar: calendar)
+                !是否隐藏(编号($0), 曝光: 曝光, 现在: 现在, calendar: calendar)
             }
             .map { recommendation in
                 let shownDays = 当天开始时未打开天数(
-                    曝光[recommendation.visualNovel.id],
+                    曝光[编号(recommendation)],
                     today: day
                 )
                 return (
                     recommendation: recommendation,
-                    score: recommendation.score * pow(每日展示衰减, Double(shownDays))
+                    id: 编号(recommendation),
+                    score: 分数(recommendation) * pow(每日展示衰减, Double(shownDays))
                 )
             }
             .sorted { lhs, rhs in
                 if abs(lhs.score - rhs.score) > 0.000_001 {
                     return lhs.score > rhs.score
                 }
-                return lhs.recommendation.visualNovel.id < rhs.recommendation.visualNovel.id
+                return lhs.id < rhs.id
             }
         let fixed = ranked.prefix(固定数量).map(\.recommendation)
         let sampled = ranked.dropFirst(固定数量)
             .map { entry in
-                let id = entry.recommendation.visualNovel.id
-                let phase = Int(哈希("\(种子)|\(id)") % UInt64(抽样周期天数))
+                let phase = Int(哈希("\(种子)|\(entry.id)") % UInt64(抽样周期天数))
                 let block = (day + phase) / 抽样周期天数
                 return (
                     recommendation: entry.recommendation,
-                    key: entry.score / 抽样温度 + 甘贝尔噪声("\(种子)|\(block)|\(id)")
+                    key: entry.score / 抽样温度 + 甘贝尔噪声("\(种子)|\(block)|\(entry.id)")
                 )
             }
             .sorted { $0.key > $1.key }

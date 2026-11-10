@@ -29,9 +29,17 @@ struct 标签: Codable {
 }
 
 enum 搜索设置偏好 {
-    static let 独立搜索Tab设置键 = "independentSearchTabEnabled"
+    // 开关隐藏后换了新键：旧键里存过“关闭”的设备否则没有办法再改回来
+    static let 独立搜索Tab设置键 = "independentSearchTabEnabled2"
 
-    static let 独立搜索Tab默认值 = false
+    /// iPhone 默认独立；iPad 没有这个开关，保持原来的不独立
+    @MainActor
+    static var 独立搜索Tab默认值: Bool {
+        UIDevice.current.userInterfaceIdiom != .pad
+    }
+
+    /// 暂时隐藏“设置”>“搜索”里的开关
+    static let 显示独立搜索Tab开关 = false
 }
 
 enum 搜索范围: String, CaseIterable, Identifiable, Hashable {
@@ -60,7 +68,7 @@ enum 搜索范围: String, CaseIterable, Identifiable, Hashable {
 
     var systemImage: String {
         switch self {
-        case .visualNovel: return "books.vertical"
+        case .visualNovel: return "zipper.page"
         case .character: return "person.crop.rectangle.stack"
         case .release: return "shippingbox"
         case .staff: return "person.text.rectangle"
@@ -721,6 +729,8 @@ struct 用户多语言标题: Codable, Hashable, Sendable {
 struct 用户列表项目: Codable, Identifiable, Hashable {
     let id: String
     let added: Int?
+    /// 最近更改时间（Unix 时间戳），资料库索引条按它分月份；旧缓存里没有。
+    var lastmod: Int? = nil
     let vote: Int?
     let started: String?
     let finished: String?
@@ -732,8 +742,21 @@ struct 用户列表项目: Codable, Identifiable, Hashable {
     struct 用户列表标签: Codable, Hashable {
         let id: Int
         let label: String
-    }
 
+        /// 状态（1–5）与“已投票”（7，由VNDB按评分自动维护）以外的标签，包括黑名单和用户自建的标签。
+        var 可作为标签: Bool { Self.可作为标签(id) }
+
+        static func 可作为标签(_ id: Int) -> Bool {
+            id != 0 && !(1...5).contains(id) && id != 7
+        }
+
+        var 显示名称: String { Self.显示名称(id: id, label: label) }
+
+        /// VNDB内置的黑名单按界面语言显示；用户自建的标签照原样显示。
+        static func 显示名称(id: Int, label: String) -> String {
+            id == 6 ? String(localized: "黑名单") : label
+        }
+    }
     struct 用户列表详细信息: Codable, Hashable {
         let title: String
         let titles: [用户多语言标题]?
@@ -769,6 +792,21 @@ struct 用户列表项目: Codable, Identifiable, Hashable {
     var primaryLabel: String? {
         primaryStatus?.localizedString
     }
+
+    /// 作品带有的标签（不含状态与“已投票”）。
+    var 标签ID: Set<Int> {
+        Set(labels?.filter(\.可作为标签).map(\.id) ?? [])
+    }
+}
+
+/// VNDB账户里的一个标签。标签只能在VNDB网站上新建、重命名或删除，API只能给作品加上或去掉已有的标签。
+struct 用户列表标签信息: Codable, Hashable, Identifiable {
+    let id: Int
+    let label: String
+    /// 在VNDB上设为私有。
+    let `private`: Bool
+
+    var 显示名称: String { 用户列表项目.用户列表标签.显示名称(id: id, label: label) }
 }
 
 nonisolated enum 资料库加入时间记录 {
@@ -906,7 +944,7 @@ enum 剧透标签模糊设置: Int, CaseIterable, Identifiable {
         case .majorOnly:
             return String(localized: "模糊严重剧透")
         case .off:
-            return String(localized: "禁用")
+            return String(localized: "开关状态.关闭", defaultValue: "关闭")
         }
     }
 

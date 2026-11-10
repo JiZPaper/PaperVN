@@ -187,7 +187,7 @@ extension View {
     }
 }
 
-private struct 偏好分析模型更新提示修饰器: ViewModifier {
+private struct 为你推荐模型更新提示修饰器: ViewModifier {
     @State private var downloadState = 推荐模型下载状态.shared
     @State private var translationState = 简介翻译下载状态.shared
 
@@ -212,7 +212,7 @@ private struct 偏好分析模型更新提示修饰器: ViewModifier {
     func body(content: Content) -> some View {
         content
             .alert(
-                "更新偏好分析模型",
+                "更新“为你推荐”模型",
                 isPresented: showsUpdatePrompt,
                 presenting: downloadState.availableUpdate
             ) { update in
@@ -224,12 +224,12 @@ private struct 偏好分析模型更新提示修饰器: ViewModifier {
                 }
             } message: { update in
                 if let size = update.sizeText {
-                    Text("检测到偏好分析模型有较新版本（\(size)）")
+                    Text("检测到“为你推荐”模型有较新版本（\(size)）")
                 } else {
-                    Text("检测到偏好分析模型有较新版本")
+                    Text("检测到“为你推荐”模型有较新版本")
                 }
             }
-            .alert("无法下载偏好分析模型", isPresented: showsUpdateError) {
+            .alert("无法下载“为你推荐”模型", isPresented: showsUpdateError) {
                 Button("好") { downloadState.updateError = nil }
             } message: {
                 Text(verbatim: downloadState.updateError ?? "")
@@ -238,8 +238,8 @@ private struct 偏好分析模型更新提示修饰器: ViewModifier {
 }
 
 extension View {
-    func 偏好分析模型更新提示() -> some View {
-        modifier(偏好分析模型更新提示修饰器())
+    func 为你推荐模型更新提示() -> some View {
+        modifier(为你推荐模型更新提示修饰器())
     }
 }
 
@@ -248,7 +248,7 @@ private struct 智能搜索模型更新提示修饰器: ViewModifier {
     @State private var recommendationState = 推荐模型下载状态.shared
     @State private var translationState = 简介翻译下载状态.shared
 
-    /// 翻译文件和偏好分析模型的提示优先，关闭后再显示，避免多个提示同时出现。
+    /// 翻译文件和“为你推荐”模型的提示优先，关闭后再显示，避免多个提示同时出现。
     private var showsUpdatePrompt: Binding<Bool> {
         Binding(
             get: {
@@ -270,7 +270,7 @@ private struct 智能搜索模型更新提示修饰器: ViewModifier {
     func body(content: Content) -> some View {
         content
             .alert(
-                "更新Hiro智能模型",
+                "更新智能搜索模型",
                 isPresented: showsUpdatePrompt,
                 presenting: downloadState.availableUpdate
             ) { update in
@@ -282,12 +282,12 @@ private struct 智能搜索模型更新提示修饰器: ViewModifier {
                 }
             } message: { update in
                 if let size = update.sizeText {
-                    Text("检测到Hiro智能模型有较新版本（\(size)）")
+                    Text("检测到智能搜索模型有较新版本（\(size)）")
                 } else {
-                    Text("检测到Hiro智能模型有较新版本")
+                    Text("检测到智能搜索模型有较新版本")
                 }
             }
-            .alert("无法下载Hiro智能模型", isPresented: showsUpdateError) {
+            .alert("无法下载智能搜索模型", isPresented: showsUpdateError) {
                 Button("好") { downloadState.updateError = nil }
             } message: {
                 Text(verbatim: downloadState.updateError ?? "")
@@ -434,9 +434,8 @@ private struct Steam评论语言选择页面: View {
                     Button {
                         isPresented = false
                     } label: {
-                        Image(systemName: "xmark")
+                        Label("关闭", systemImage: "xmark")
                     }
-                    .accessibilityLabel("关闭")
                 }
             }
         }
@@ -706,32 +705,27 @@ private struct 共享年龄范围设置行: View {
 }
 
 private struct Today模块显示设置区: View {
+    @EnvironmentObject private var auth: 用户登录
+    @ObservedObject private var sync = PaperVNSync中心.shared
+    @AppStorage(Today问候名称.来源键) private var greetingNameSource = ""
     @State private var config = Today显示配置.load()
-    @AppStorage(为你推荐偏好分析设置.启用键)
+    @AppStorage(为你推荐设置.启用键)
     private var isRecommendationEnabled = true
     @State private var downloadState = 推荐模型下载状态.shared
-    @State private var showsModelDownloadPrompt = false
 
     var body: some View {
         Section {
+            Toggle("今日更新", isOn: $config.showUpdates)
+            Toggle("放送表", isOn: $config.showAiringSchedule)
+            Toggle("为你推荐", isOn: $isRecommendationEnabled)
             Toggle("最近活动", isOn: $config.showEvents)
             Toggle("随机语录", isOn: $config.showQuotes)
-            Toggle(
-                "为你推荐",
-                isOn: Binding(
-                    get: {
-                        为你推荐偏好分析设置.此设备支持 && isRecommendationEnabled
-                    },
-                    set: { updateRecommendationEnabledState($0) }
-                )
-            )
-            .disabled(!为你推荐偏好分析设置.此设备支持)
 
             if downloadState.isDownloading {
                 VStack(alignment: .leading, spacing: 6) {
                     ProgressView(value: downloadState.progress)
                     HStack {
-                        Text("下载偏好分析模型")
+                        Text("下载“为你推荐”模型")
                         Spacer()
                         Text(verbatim: "\(downloadState.progressPercent)%")
                             .monospacedDigit()
@@ -739,74 +733,27 @@ private struct Today模块显示设置区: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 }
-            } else if isRecommendationEnabled,
-                      !downloadState.hasDownloadedModel,
-                      let error = downloadState.downloadError {
-                Button("重新下载模型") {
-                    Task { await downloadState.download() }
-                }
-                Text(verbatim: error)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else if isRecommendationEnabled, downloadState.needsUpdate {
-                Button("重新下载模型") {
-                    Task { await downloadState.download() }
-                }
             }
         } header: {
             Text("显示模块")
-        } footer: {
-            if 为你推荐偏好分析设置.此设备支持 {
-                Text("")
-            } else {
-                Text("“为你推荐”功能需要至少4 GB内存的设备。")
-            }
-        }
-        .task { downloadState.refresh() }
-        .alert(
-            "下载偏好分析所需模型",
-            isPresented: $showsModelDownloadPrompt
-        ) {
-            Button("关闭“为你推荐”") {
-                isRecommendationEnabled = false
-                推荐后台分析中心.shared.停止分析()
-            }
-            if let size = downloadState.serverFileSizeText {
-                Button("下载（\(size)）") {
-                    Task { await downloadState.download() }
-                }
-            } else {
-                Button("下载") {
-                    Task { await downloadState.download() }
-                }
-            }
-        } message: {
-            Text("从此版本开始，偏好分析所需的模型不再包含在PaperVN App中，偏好分析将用于Today页面的“为你推荐”部分。")
         }
         .onChange(of: config) { _, newValue in
             newValue.save()
         }
-        .onChange(of: isRecommendationEnabled) { _, enabled in
-            if enabled {
-                推荐后台分析中心.shared.启动需要的分析()
-            } else {
-                推荐后台分析中心.shared.停止分析()
-            }
-        }
-    }
 
-    private func updateRecommendationEnabledState(_ enabled: Bool) {
-        guard 为你推荐偏好分析设置.此设备支持 else {
-            isRecommendationEnabled = false
-            return
-        }
-        isRecommendationEnabled = enabled
-        guard enabled else { return }
-        downloadState.refresh()
-        guard !downloadState.hasDownloadedModel else { return }
-        Task {
-            await downloadState.refreshServerFileSize()
-            showsModelDownloadPrompt = true
+        // 简报问候语里用哪个账户的名字；没有登录任何账户时问候语不带名字，不显示这一组
+        let accounts = Today问候名称.账户列表(auth: auth)
+        if !accounts.isEmpty {
+            Section {
+                Picker("问候时的名字", selection: Binding(
+                    get: { accounts.contains { $0.id == greetingNameSource } ? greetingNameSource : accounts[0].id },
+                    set: { greetingNameSource = $0 }
+                )) {
+                    ForEach(accounts) { account in
+                        Text(verbatim: "\(account.名字) · \(account.平台)").tag(account.id)
+                    }
+                }
+            }
         }
     }
 }
@@ -867,7 +814,7 @@ struct 语言与地区: View {
             } header: {
                 Text("标题")
             } footer: {
-                Text("PaperVN按照“偏好语言＞备用语言＞VNDB默认标题”的顺序获取标题。")
+                Text("PaperVN按照“偏好语言＞备用语言＞默认标题”的顺序获取标题。")
             }
 
             Section {
@@ -954,9 +901,8 @@ struct 语言与地区: View {
                     Button {
                         isPresented = false
                     } label: {
-                        Image(systemName: "xmark")
+                        Label("关闭", systemImage: "xmark")
                     }
-                    .accessibilityLabel("关闭")
                 }
             }
         }
@@ -1067,7 +1013,7 @@ struct 语言与地区: View {
     }
 
     private var translationModeDescription: some View {
-        Text("“设备端模型”模式：在简介旁边显示翻译按钮，使用Apple离线翻译模型进行翻译；\n“开源项目（获取）”模式：从GitHub或PaperVN服务器获取翻译，并替换原简介文本；\n“开源项目（离线）”模式：先下载完整翻译文件，再替换原简介文本。\n尚未完成翻译的简介依然使用设备端模型自动翻译，你也可以轻点简介旁的按钮提交自己的翻译。你可以前往“关于”页面了解此开源项目的更多信息。")
+        Text("“设备端模型”模式：在简介旁边显示翻译按钮，使用Apple离线翻译模型进行翻译；\n“开源项目（获取）”模式：从GitHub或PaperVN服务器获取翻译，并替换原简介文本；\n“开源项目（离线）”模式：先下载完整翻译文件，再替换原简介文本。\n尚未完成翻译的简介依然使用设备端模型自动翻译，你也可以轻点简介旁的按钮提交自己的翻译。")
             .font(.callout)
             .foregroundStyle(translationModeTextColor)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -1121,6 +1067,32 @@ struct 设置项目标签: View {
     }
 }
 
+/// 不是 SF Symbol 的设置图标，以 `systemImage` 传入。
+enum 设置图标 {
+    /// Paper智能：彩虹底加白色图形，深色模式下是深色底加彩虹图形。
+    static let Paper智能 = "Paper智能"
+}
+
+/// Paper智能的彩虹色：按 Apple 智能渐变的九个取样点（四角、四边中点和中心）重建。
+struct Paper智能渐变: View {
+    var body: some View {
+        MeshGradient(
+            width: 3,
+            height: 3,
+            points: [
+                [0, 0], [0.5, 0], [1, 0],
+                [0, 0.5], [0.5, 0.5], [1, 0.5],
+                [0, 1], [0.5, 1], [1, 1]
+            ],
+            colors: [
+                Color(red: 0.933, green: 0.506, blue: 0.231), Color(red: 0.925, green: 0.412, blue: 0.298), Color(red: 0.918, green: 0.294, blue: 0.329),
+                Color(red: 0.824, green: 0.600, blue: 0.451), Color(red: 0.765, green: 0.529, blue: 0.612), Color(red: 0.902, green: 0.455, blue: 0.729),
+                Color(red: 0.573, green: 0.698, blue: 0.725), Color(red: 0.396, green: 0.675, blue: 0.953), Color(red: 0.808, green: 0.643, blue: 0.976)
+            ]
+        )
+    }
+}
+
 private struct 设置项目图标: View {
     let systemImage: String
     let color: Color
@@ -1130,17 +1102,22 @@ private struct 设置项目图标: View {
 
     @Environment(\.colorScheme) private var colorScheme
 
+    private var isPaper智能: Bool { systemImage == 设置图标.Paper智能 }
+
     var body: some View {
-        Image(systemName: systemImage)
-            .font(.system(size: symbolSize, weight: .semibold))
-            .foregroundStyle(colorScheme == .dark ? color : .white)
+        foreground
             .frame(width: size, height: size)
             .background {
-                RoundedRectangle(
-                    cornerRadius: cornerRadius,
-                    style: .continuous
-                )
-                .fill(iconBackgroundStyle)
+                if isPaper智能 && colorScheme != .dark {
+                    Paper智能渐变()
+                        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                } else {
+                    RoundedRectangle(
+                        cornerRadius: cornerRadius,
+                        style: .continuous
+                    )
+                    .fill(iconBackgroundStyle)
+                }
             }
             .overlay {
                 if colorScheme == .dark {
@@ -1152,6 +1129,23 @@ private struct 设置项目图标: View {
                 }
             }
             .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private var foreground: some View {
+        if isPaper智能 {
+            // 图形素材四周已留白，铺满图标即可
+            let glyph = Image("Paper智能").resizable().scaledToFit().frame(width: size, height: size)
+            if colorScheme == .dark {
+                Paper智能渐变().mask(glyph)
+            } else {
+                glyph.foregroundStyle(.white)
+            }
+        } else {
+            Image(systemName: systemImage)
+                .font(.system(size: symbolSize, weight: .semibold))
+                .foregroundStyle(colorScheme == .dark ? color : .white)
+        }
     }
 
     private var iconBackgroundStyle: AnyShapeStyle {
@@ -1293,9 +1287,8 @@ struct 通用设置: View {
                     Button {
                         isPresented = false
                     } label: {
-                        Image(systemName: "xmark")
+                        Label("关闭", systemImage: "xmark")
                     }
-                    .accessibilityLabel("关闭")
                 }
             }
         }
@@ -1345,9 +1338,8 @@ private struct LiquidGlass设置: View {
             Button {
                 isPresented = false
             } label: {
-                Image(systemName: "xmark")
+                Label("关闭", systemImage: "xmark")
             }
-            .accessibilityLabel("关闭")
         }
     }
 }
@@ -1411,9 +1403,8 @@ private struct LiquidGlass外观选择页面: View {
                     Button {
                         isPresented = false
                     } label: {
-                        Image(systemName: "xmark")
+                        Label("关闭", systemImage: "xmark")
                     }
-                    .accessibilityLabel("关闭")
                 }
             }
         }
@@ -1681,7 +1672,7 @@ struct 网络设置: View {
                     .disabled(isCheckingNextMoeRegion)
             } footer: {
                 Text(
-                    "通过鲲Galgame间接获取原数据来源的内容。这将有助于改善部分用户的载入体验，但会受到NextMoe API的速率限制。"
+                    "通过鲲Galgame间接获取原数据来源的内容。这将有助于改善部分用户的加载体验，但会受到NextMoe API的速率限制。"
                 )
             }
         }
@@ -1700,10 +1691,10 @@ struct 网络设置: View {
             Text(verbatim: kunAccount.errorMessage ?? "")
         }
         .alert(
-            "可能导致更慢的载入速度",
+            "可能导致更慢的加载速度",
             isPresented: $showsNextMoeRegionAlert
         ) {
-            Button("禁用", role: .cancel) {
+            Button("停用", role: .cancel) {
                 nextMoeContentEnabled = false
             }
             Button("启用") {
@@ -1729,9 +1720,8 @@ struct 网络设置: View {
                     Button {
                         isPresented = false
                     } label: {
-                        Image(systemName: "xmark")
+                        Label("关闭", systemImage: "xmark")
                     }
-                    .accessibilityLabel("关闭")
                 }
             }
         }
@@ -1845,9 +1835,8 @@ struct Today设置: View {
                     Button {
                         isPresented = false
                     } label: {
-                        Image(systemName: "xmark")
+                        Label("关闭", systemImage: "xmark")
                     }
-                    .accessibilityLabel("关闭")
                 }
             }
         }
@@ -1860,12 +1849,13 @@ struct 资料库设置: View {
 
     @AppStorage("autoFillStartDate") private var autoFillStartDate = true
     @AppStorage("autoFillFinishDate") private var autoFillFinishDate = true
-    @AppStorage(评分数据来源.设置键)
-    private var ratingSource = 评分数据来源.combined.rawValue
-    @AppStorage("combinedRatingVNDBWeight")
-    private var combinedRatingVNDBWeight = 0.5
+    @AppStorage("librarySeparatesUnreleased") private var separatesUnreleased = false
     @AppStorage(评论数据来源.设置键)
     private var commentSource = 评论数据来源.combined.rawValue
+    @AppStorage(PaperVNSync中心.启用设置键)
+    private var paperVNSyncEnabled = PaperVNSync中心.默认启用
+    @EnvironmentObject private var auth: 用户登录
+    @EnvironmentObject private var bangumiAccount: Bangumi账户
 
     var body: some View {
         平台滚动页面 {
@@ -1879,36 +1869,54 @@ struct 资料库设置: View {
             }
 
             Section {
-                Picker("评分", selection: $ratingSource) {
-                    ForEach(评分数据来源.allCases) { source in
-                        Text(source.title).tag(source.rawValue)
+                Toggle("PaperVN Sync", isOn: $paperVNSyncEnabled)
+                    .onChange(of: paperVNSyncEnabled) { _, enabled in
+                        if enabled, 本地资料库.shared.所有者 != nil {
+                            bangumiAccount.startLibrarySynchronization()
+                        } else if !enabled {
+                            bangumiAccount.cancelLibrarySynchronization()
+                        }
                     }
+                // 开启PaperVN Sync后才能进入
+                NavigationLink {
+                    同步任务页面()
+                } label: {
+                    Text("同步任务")
+                }
+                .disabled(!paperVNSyncEnabled)
+                NavigationLink {
+                    PaperAccount页面()
+                } label: {
+                    Text("Paper Cloud")
+                }
+            } header: {
+                Text("同步")
+            }
+
+            Section {
+                NavigationLink {
+                    列表信息设置页面(场景: .library, 标题: String(localized: "列表信息"))
+                } label: {
+                    Text("列表信息")
+                }
+                Toggle("分开显示未发行或未播出的作品", isOn: $separatesUnreleased)
+            } header: {
+                Text("外观")
+            } footer: {
+                Text("在“计划游玩/观看/阅读”中，将未发行或未播出的作品与其他作品分开，显示在列表底部。")
+            }
+
+            Section {
+                NavigationLink {
+                    评分来源设置页面()
+                } label: {
+                    Text("评分")
                 }
 
-                if ratingSource == 评分数据来源.combined.rawValue {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Text("权重")
-                            Spacer()
-                            Text(
-                                verbatim: "\(combinedRatingVNDBPercentage)% / \(combinedRatingBangumiPercentage)%"
-                            )
-                            .foregroundStyle(.secondary)
-                        }
-                        Slider(
-                            value: combinedRatingSliderBinding,
-                            in: 0.1...0.9,
-                            step: 0.1
-                        ) {
-                            Text("权重")
-                        } minimumValueLabel: {
-                            Text("VNDB")
-                                .font(.caption2)
-                        } maximumValueLabel: {
-                            Text("Bangumi番组计划")
-                                .font(.caption2)
-                        }
-                    }
+                NavigationLink {
+                    简介来源设置页面()
+                } label: {
+                    Text("简介")
                 }
 
                 Picker("评论", selection: $commentSource) {
@@ -1924,9 +1932,9 @@ struct 资料库设置: View {
                 Toggle("自动填充“开始日期”", isOn: $autoFillStartDate)
                 Toggle("自动填充“结束日期”", isOn: $autoFillFinishDate)
             } header: {
-                Text("游玩日期")
+                Text("填充日期")
             } footer: {
-                Text("更改游玩状态时自动填写开始或结束日期。")
+                Text("更改状态时自动填写开始或结束日期。")
             }
 
         }
@@ -1940,35 +1948,195 @@ struct 资料库设置: View {
                     Button {
                         isPresented = false
                     } label: {
-                        Image(systemName: "xmark")
+                        Label("关闭", systemImage: "xmark")
                     }
-                    .accessibilityLabel("关闭")
                 }
             }
         }
     }
+}
 
-    private var combinedRatingVNDBPercentage: Int {
-        min(max(Int((combinedRatingVNDBWeight * 10).rounded()), 1), 9) * 10
-    }
-
-    private var combinedRatingBangumiPercentage: Int {
-        100 - combinedRatingVNDBPercentage
-    }
-
-    private var combinedRatingSliderBinding: Binding<Double> {
-        Binding(
-            get: {
-                Double(combinedRatingBangumiPercentage) / 100
-            },
-            set: { newValue in
-                let bangumiSteps = min(
-                    max(Int((newValue * 10).rounded()), 1),
-                    9
-                )
-                combinedRatingVNDBWeight = Double(10 - bangumiSteps) / 10
+/// 视觉小说、动画、漫画与轻小说分别选择评分来自哪些平台，以及怎样合成；每类一行，点进去再选。
+struct 评分来源设置页面: View {
+    var body: some View {
+        平台滚动页面 {
+            Section {
+                ForEach([作品类型.visualNovel, .anime, .manga, .lightNovel]) { type in
+                    评分来源类型行(type: type)
+                }
+            } footer: {
+                Text("各平台的评分口径不同，可以按作品类型分别选择。")
             }
-        )
+        }
+        .平台分组列表样式()
+        .navigationTitle("评分")
+        .平台柔和滚动边缘(for: .top)
+        .平台内联导航标题()
+    }
+}
+
+private struct 评分来源类型行: View {
+    let type: 作品类型
+
+    @AppStorage private var sources: String
+    @AppStorage private var method: String
+
+    init(type: 作品类型) {
+        self.type = type
+        _sources = AppStorage(wrappedValue: "", 评分设置.来源键(type))
+        _method = AppStorage(wrappedValue: 评分计算方式.weighted.rawValue, 评分设置.方式键(type))
+    }
+
+    private var 摘要: String {
+        let available = 评分平台.可选(type)
+        let selected = available.filter(评分设置.已选平台(type).contains)
+        let platforms = selected.count == available.count
+            ? String(localized: "所有平台")
+            : selected.count == 1 ? selected[0].title : String(localized: "\(selected.count)个平台")
+        // 只有一个平台时不需要合成
+        guard selected.count > 1 else { return platforms }
+        let methodTitle = (评分计算方式(rawValue: method) ?? .weighted).title
+        return String(localized: "\(platforms)，\(methodTitle)")
+    }
+
+    var body: some View {
+        // 读取 sources 让设置变化时刷新摘要
+        let _ = sources
+        NavigationLink {
+            评分来源类型页面(type: type)
+        } label: {
+            LabeledContent {
+                Text(verbatim: 摘要)
+            } label: {
+                Text(type.localizedTitle)
+            }
+        }
+    }
+}
+
+private struct 评分来源类型页面: View {
+    let type: 作品类型
+
+    @AppStorage private var sources: String
+    @AppStorage private var method: String
+
+    init(type: 作品类型) {
+        self.type = type
+        _sources = AppStorage(wrappedValue: "", 评分设置.来源键(type))
+        _method = AppStorage(wrappedValue: 评分计算方式.weighted.rawValue, 评分设置.方式键(type))
+    }
+
+    var body: some View {
+        // 没有存储过时用默认值（所有平台）
+        let selected = sources.isEmpty ? 评分设置.已选平台(type) : 评分设置.解析(sources)
+
+        平台滚动页面 {
+            Section {
+                ForEach(评分平台.可选(type)) { platform in
+                    Button {
+                        var updated = selected
+                        if updated.contains(platform) { updated.remove(platform) } else { updated.insert(platform) }
+                        // 至少保留一个平台
+                        guard !updated.isEmpty else { return }
+                        sources = 评分设置.编码(updated)
+                    } label: {
+                        HStack {
+                            Text(verbatim: platform.title)
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            if selected.contains(platform) {
+                                Image(systemName: "checkmark")
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(.tint)
+                            }
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            } header: {
+                Text("数据来源")
+            } footer: {
+                Text("至少选择一个平台。")
+            }
+
+            if selected.count > 1 {
+                Section {
+                    Picker(selection: $method) {
+                        ForEach(评分计算方式.allCases) { method in
+                            Text(method.title).tag(method.rawValue)
+                        }
+                    } label: {
+                        Text("计算方式")
+                    }
+                    .pickerStyle(.inline)
+                    .labelsHidden()
+                } header: {
+                    Text("计算方式")
+                } footer: {
+                    if 评分平台.可选(type).contains(.aniList) {
+                        Text("加权平均按各平台的评分人数分配权重，评分人数越多的平台占比越大；AniList没有公开评分人数，按人气计算。")
+                    } else {
+                        Text("加权平均按各平台的评分人数分配权重，评分人数越多的平台占比越大。")
+                    }
+                }
+            }
+        }
+        .平台分组列表样式()
+        .navigationTitle(type.localizedTitle)
+        .平台柔和滚动边缘(for: .top)
+        .平台内联导航标题()
+        .animation(.default, value: selected.count > 1)
+    }
+}
+
+/// 动画、漫画与轻小说的简介来自哪个平台。
+struct 简介来源设置页面: View {
+    private let 类型: [作品类型] = [.anime, .manga, .lightNovel]
+
+    var body: some View {
+        平台滚动页面 {
+            ForEach(类型) { type in
+                简介来源设置分组(type: type, showsFooter: type == 类型.last)
+            }
+        }
+        .平台分组列表样式()
+        .navigationTitle("简介")
+        .平台柔和滚动边缘(for: .top)
+        .平台内联导航标题()
+    }
+}
+
+private struct 简介来源设置分组: View {
+    let type: 作品类型
+    let showsFooter: Bool
+
+    @AppStorage private var source: String
+
+    init(type: 作品类型, showsFooter: Bool) {
+        self.type = type
+        self.showsFooter = showsFooter
+        _source = AppStorage(wrappedValue: 简介来源.默认值(type).rawValue, 简介来源.设置键(type))
+    }
+
+    var body: some View {
+        Section {
+            Picker(selection: $source) {
+                ForEach(简介来源.可选(type)) { source in
+                    Text(verbatim: source.title).tag(source.rawValue)
+                }
+            } label: {
+                Text(type.localizedTitle)
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+        } header: {
+            Text(type.localizedTitle)
+        } footer: {
+            if showsFooter {
+                Text("选中的平台没有简介时，会使用其他平台的简介。TMDB的简介跟随App的语言。")
+            }
+        }
     }
 }
 
@@ -1978,9 +2146,22 @@ struct 搜索设置: View {
 
     @AppStorage(搜索设置偏好.独立搜索Tab设置键)
     private var independentSearchTab = 搜索设置偏好.独立搜索Tab默认值
-    @AppStorage(智能搜索设置.启用键)
-    private var smartSearchEnabled = true
+    @AppStorage(Spotlight索引.启用键) private var spotlightEnabled = true
     @State private var smartSearchModelState = 智能搜索模型下载状态.shared
+    @AppStorage(作品类型显示设置.键(.anime)) private var animeEnabled = true
+    @AppStorage(作品类型显示设置.键(.manga)) private var mangaEnabled = true
+    @AppStorage(作品类型显示设置.键(.lightNovel)) private var lightNovelEnabled = true
+    @AppStorage(作品类型显示设置.键(.visualNovel)) private var visualNovelEnabled = true
+
+    /// 全部显示时为“所有类型”，否则列出显示的类型。
+    private var 显示类型摘要: String {
+        let enabled = zip(
+            [作品类型.anime, .manga, .lightNovel, .visualNovel],
+            [animeEnabled, mangaEnabled, lightNovelEnabled, visualNovelEnabled]
+        ).filter(\.1).map(\.0)
+        guard enabled.count < 4 else { return String(localized: "所有类型") }
+        return ListFormatter.localizedString(byJoining: enabled.map(\.localizedTitle))
+    }
 
     var body: some View {
         平台滚动页面 {
@@ -1993,20 +2174,43 @@ struct 搜索设置: View {
                 )
             }
 
-            if #available(iOS 27.0, *) {
+            Section {
+                NavigationLink {
+                    显示类型设置页面()
+                } label: {
+                    LabeledContent("显示类型", value: 显示类型摘要)
+                }
+            } header: {
+                Text("搜索结果")
+            }
+
+            Section {
+                NavigationLink {
+                    列表信息设置页面(场景: .search, 标题: String(localized: "列表信息"))
+                } label: {
+                    Text("列表信息")
+                }
+            } header: {
+                Text("外观")
+            }
+
+            if 搜索设置偏好.显示独立搜索Tab开关,
+               #available(iOS 27.0, *),
+               UIDevice.current.userInterfaceIdiom != .pad {
                 Section {
                     Toggle("独立搜索Tab", isOn: $independentSearchTab)
                 } footer: {
-                    Text(
-                        ""
-                    )
+                    Text("将“搜索”与其他Tab分开，显示在Tab栏右侧。")
                 }
             }
 
-            智能搜索设置区(
-                isEnabled: $smartSearchEnabled,
-                downloadState: smartSearchModelState
-            )
+            Section {
+                Toggle("在Spotlight中显示资料库", isOn: $spotlightEnabled)
+            } footer: {
+                Text("从主屏幕搜索时，显示资料库中的作品。")
+            }
+
+            智能搜索设置区(downloadState: smartSearchModelState)
         }
         .平台分组列表样式()
         .navigationTitle("搜索")
@@ -2018,61 +2222,110 @@ struct 搜索设置: View {
                     Button {
                         isPresented = false
                     } label: {
-                        Image(systemName: "xmark")
+                        Label("关闭", systemImage: "xmark")
                     }
-                    .accessibilityLabel("关闭")
                 }
             }
         }
     }
 }
 
+/// 搜索结果与Today显示哪些作品类型，勾选即可，至少保留一种。
+private struct 显示类型设置页面: View {
+    @AppStorage(作品类型显示设置.键(.anime)) private var animeEnabled = true
+    @AppStorage(作品类型显示设置.键(.manga)) private var mangaEnabled = true
+    @AppStorage(作品类型显示设置.键(.lightNovel)) private var lightNovelEnabled = true
+    @AppStorage(作品类型显示设置.键(.visualNovel)) private var visualNovelEnabled = true
+
+    private func binding(_ type: 作品类型) -> Binding<Bool> {
+        switch type {
+        case .anime: $animeEnabled
+        case .manga: $mangaEnabled
+        case .lightNovel: $lightNovelEnabled
+        case .visualNovel: $visualNovelEnabled
+        }
+    }
+
+    private var enabledCount: Int {
+        [animeEnabled, mangaEnabled, lightNovelEnabled, visualNovelEnabled].filter { $0 }.count
+    }
+
+    var body: some View {
+        平台滚动页面 {
+            Section {
+                ForEach([作品类型.visualNovel, .anime, .manga, .lightNovel]) { type in
+                    let isOn = binding(type)
+                    Button {
+                        isOn.wrappedValue.toggle()
+                    } label: {
+                        HStack {
+                            Label(type.localizedTitle, systemImage: type.symbolName)
+                                .foregroundStyle(.primary)
+                            Spacer(minLength: 12)
+                            if isOn.wrappedValue {
+                                Image(systemName: "checkmark")
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(.tint)
+                            }
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    // 至少保留一种类型
+                    .disabled(isOn.wrappedValue && enabledCount == 1)
+                    .accessibilityAddTraits(isOn.wrappedValue ? .isSelected : [])
+                }
+            } footer: {
+                Text("在搜索结果中只显示选中的类型。")
+            }
+        }
+        .平台分组列表样式()
+        .navigationTitle("显示类型")
+        .平台柔和滚动边缘(for: .top)
+        .平台内联导航标题()
+    }
+}
+
+/// 智能搜索始终使用，不能关闭。模型是内置的，只在下载更新时显示进度。
 private struct 智能搜索设置区: View {
-    @Binding var isEnabled: Bool
     let downloadState: 智能搜索模型下载状态
 
     var body: some View {
         Section {
-            Toggle("Hiro智能", isOn: $isEnabled)
-
-            if isEnabled {
-                if downloadState.isDownloading {
-                    VStack(alignment: .leading, spacing: 6) {
-                        ProgressView(
-                            value: downloadState.isInstalling ? nil : downloadState.progress
-                        )
-                        HStack {
-                            if downloadState.isInstalling {
-                                Text("正在安装Hiro智能模型…")
-                            } else {
-                                Text("下载Hiro智能模型")
-                                Spacer()
-                                Text(verbatim: "\(downloadState.progressPercent)%")
-                                    .monospacedDigit()
-                            }
-                        }
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    }
-                } else if !downloadState.isModelAvailable {
-                    Button {
-                        Task { await downloadState.download() }
-                    } label: {
-                        if let size = downloadState.serverFileSizeText {
-                            Text("下载Hiro智能模型（\(size)）")
+            if downloadState.isDownloading {
+                VStack(alignment: .leading, spacing: 6) {
+                    ProgressView(
+                        value: downloadState.isInstalling ? nil : downloadState.progress
+                    )
+                    HStack {
+                        if downloadState.isInstalling {
+                            Text("正在安装智能搜索模型…")
                         } else {
-                            Text("下载Hiro智能模型")
+                            Text("下载智能搜索模型")
+                            Spacer()
+                            Text(verbatim: "\(downloadState.progressPercent)%")
+                                .monospacedDigit()
                         }
                     }
-                    if let error = downloadState.downloadError {
-                        Text(verbatim: error)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+            } else if !downloadState.isModelAvailable {
+                Button {
+                    Task { await downloadState.download() }
+                } label: {
+                    if let size = downloadState.serverFileSizeText {
+                        Text("下载智能搜索模型（\(size)）")
+                    } else {
+                        Text("下载智能搜索模型")
                     }
                 }
+                if let error = downloadState.downloadError {
+                    Text(verbatim: error)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
-        } footer: {
-            Text("在搜索框输入文字时，Hiro智能会在设备上模糊匹配作品、角色、会社和制作人员的名字、别名和简称，拼错或只记得几个字也能找到，并按可能性排序。输入的内容不会离开设备。")
         }
         .task {
             downloadState.refresh()
@@ -2080,6 +2333,111 @@ private struct 智能搜索设置区: View {
                 await downloadState.refreshServerFileSize()
             }
         }
+    }
+}
+
+/// Paper智能：PaperVN在设备上运行的两个模型，以及由同样的模型驱动、公开给开发者的Hiro API。
+struct Paper智能设置: View {
+    @Binding var isPresented: Bool
+    var showsDismissButton: Bool = true
+
+    @State private var recommendationState = 推荐模型下载状态.shared
+    @State private var smartSearchState = 智能搜索模型下载状态.shared
+    @Environment(\.locale) private var locale
+
+    private static let 文档地址 = URL(string: "https://papervn.jizpaper.com/hiro-api")!
+    private static let 搜索体验地址 = URL(string: "https://papervn.jizpaper.com/search")!
+
+    var body: some View {
+        平台滚动页面 {
+            Section {
+                设置类别介绍(
+                    title: "Paper智能与Hiro API",
+                    description: "深度集成至PaperVN的智能系统。",
+                    systemImage: 设置图标.Paper智能,
+                    color: .purple
+                )
+            }
+
+            Section {
+                模型行(
+                    "偏好分析模型",
+                    标识: 推荐模型存储.当前URL.flatMap(作品推荐模型.标识(of:)),
+                    正在下载: recommendationState.isDownloading,
+                    进度: recommendationState.progress
+                )
+                模型行(
+                    "智能搜索模型",
+                    标识: 智能搜索模型存储.当前URL.flatMap(智能搜索模型存储.读取标识),
+                    正在下载: smartSearchState.isDownloading,
+                    进度: smartSearchState.isInstalling ? nil : smartSearchState.progress
+                )
+            } header: {
+                Text("模型")
+            } footer: {
+                Text("所有模型均在设备端运行。")
+            }
+
+            Section {
+                Link(destination: Self.文档地址) {
+                    关于外部链接标签("Hiro API文档") {
+                        Image(systemName: "doc.text")
+                    }
+                }
+                Link(destination: Self.搜索体验地址) {
+                    关于外部链接标签("在网页上体验智能搜索") {
+                        Image(systemName: "magnifyingglass")
+                    }
+                }
+            } header: {
+                Text(verbatim: "Hiro API")
+            } footer: {
+                Text("通过Hiro API在你的App中提供Paper智能。")
+            }
+        }
+        .平台分组列表样式()
+        .navigationTitle("Paper智能与Hiro API")
+        .平台柔和滚动边缘(for: .top)
+        .平台内联导航标题()
+        .toolbar {
+            if showsDismissButton {
+                ToolbarItem(placement: .平台关闭操作) {
+                    Button {
+                        isPresented = false
+                    } label: {
+                        Label("关闭", systemImage: "xmark")
+                    }
+                }
+            }
+        }
+        .task {
+            recommendationState.refresh()
+            smartSearchState.refresh()
+        }
+    }
+
+    /// 模型名称和版本（模型标识开头的构建日期）；下载更新时显示进度。
+    @ViewBuilder
+    private func 模型行(_ 名称: LocalizedStringKey, 标识: String?, 正在下载: Bool, 进度: Double?) -> some View {
+        if 正在下载 {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(名称)
+                ProgressView(value: 进度)
+            }
+        } else {
+            LabeledContent(名称, value: 版本文本(标识))
+        }
+    }
+
+    private func 版本文本(_ 标识: String?) -> String {
+        guard let 标识 else { return String(localized: "未知") }
+        let 日期 = String(推荐模型存储.日期(标识))
+        let parser = DateFormatter()
+        parser.calendar = Calendar(identifier: .gregorian)
+        parser.locale = Locale(identifier: "en_US_POSIX")
+        parser.dateFormat = "yyyyMMdd"
+        guard let date = parser.date(from: 日期) else { return 日期 }
+        return 中西文间距.去除空格(date.formatted(.dateTime.year().month().day().locale(locale)))
     }
 }
 
@@ -2101,9 +2459,8 @@ struct 储存空间设置: View {
                     Button {
                         isPresented = false
                     } label: {
-                        Image(systemName: "xmark")
+                        Label("关闭", systemImage: "xmark")
                     }
-                    .accessibilityLabel("关闭")
                 }
             }
         }
@@ -2115,6 +2472,7 @@ private enum 储存空间删除项目: String, Identifiable {
     case translations
     case recommendationModel
     case smartSearchModel
+    case visualNovelRuntime
 
     var id: String { rawValue }
 
@@ -2125,22 +2483,26 @@ private enum 储存空间删除项目: String, Identifiable {
         case .translations:
             "将偏好翻译模式切换为“开源项目（获取）”"
         case .recommendationModel:
-            "关闭“为你推荐”"
+            "要删除“为你推荐”模型更新吗？"
         case .smartSearchModel:
-            "要删除Hiro智能模型更新吗？"
+            "要删除智能搜索模型更新吗？"
+        case .visualNovelRuntime:
+            "要删除视觉小说运行资源吗？"
         }
     }
 
     var message: LocalizedStringKey {
         switch self {
         case .cache:
-            "删除缓存后，所有内容都将重新载入。通常情况下，缓存会在不必要时自动删除。如果你遇到了异常的缓存占用，请向开发者提交错误报告。"
+            "删除缓存后，所有内容都将重新加载。通常情况下，缓存会在不必要时自动删除。如果你遇到了异常的缓存占用，请向开发者提交错误报告。"
         case .translations:
             "“开源项目（离线）”翻译模式依赖此翻译文件。删除后偏好翻译模式将切换为“开源项目（获取）”。"
         case .recommendationModel:
-            "“为你推荐”的偏好分析依赖此模型。删除后将关闭“为你推荐”。"
+            "删除后将恢复使用App内置的“为你推荐”模型。"
         case .smartSearchModel:
-            "删除后将恢复使用App内置的Hiro智能模型。"
+            "删除后将恢复使用App内置的智能搜索模型。"
+        case .visualNovelRuntime:
+            "运行需要这些资源的视觉小说时将重新下载。"
         }
     }
 }
@@ -2150,13 +2512,12 @@ private struct 储存空间管理区: View {
     private var cacheStrategy: 缓存策略 = .balanced
     @AppStorage(VNDB简介翻译模式.设置键)
     private var translationMode: VNDB简介翻译模式 = .openSourceFetch
-    @AppStorage(为你推荐偏好分析设置.启用键)
-    private var recommendationPreferenceAnalysisEnabled = true
     @State private var recommendationModelDownloadState = 推荐模型下载状态.shared
     @State private var smartSearchModelDownloadState = 智能搜索模型下载状态.shared
     @State private var smartSearchModelSize: Int64 = 0
     @State private var hasDownloadedSmartSearchModel = false
     @State private var isDeletingSmartSearchModel = false
+    @State private var visualNovelRuntimeSize: Int64 = 0
     @State private var cacheSize: Int64 = 0
     @State private var translationSize: Int64 = 0
     @State private var recommendationModelSize: Int64 = 0
@@ -2202,7 +2563,7 @@ private struct 储存空间管理区: View {
         } header: {
             Text("缓存")
         } footer: {
-            Text("“更少”缓存策略可能让你频繁地看到载入页面；“更多”缓存策略将大幅增加缓存时间与范围，并提前载入你可能查看的内容。")
+            Text("“更少”缓存策略可能让你频繁地看到加载页面；“更多”缓存策略将大幅增加缓存时间与范围，并提前加载你可能查看的内容。")
         }
         .task { refreshSizes() }
         .alert(item: $pendingDeletion) { item in
@@ -2232,7 +2593,8 @@ private struct 储存空间管理区: View {
 
         if hasDownloadedTranslations
             || hasDownloadedRecommendationModel
-            || hasDownloadedSmartSearchModel {
+            || hasDownloadedSmartSearchModel
+            || visualNovelRuntimeSize > 0 {
             Section {
                 if hasDownloadedTranslations {
                     storageDeletionButton(
@@ -2245,7 +2607,7 @@ private struct 储存空间管理区: View {
 
                 if hasDownloadedRecommendationModel {
                     storageDeletionButton(
-                        title: "删除偏好分析模型",
+                        title: "删除“为你推荐”模型更新",
                         size: recommendationModelSize,
                         isWorking: isDeletingRecommendationModel,
                         action: { pendingDeletion = .recommendationModel }
@@ -2254,10 +2616,19 @@ private struct 储存空间管理区: View {
 
                 if hasDownloadedSmartSearchModel {
                     storageDeletionButton(
-                        title: "删除Hiro智能模型更新",
+                        title: "删除智能搜索模型更新",
                         size: smartSearchModelSize,
                         isWorking: isDeletingSmartSearchModel,
                         action: { pendingDeletion = .smartSearchModel }
+                    )
+                }
+
+                if visualNovelRuntimeSize > 0 {
+                    storageDeletionButton(
+                        title: "删除视觉小说运行资源",
+                        size: visualNovelRuntimeSize,
+                        isWorking: false,
+                        action: { pendingDeletion = .visualNovelRuntime }
                     )
                 }
             }
@@ -2307,11 +2678,12 @@ private struct 储存空间管理区: View {
         translationSize = VNDB简介人工翻译.已下载文件大小字节数
         recommendationModelDownloadState.refresh()
         hasDownloadedRecommendationModel =
-            recommendationModelDownloadState.hasDownloadedModel
+            recommendationModelDownloadState.hasDownloadedUpdate
         recommendationModelSize = recommendationModelDownloadState.downloadedSize
         smartSearchModelDownloadState.refresh()
         hasDownloadedSmartSearchModel = smartSearchModelDownloadState.hasDownloadedUpdate
         smartSearchModelSize = smartSearchModelDownloadState.downloadedSize
+        visualNovelRuntimeSize = 视觉小说运行资源.已占用大小
     }
 
     private func performDeletion(_ item: 储存空间删除项目) {
@@ -2324,7 +2696,18 @@ private struct 储存空间管理区: View {
             deleteRecommendationModel()
         case .smartSearchModel:
             deleteSmartSearchModel()
+        case .visualNovelRuntime:
+            deleteVisualNovelRuntime()
         }
+    }
+
+    private func deleteVisualNovelRuntime() {
+        do {
+            try 视觉小说运行资源.全部删除()
+        } catch {
+            deletionError = error.localizedDescription
+        }
+        refreshSizes()
     }
 
     private func clearCache() {
@@ -2373,8 +2756,6 @@ private struct 储存空间管理区: View {
         isDeletingRecommendationModel = true
         do {
             try recommendationModelDownloadState.deleteModel()
-            recommendationPreferenceAnalysisEnabled = false
-            推荐后台分析中心.shared.停止分析()
             refreshSizes()
         } catch {
             deletionError = error.localizedDescription
@@ -2399,8 +2780,9 @@ struct 内容与安全限制: View {
     @EnvironmentObject private var auth: 用户登录
     @EnvironmentObject private var parentalControls: 家长控制中心
     @StateObject private var emergencyAvoidance = 紧急回避中心.shared
-    @AppStorage(强制内容安全策略.高级设置解锁键)
-    private var advancedControlsUnlocked = false
+    /// 设备特例只能在PaperVN网站上登记，见`敏感内容网页设置`。
+    @AppStorage(敏感内容网页设置.已开启键)
+    private var deviceExceptionEnabled = false
     @AppStorage("contentFilterEnabled") private var contentFilterEnabled = false
     @AppStorage("sexualThreshold") private var sexualThreshold: Double = 0.8
     @AppStorage("violenceThreshold") private var violenceThreshold: Double = 1
@@ -2438,8 +2820,7 @@ struct 内容与安全限制: View {
     }
 
     private var allowsAdvancedControls: Bool {
-        advancedControlsUnlocked
-            && 强制内容安全策略.可使用高级设置(token: auth.token)
+        deviceExceptionEnabled
     }
 
     private var sexualThresholdLimit: Double {
@@ -2682,7 +3063,8 @@ struct 内容与安全限制: View {
         .平台柔和滚动边缘(for: .top)
         .平台内联导航标题()
         .task {
-            强制内容安全策略.应用到用户设置(token: auth.token)
+            强制内容安全策略.应用到用户设置()
+            await 敏感内容网页设置.同步()
         }
         .toolbar {
             if showsDismissButton {
@@ -2690,11 +3072,75 @@ struct 内容与安全限制: View {
                     Button {
                         isPresented = false
                     } label: {
-                        Image(systemName: "xmark")
+                        Label("关闭", systemImage: "xmark")
                     }
-                    .accessibilityLabel("关闭")
                 }
             }
         }
     }
 }
+
+#if DEBUG
+// MARK: - PaperVN 2 预览
+
+#Preview("设置：PaperVN 2相关页面") {
+    let 模型 = 智能搜索模型下载状态.shared
+    预览状态切换([
+        .init("搜索", 准备: { 模型.预览下载(进度: nil) }) {
+            NavigationStack { 搜索设置(isPresented: .constant(true)) }
+        },
+        .init("搜索（正在下载智能搜索模型）", 准备: { 模型.预览下载(进度: 0.42) }) {
+            NavigationStack { 搜索设置(isPresented: .constant(true)) }
+        },
+        .init("搜索（正在安装智能搜索模型）", 准备: { 模型.预览下载(进度: 1, 正在安装: true) }) {
+            NavigationStack { 搜索设置(isPresented: .constant(true)) }
+        },
+        .init("资料库（PaperVN Sync）", 准备: { 模型.预览下载(进度: nil) }) {
+            NavigationStack { 资料库设置(isPresented: .constant(true)) }
+        },
+        .init("储存空间", 准备: { 模型.预览下载(进度: nil) }) {
+            NavigationStack { 储存空间设置(isPresented: .constant(true)) }
+        },
+    ])
+    .预览环境()
+}
+
+#Preview("提示：模型更新") {
+    // 关闭提示后，切换到别的状态再切回来即可再次显示
+    let 智能搜索 = 智能搜索模型下载状态.shared
+    let 为你推荐 = 推荐模型下载状态.shared
+    let 清空 = {
+        简介翻译下载状态.shared.availableUpdate = nil
+        智能搜索.availableUpdate = nil
+        智能搜索.updateError = nil
+        为你推荐.availableUpdate = nil
+        为你推荐.updateError = nil
+    }
+    预览状态切换([
+        .init("更新智能搜索模型", 准备: {
+            清空()
+            智能搜索.availableUpdate = 智能搜索模型更新(modelIdentifier: "20261020-v3", bytes: 38_400_000)
+        }) {
+            Color.clear.智能搜索模型更新提示()
+        },
+        .init("无法下载智能搜索模型", 准备: {
+            清空()
+            智能搜索.updateError = String(localized: "请求失败。")
+        }) {
+            Color.clear.智能搜索模型更新提示()
+        },
+        .init("更新“为你推荐”模型", 准备: {
+            清空()
+            为你推荐.availableUpdate = 推荐模型更新(modelIdentifier: "20261022-v3", bytes: 9_100_000)
+        }) {
+            Color.clear.为你推荐模型更新提示()
+        },
+        .init("无法下载“为你推荐”模型", 准备: {
+            清空()
+            为你推荐.updateError = String(localized: "请求失败。")
+        }) {
+            Color.clear.为你推荐模型更新提示()
+        },
+    ])
+}
+#endif

@@ -13,6 +13,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import hashlib
 import http.client
 import json
+import os
 import re
 import shutil
 import socket
@@ -29,7 +30,10 @@ from typing import Any, Iterable, Iterator
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MAPPING = PROJECT_ROOT / "PaperVN" / "Resources" / "vndb_id_connector.json"
-DEFAULT_OUTPUT = PROJECT_ROOT / ".build" / "paparu-vision-dataset"
+# 收集的数据放在项目文件夹的 训练数据/ 里，不进仓库
+DEFAULT_OUTPUT = Path(
+    os.environ.get("PAPERVN_TRAINING_DATA", PROJECT_ROOT.parent / "训练数据")
+) / "Paparu图像数据集"
 VNDB_API = "https://api.vndb.org/kana"
 STEAM_DETAILS_API = "https://store.steampowered.com/api/appdetails"
 BANGUMI_SUBJECT_API = "https://api.bgm.tv/v0/subjects"

@@ -80,6 +80,7 @@ struct 角色详情: View {
 
     @ObservedObject private var auth: 用户登录
     @Namespace private var descriptionNamespace
+    @Namespace private var cardNamespace
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
@@ -100,6 +101,7 @@ struct 角色详情: View {
     @State private var revealedTraitIDs: Set<String> = []
     @State private var showTranslatedTraits = false
     @State private var showAllTraits = false
+    @State private var 标签浏览目标: 标签浏览?
     @State private var traitsContentOpacity = 1.0
     @State private var isSwitchingTraitLanguage = false
     @State private var characterInfoPopover: 角色信息提示?
@@ -125,6 +127,7 @@ struct 角色详情: View {
     @State private var immersiveTextSamplingCoordinator =
         沉浸封面文字取样任务协调器(校准名称: "角色")
     @State private var immersiveHeroGestureIsActive = false
+    @State private var immersiveHeroIsExpanded = false
     @State private var immersiveAutomaticAppearance: 沉浸详情外观?
     @State private var immersiveAutomaticAppearanceURL: URL?
     @State private var immersiveLoadedHeroImage: Image?
@@ -374,8 +377,12 @@ struct 角色详情: View {
         .navigationDestination(isPresented: $showAllTraits) {
             更多特征页面(
                 traits: displayedDetail.traits ?? [],
+                来源名称: characterName,
                 showTranslatedTraits: $showTranslatedTraits
             )
+        }
+        .navigationDestination(item: $标签浏览目标) { 浏览 in
+            搜索(showsSearchField: false, 标签浏览: 浏览)
         }
         .sheet(isPresented: $showDescriptionSheet) {
             if let detail {
@@ -428,6 +435,9 @@ struct 角色详情: View {
                         dragContext: dragContext,
                         primaryInformation: primaryInformation
                     )
+                    .onChange(of: dragContext.isExpanded) { _, isExpanded in
+                        updateImmersiveHeroExpansion(isExpanded)
+                    }
                 } content: {
                     if !uniqueVoiceRelationships.isEmpty
                         || isShowingInitialSkeleton
@@ -487,7 +497,7 @@ struct 角色详情: View {
         } action: { size in
             immersiveViewportSize = size
         }
-        .modifier(DivisionFrameModifier(divisionFrame: $immersiveDivisionFrame))
+        .沉浸详情折叠区域(读取到: $immersiveDivisionFrame)
         .scrollIndicators(.hidden)
         .coordinateSpace(name: "ImmersiveCharacterScroll")
         .onPreferenceChange(角色沉浸取样框PreferenceKey.self) { frames in
@@ -775,7 +785,7 @@ struct 角色详情: View {
                     .frame(width: width, height: renderedHeight)
                 } else {
                     平台内容不可用视图(
-                        "无角色图片",
+                        "无角色图像",
                         systemImage: "person.crop.rectangle"
                     )
                     .frame(width: width, height: renderedHeight)
@@ -1464,7 +1474,8 @@ struct 角色详情: View {
             imageSize: CGSize(width: imageFrame.width, height: imageFrame.height),
             regions: regions,
             viewportSize: immersiveViewportSize,
-            contentOffsetY: horizontalSizeClass == .regular ? -60 : 0
+            contentOffsetY: horizontalSizeClass == .regular ? -60 : 0,
+            封面已展开: immersiveHeroIsExpanded
         )
         guard immersiveTextSamplingCoordinator.latestGeometry != geometry else {
             return
@@ -1472,6 +1483,27 @@ struct 角色详情: View {
         immersiveTextSamplingCoordinator.remember(geometry)
         guard !immersiveHeroGestureIsActive else { return }
         guard let url = currentImmersiveImageURL else { return }
+        scheduleImmersiveTextSamples(
+            for: url,
+            geometry: geometry,
+            revealsImmediately: true
+        )
+    }
+
+    /// 下拉展开或收起封面时，信息卡片背后的背景整个换掉，需要按新的状态重新取样。
+    private func updateImmersiveHeroExpansion(_ isExpanded: Bool) {
+        guard immersiveHeroIsExpanded != isExpanded else { return }
+        immersiveHeroIsExpanded = isExpanded
+        guard var geometry = immersiveTextSamplingCoordinator.latestGeometry
+                ?? immersiveTextSampleGeometry else {
+            return
+        }
+        geometry.封面已展开 = isExpanded
+        immersiveTextSamplingCoordinator.remember(geometry)
+        guard !immersiveHeroGestureIsActive,
+              let url = currentImmersiveImageURL else {
+            return
+        }
         scheduleImmersiveTextSamples(
             for: url,
             geometry: geometry,
@@ -1826,7 +1858,7 @@ struct 角色详情: View {
         }
         .redacted(reason: .placeholder)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("正在载入…")
+        .accessibilityLabel("正在加载…")
     }
 
     private func immersiveCharacterMetadataItem(
@@ -1901,7 +1933,7 @@ struct 角色详情: View {
                             .buttonStyle(.plain)
                             .foregroundStyle(
                                 showTranslatedDescription
-                                    ? .blue
+                                    ? Color.blue
                                     : textStyle.secondary
                             )
                             .accessibilityLabel(
@@ -1924,7 +1956,7 @@ struct 角色详情: View {
                 )
             } else {
                 简介预览文本视图(
-                    text: String(repeating: "正在载入", count: 128),
+                    text: String(repeating: "正在加载", count: 128),
                     lineLimit: 7
                 )
                 .font(.body)
@@ -1987,7 +2019,7 @@ struct 角色详情: View {
                         .buttonStyle(.plain)
                         .foregroundStyle(
                             showTranslatedTraits
-                                ? .blue
+                                ? Color.blue
                                 : textStyle.capsule
                         )
                         .沉浸详情文字阴影(textStyle)
@@ -2070,6 +2102,15 @@ struct 角色详情: View {
         .角色沉浸取样框([sampleKey])
         .blur(radius: blurred ? 5 : 0)
         .contentShape(Capsule())
+        .标签浏览菜单(
+            blurred ? nil : 浏览特征(trait),
+            对象: .角色,
+            全部: allTraits
+                .filter { !shouldHideTrait($0) && !shouldBlurTrait($0) }
+                .map(浏览特征),
+            来源: characterName,
+            目标: $标签浏览目标
+        )
         .onTapGesture {
             guard blurred,
                   内容安全限制判定.允许手动解除模糊(
@@ -2083,6 +2124,10 @@ struct 角色详情: View {
                 }
             }
         }
+    }
+
+    private func 浏览特征(_ trait: 角色特征) -> 标签浏览.标签 {
+        .特征(值: trait.id, 名称: displayedTraitText(trait.name), 分组: displayedTraitText(trait.group_name))
     }
 
     private var immersiveVoiceActors: some View {
@@ -2153,8 +2198,10 @@ struct 角色详情: View {
                                     initialImageViolence: visualNovel.image?.violence,
                                     initialImageDimensions: visualNovel.image?.dims
                                 )
+                                .navigationTransition(.zoom(sourceID: "appearance-\(visualNovel.id)", in: cardNamespace))
                             } label: {
                                 immersiveAppearanceCard(visualNovel)
+                                    .matchedTransitionSource(id: "appearance-\(visualNovel.id)", in: cardNamespace)
                             }
                             .buttonStyle(.plain)
                         }
@@ -2275,7 +2322,7 @@ struct 角色详情: View {
         if let errorMessage {
             VStack(alignment: .leading, spacing: 10) {
                 Label(
-                    detail == nil ? "无法载入" : "无法载入",
+                    detail == nil ? "无法加载" : "无法加载",
                     systemImage: "exclamationmark.triangle"
                 )
                 .font(.headline)
@@ -2321,7 +2368,7 @@ struct 角色详情: View {
         .padding(.horizontal, immersivePageHorizontalPadding)
         .redacted(reason: .placeholder)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("正在载入…")
+        .accessibilityLabel("正在加载…")
     }
 
     private var isShowingInitialSkeleton: Bool {
@@ -2344,16 +2391,16 @@ struct 角色详情: View {
                     .padding()
             }
             .navigationTitle("简介")
+            .仅顶部可下拉关闭()
             .平台柔和滚动边缘(for: .top)
             .平台内联导航标题()
             .toolbar {
-                ToolbarItem(placement: .平台前导操作) {
+                ToolbarItem(placement: .cancellationAction) {
                     Button {
                         showDescriptionSheet = false
                     } label: {
-                        Image(systemName: "xmark")
+                        Label("关闭", systemImage: "xmark")
                     }
-                    .accessibilityLabel("关闭")
                 }
 
                 ToolbarItem(placement: .平台主操作) {
@@ -2816,8 +2863,10 @@ struct 角色详情: View {
                                     initialImageViolence: visualNovel.image?.violence,
                                     initialImageDimensions: visualNovel.image?.dims
                                 )
+                                .navigationTransition(.zoom(sourceID: "appearance-\(visualNovel.id)", in: cardNamespace))
                             } label: {
                                 appearanceCard(visualNovel)
+                                    .matchedTransitionSource(id: "appearance-\(visualNovel.id)", in: cardNamespace)
                             }
                             .buttonStyle(.plain)
                         }
@@ -3138,25 +3187,3 @@ struct 角色详情: View {
 
 }
 
-private struct DivisionFrameModifier: ViewModifier {
-    @Binding var divisionFrame: CGRect?
-
-    func body(content: Content) -> some View {
-        #if compiler(>=6.5)
-        if #available(iOS 27.1, *) {
-            content
-                .onGeometryChange(for: CGRect?.self) { proxy in
-                    proxy.reservedRegions(kind: .division)
-                        .first(where: \.isActive)?
-                        .frame
-                } action: { frame in
-                    divisionFrame = frame
-                }
-        } else {
-            content
-        }
-        #else
-        content
-        #endif
-    }
-}

@@ -1,0 +1,470 @@
+diff --git a/common/visual/opengl/CanvasIntf.cpp b/common/visual/opengl/CanvasIntf.cpp
+index 4e42411..afd1cac 100644
+--- a/common/visual/opengl/CanvasIntf.cpp
++++ b/common/visual/opengl/CanvasIntf.cpp
+@@ -188,10 +188,10 @@ tTJSNI_Canvas::tTJSNI_Canvas()
+ {
+ }
+ //----------------------------------------------------------------------
+-tTJSNI_Canvas::~tTJSNI_Canvas() {
++tTJSNI_Canvas::~tTJSNI_Canvas() { PaperVNGLScope paperVNGLScope;
+ }
+ //----------------------------------------------------------------------
+-tjs_error TJS_INTF_METHOD tTJSNI_Canvas::Construct(tjs_int numparams, tTJSVariant **param, iTJSDispatch2 *tjs_obj) {
++tjs_error TJS_INTF_METHOD tTJSNI_Canvas::Construct(tjs_int numparams, tTJSVariant **param, iTJSDispatch2 *tjs_obj) { PaperVNGLScope paperVNGLScope;
+ 	// set default matrix
+ 	CreateDefaultMatrix();
+ 	// set default shader (after OpenGL init)
+@@ -200,7 +200,7 @@ tjs_error TJS_INTF_METHOD tTJSNI_Canvas::Construct(tjs_int numparams, tTJSVarian
+ 	return TJS_S_OK;
+ }
+ //----------------------------------------------------------------------
+-void TJS_INTF_METHOD tTJSNI_Canvas::Invalidate() {
++void TJS_INTF_METHOD tTJSNI_Canvas::Invalidate() { PaperVNGLScope paperVNGLScope;
+ 
+ 	// release render target
+ 	if( RenterTaretObject.Type() == tvtObject )
+@@ -462,7 +462,7 @@ void tTJSNI_Canvas::Capture( class tTJSNI_Bitmap* bmp, int x, int y, int w, int
+ 	Capture( bmp->GetBitmap(), x, y, w, h );
+ }
+ //----------------------------------------------------------------------
+-void tTJSNI_Canvas::Capture( class tTVPBaseBitmap* b, int x, int y, int w, int h ) {
++void tTJSNI_Canvas::Capture( class iTVPBaseBitmap* b, int x, int y, int w, int h ) {
+ 	tjs_int sw = CanvasWidth;
+ 	tjs_int sh = CanvasHeight;
+ 
+@@ -1084,7 +1084,7 @@ void tTJSNI_Canvas::Restore() {
+ 			Matrix32Instance->Set( state->Matrix );
+ 		}
+ 		if( ClipRectInstance ) {
+-			ClipRectInstance->Set( state->ClipRect );
++			ClipRectInstance->Set( state->ClipRect[0], state->ClipRect[1], state->ClipRect[2], state->ClipRect[3] );
+ 		}
+ 		EnableClipRect = ( state->Flag & tTVPCanvasState::FLAG_CLIP_RECT ) != 0;
+ 		bool oldCulling = EnableCulling;
+diff --git a/common/visual/opengl/CanvasIntf.h b/common/visual/opengl/CanvasIntf.h
+index b8fbbf5..9935f4e 100644
+--- a/common/visual/opengl/CanvasIntf.h
++++ b/common/visual/opengl/CanvasIntf.h
+@@ -164,7 +164,7 @@ public:
+ 	// 現在バインドされている FBO を直接 tTVPBaseBitmap へ読み戻す (Layer の
+ 	// メインイメージ等、TJS Bitmap を介さない書き戻し用)。bmp は w,h に合った
+ 	// サイズであること。GLCompositor から利用。
+-	void Capture( class tTVPBaseBitmap* bmp, int x, int y, int w, int h);
++	void Capture( class iTVPBaseBitmap* bmp, int x, int y, int w, int h);
+ 	void Capture( const class iTVPTextureInfoIntrface* texture, int x, int y, int w, int h);
+ 	void Clear( tjs_uint32 color );
+ 
+diff --git a/common/visual/opengl/GLCompositorIntf.cpp b/common/visual/opengl/GLCompositorIntf.cpp
+index 9dc6a60..d677d55 100644
+--- a/common/visual/opengl/GLCompositorIntf.cpp
++++ b/common/visual/opengl/GLCompositorIntf.cpp
+@@ -39,11 +39,11 @@ tTJSNI_GLCompositor::tTJSNI_GLCompositor()
+ }
+ //---------------------------------------------------------------------------
+ tTJSNI_GLCompositor::~tTJSNI_GLCompositor()
+-{
++{ PaperVNGLScope paperVNGLScope;
+ }
+ //---------------------------------------------------------------------------
+ tjs_error TJS_INTF_METHOD tTJSNI_GLCompositor::Construct(tjs_int numparams, tTJSVariant **param, iTJSDispatch2 *tjs_obj)
+-{
++{ PaperVNGLScope paperVNGLScope;
+ 	if( numparams < 1 ) return TJS_E_BADPARAMCOUNT;
+ 
+ 	// 自分自身の TJS オブジェクトを記録 (callback の objthis として使う)。非 AddRef。
+@@ -58,11 +58,7 @@ tjs_error TJS_INTF_METHOD tTJSNI_GLCompositor::Construct(tjs_int numparams, tTJS
+ 		TVPThrowExceptionMessage(TVPGLCompositor1stArgumentMustBeAWindow);
+ 	}
+ 
+-#ifdef __WINVER__
+-	NativeWindow = NIWindow->GetForm()->GetHandle();
+-#else
+-	NativeWindow = NIWindow->GetForm()->NativeWindowHandle();
+-#endif
++NativeWindow = nullptr; // PaperVN：上下文只有一个
+ 
+ 	// 描画デバイスに依存せず、ウィンドウ用の GL コンテキストを取得してカレントにする。
+ 	// separateShared=true: 画面が GL デバイス (SDLOGLDrawDevice 等) の場合に、その主
+@@ -82,7 +78,7 @@ tjs_error TJS_INTF_METHOD tTJSNI_GLCompositor::Construct(tjs_int numparams, tTJS
+ }
+ //---------------------------------------------------------------------------
+ void TJS_INTF_METHOD tTJSNI_GLCompositor::Invalidate()
+-{
++{ PaperVNGLScope paperVNGLScope;
+ 	if( Context ) Context->MakeCurrent();
+ 
+ 	if( BitmapObject.Type() == tvtObject )
+@@ -269,7 +265,7 @@ void tTJSNI_GLCompositor::Capture(tTJSNI_BaseLayer* layer, const tTJSVariant& ca
+ 
+ 	MakeCurrent();
+ 
+-	tTVPBaseBitmap* bmp = layer->GetMainImage();
++	auto* bmp = layer->GetMainImage();
+ 	int w = (int)bmp->GetWidth();
+ 	int h = (int)bmp->GetHeight();
+ 	if( w <= 0 || h <= 0 ) return;
+diff --git a/common/visual/opengl/GLTexture.cpp b/common/visual/opengl/GLTexture.cpp
+index c1c4f0d..0520140 100644
+--- a/common/visual/opengl/GLTexture.cpp
++++ b/common/visual/opengl/GLTexture.cpp
+@@ -676,6 +676,9 @@ GLTexture::InitSupported()
+         GLint swizzleR;
+         glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_R, &swizzleR);
+         _support_swizzle = glGetError() == GL_NO_ERROR;
++        // PaperVN：krkr2 的图层内存已经是 RGBA，不走 BGRA 上传和 swizzle
++        _support_bgra = false;
++        _support_swizzle = false;
+         _support_inited = true;
+ 
+ 		if (_support_bgra) {
+diff --git a/common/visual/opengl/OffscreenIntf.cpp b/common/visual/opengl/OffscreenIntf.cpp
+index ad9a760..360de67 100644
+--- a/common/visual/opengl/OffscreenIntf.cpp
++++ b/common/visual/opengl/OffscreenIntf.cpp
+@@ -16,10 +16,10 @@ extern bool TVPCopyBitmapToTexture( const iTVPTextureInfoIntrface* texture, tjs_
+ tTJSNI_Offscreen::tTJSNI_Offscreen() {
+ }
+ //---------------------------------------------------------------------------
+-tTJSNI_Offscreen::~tTJSNI_Offscreen() {
++tTJSNI_Offscreen::~tTJSNI_Offscreen() { PaperVNGLScope paperVNGLScope;
+ }
+ //---------------------------------------------------------------------------
+-tjs_error TJS_INTF_METHOD tTJSNI_Offscreen::Construct(tjs_int numparams, tTJSVariant **param, iTJSDispatch2 *tjs_obj) {
++tjs_error TJS_INTF_METHOD tTJSNI_Offscreen::Construct(tjs_int numparams, tTJSVariant **param, iTJSDispatch2 *tjs_obj) { PaperVNGLScope paperVNGLScope;
+ 	if( numparams < 2 ) return TJS_E_BADPARAMCOUNT;
+ 	tjs_int width = *param[0];
+ 	tjs_int height = *param[1];
+@@ -31,7 +31,7 @@ tjs_error TJS_INTF_METHOD tTJSNI_Offscreen::Construct(tjs_int numparams, tTJSVar
+ 	return TJS_S_OK;
+ }
+ //---------------------------------------------------------------------------
+-void TJS_INTF_METHOD tTJSNI_Offscreen::Invalidate() {
++void TJS_INTF_METHOD tTJSNI_Offscreen::Invalidate() { PaperVNGLScope paperVNGLScope;
+ 	FrameBuffer.destory();
+ }
+ //---------------------------------------------------------------------------
+diff --git a/common/visual/opengl/ShaderProgramIntf.cpp b/common/visual/opengl/ShaderProgramIntf.cpp
+index a7c9ea4..cac4f82 100644
+--- a/common/visual/opengl/ShaderProgramIntf.cpp
++++ b/common/visual/opengl/ShaderProgramIntf.cpp
+@@ -21,7 +21,7 @@ extern const iTVPTextureInfoIntrface* TVPGetTextureInfo( const tTJSVariant *para
+ 
+ tTJSNI_ShaderProgram::tTJSNI_ShaderProgram() : Program(0) {
+ }
+-tTJSNI_ShaderProgram::~tTJSNI_ShaderProgram() {
++tTJSNI_ShaderProgram::~tTJSNI_ShaderProgram() { PaperVNGLScope paperVNGLScope;
+ }
+ /*
+ shader type
+@@ -415,7 +415,7 @@ void tTVPShaderParameter::SetToShader( tjs_int* texCount, tjs_int* vertexCount )
+ 	}
+ }
+ //---------------------------------------------------------------------------
+-tjs_error TJS_INTF_METHOD tTJSNI_ShaderProgram::Construct(tjs_int numparams, tTJSVariant **param, iTJSDispatch2 *tjs_obj) {
++tjs_error TJS_INTF_METHOD tTJSNI_ShaderProgram::Construct(tjs_int numparams, tTJSVariant **param, iTJSDispatch2 *tjs_obj) { PaperVNGLScope paperVNGLScope;
+ 	if( numparams < 2 ) return TJS_E_BADPARAMCOUNT;
+ 
+ 	ttstr vertex = *param[0];
+@@ -520,7 +520,7 @@ void tTJSNI_ShaderProgram::RetrieveShaderParameter() {
+ 	}
+ }
+ //---------------------------------------------------------------------------
+-void TJS_INTF_METHOD tTJSNI_ShaderProgram::Invalidate() {
++void TJS_INTF_METHOD tTJSNI_ShaderProgram::Invalidate() { PaperVNGLScope paperVNGLScope;
+ 	if( Program ) {
+ 		glDeleteProgram( Program );
+ 		Program = 0;
+diff --git a/common/visual/opengl/TextureIntf.cpp b/common/visual/opengl/TextureIntf.cpp
+index fd91044..fba427c 100644
+--- a/common/visual/opengl/TextureIntf.cpp
++++ b/common/visual/opengl/TextureIntf.cpp
+@@ -21,11 +21,11 @@ tTJSNI_Texture::tTJSNI_Texture() {
+ 	TVPTempBitmapHolderAddRef();
+ }
+ //----------------------------------------------------------------------
+-tTJSNI_Texture::~tTJSNI_Texture() {
++tTJSNI_Texture::~tTJSNI_Texture() { PaperVNGLScope paperVNGLScope;
+ 	TVPTempBitmapHolderRelease();
+ }
+ //----------------------------------------------------------------------
+-tjs_error TJS_INTF_METHOD tTJSNI_Texture::Construct(tjs_int numparams, tTJSVariant **param, iTJSDispatch2 *tjs_obj) {
++tjs_error TJS_INTF_METHOD tTJSNI_Texture::Construct(tjs_int numparams, tTJSVariant **param, iTJSDispatch2 *tjs_obj) { PaperVNGLScope paperVNGLScope;
+ 	if( numparams < 1 ) return TJS_E_BADPARAMCOUNT;
+ 
+ 	/**
+@@ -66,9 +66,9 @@ tjs_error TJS_INTF_METHOD tTJSNI_Texture::Construct(tjs_int numparams, tTJSVaria
+ 		// tcfAlphaChannel は α が必要なので 32bpp (glmNormal) で読む
+ 		tTVPGraphicLoadMode mode =
+ 			( color == tTVPTextureColorFormat::Alpha && !fromAlphaChannel ) ? glmGrayscale : glmNormal;
+-		TVPLoadGraphic( bitmap.get(), filename, clNone, 0, 0, mode, nullptr, nullptr, true );
++		TVPLoadGraphic( bitmap.get(), filename, clNone, 0, 0, mode, nullptr, nullptr );
+ 		if( is9patch && bitmap->Is32BPP() ) {
+-			bitmap->Read9PatchInfo( Scale9Patch, Margin9Patch );
++			PaperVNRead9PatchInfo( &*bitmap, Scale9Patch, Margin9Patch );
+ 			Scale9Patch.add_offsets( -1, -1 );
+ 			Margin9Patch.add_offsets( -1, -1 );
+ 			if( Margin9Patch.top >= 0 ) {
+@@ -76,7 +76,7 @@ tjs_error TJS_INTF_METHOD tTJSNI_Texture::Construct(tjs_int numparams, tTJSVaria
+ 				if( Margin9Patch.right < 0 ) Margin9Patch.right = 0;
+ 			}
+ 			// 周囲1ピクセル削る
+-			std::unique_ptr<tTVPBaseBitmap> bitmap2( new tTVPBaseBitmap( bitmap->GetWidth()-2, bitmap->GetHeight()-2, 32, true ) );
++			std::unique_ptr<tTVPBaseBitmap> bitmap2( new tTVPBaseBitmap( bitmap->GetWidth()-2, bitmap->GetHeight()-2, 32 ) );
+ 			if( bitmap2->CopyRect( 0, 0, bitmap.get(), tTVPRect( 1, 1, bitmap->GetWidth()-1, bitmap->GetHeight()-1 ) ) ) {
+ 				bitmap.reset( bitmap2.release() );
+ 			}
+@@ -125,7 +125,7 @@ tjs_error TJS_INTF_METHOD tTJSNI_Texture::Construct(tjs_int numparams, tTJSVaria
+ 						// C: glmNormal で BGRA bitmap として load。
+ 						//    GLTexture::createMipmapTexture が BGRA_EXT/swizzle で
+ 						//    対応するため、TLG/PNG/JPEG 末尾の RB swap が消える。
+-						TVPLoadGraphic( bitmap.get(), filename, clNone, 0, 0, glmNormal, nullptr, nullptr, true );
++						TVPLoadGraphic( bitmap.get(), filename, clNone, 0, 0, glmNormal, nullptr, nullptr );
+ 						tTVPBBStretchType type = stFastAreaAvg;
+ 						if( numparams >= 3 && param[2]->Type() != tvtVoid )
+ 							type = (tTVPBBStretchType)(tjs_int)*param[2];
+@@ -196,7 +196,7 @@ tjs_error TJS_INTF_METHOD tTJSNI_Texture::Construct(tjs_int numparams, tTJSVaria
+ 		const tTVPBaseBitmap* bitmap = bmp->GetBitmap();
+ 		std::unique_ptr<tTVPBaseBitmap> bitmapHolder9;
+ 		if( is9patch && bitmap->Is32BPP() ) {
+-			bitmap->Read9PatchInfo( Scale9Patch, Margin9Patch );
++			PaperVNRead9PatchInfo( &*bitmap, Scale9Patch, Margin9Patch );
+ 			Scale9Patch.add_offsets( -1, -1 );
+ 			Margin9Patch.add_offsets( -1, -1 );
+ 			if( Margin9Patch.top >= 0 ) {
+@@ -204,7 +204,7 @@ tjs_error TJS_INTF_METHOD tTJSNI_Texture::Construct(tjs_int numparams, tTJSVaria
+ 				if( Margin9Patch.right < 0 ) Margin9Patch.right = 0;
+ 			}
+ 			// 周囲1ピクセル削る
+-			std::unique_ptr<tTVPBaseBitmap> bitmap2( new tTVPBaseBitmap( bitmap->GetWidth() - 2, bitmap->GetHeight() - 2, 32, true ) );
++			std::unique_ptr<tTVPBaseBitmap> bitmap2( new tTVPBaseBitmap( bitmap->GetWidth() - 2, bitmap->GetHeight() - 2, 32 ) );
+ 			if( bitmap2->CopyRect( 0, 0, bitmap, tTVPRect( 1, 1, bitmap->GetWidth() - 1, bitmap->GetHeight() - 1 ) ) ) {
+ 				bitmapHolder9.reset( bitmap2.release() );
+ 				bitmap = bitmapHolder9.get();
+@@ -251,15 +251,13 @@ tjs_error TJS_INTF_METHOD tTJSNI_Texture::Construct(tjs_int numparams, tTJSVaria
+ 					assert( gray );
+ 					tTVPRect r( 0, 0, bitmap->GetWidth(), bitmap->GetHeight() );
+ 					bitmap2->DoGrayScale( r );
+-					tTVPBaseBitmap::GrayToAlphaFunctor func;
+-					std::unique_ptr<tTVPBaseBitmap> bitmap3( new tTVPBaseBitmap( dw, dh, 8, true ) );
+-					tTVPBaseBitmap::CopyWithDifferentBitWidth( bitmap3.get(), bitmap2.get(), func );
++					std::unique_ptr<tTVPBaseBitmap> bitmap3( new tTVPBaseBitmap( dw, dh, 8 ) );
++					PaperVNCopyBitWidth( bitmap3.get(), bitmap2.get() );
+ 					bitmap2.reset( bitmap3.release() );
+ 				} else {
+ 					// 8bit color to full color
+-					tTVPBaseBitmap::GrayToColorFunctor func;
+-					std::unique_ptr<tTVPBaseBitmap> bitmap3( new tTVPBaseBitmap( dw, dh, 32, true ) );
+-					tTVPBaseBitmap::CopyWithDifferentBitWidth( bitmap3.get(), bitmap2.get(), func );
++					std::unique_ptr<tTVPBaseBitmap> bitmap3( new tTVPBaseBitmap( dw, dh, 32 ) );
++					PaperVNCopyBitWidth( bitmap3.get(), bitmap2.get() );
+ 					bitmap2.reset( bitmap3.release() );
+ 				}
+ 			} else {
+@@ -291,7 +289,7 @@ tjs_error TJS_INTF_METHOD tTJSNI_Texture::Construct(tjs_int numparams, tTJSVaria
+ 	return TJS_S_OK;
+ }
+ //----------------------------------------------------------------------
+-void TJS_INTF_METHOD tTJSNI_Texture::Invalidate() {
++void TJS_INTF_METHOD tTJSNI_Texture::Invalidate() { PaperVNGLScope paperVNGLScope;
+ 	Texture.destory();
+ 
+ 	// release clip rect
+@@ -415,7 +413,7 @@ tjs_error tTJSNI_Texture::LoadMipmapTexture( const tTVPBaseBitmap* bitmap, class
+ 		tjs_int sh = sizeList->Items[i * 2 + 1];
+ 		if( sw > prew || sh > preh ) return TJS_E_INVALIDPARAM;	// 順に小さいサイズにしていく必要がある
+ 		tjs_int spitch = sw * 4;
+-		bmps.push_back( std::unique_ptr<tTVPBaseBitmap>( new tTVPBaseBitmap( sw, sh, 32, true ) ) );
++		bmps.push_back( std::unique_ptr<tTVPBaseBitmap>( new tTVPBaseBitmap( sw, sh, 32 ) ) );
+ 		tTVPRect dstRect( 0, 0, sw, sh );
+ 		tTVPRect clipRect( dstRect );
+ 		tTVPBaseBitmap* dstBmp = bmps.back().get();
+diff --git a/common/visual/opengl/TextureLayerTreeOwner.cpp b/common/visual/opengl/TextureLayerTreeOwner.cpp
+index 3602a9e..172bd1f 100644
+--- a/common/visual/opengl/TextureLayerTreeOwner.cpp
++++ b/common/visual/opengl/TextureLayerTreeOwner.cpp
+@@ -37,7 +37,7 @@ tTJSNI_TextureLayerTreeOwner::tTJSNI_TextureLayerTreeOwner()
+ 	TextureClass = TVPCreateNativeClass_OwnerTexture();
+ }
+ //----------------------------------------------------------------------
+-tTJSNI_TextureLayerTreeOwner::~tTJSNI_TextureLayerTreeOwner() {
++tTJSNI_TextureLayerTreeOwner::~tTJSNI_TextureLayerTreeOwner() { PaperVNGLScope paperVNGLScope;
+ }
+ 
+ //---------------------------------------------------------------------------
+@@ -116,13 +116,13 @@ tjs_int tTJSNI_TextureLayerTreeOwner::GetHeight() const
+ //----------------------------------------------------------------------
+ // tTJSNativeInstance
+ tjs_error TJS_INTF_METHOD tTJSNI_TextureLayerTreeOwner::Construct(tjs_int numparams, tTJSVariant **param, iTJSDispatch2 *tjs_obj) 
+-{
++{ PaperVNGLScope paperVNGLScope;
+ 	Owner = tjs_obj; // no addref
+ 	return TJS_S_OK;
+ }
+ //----------------------------------------------------------------------
+ void TJS_INTF_METHOD tTJSNI_TextureLayerTreeOwner::Invalidate() 
+-{
++{ PaperVNGLScope paperVNGLScope;
+ 	DestroyTexture();
+ 	if (TextureClass) TextureClass->Release(); TextureClass = nullptr;
+ }
+@@ -140,65 +140,29 @@ void TJS_INTF_METHOD tTJSNI_TextureLayerTreeOwner::StartBitmapCompletion(iTVPLay
+ #endif
+ }
+ //----------------------------------------------------------------------
+-void TJS_INTF_METHOD tTJSNI_TextureLayerTreeOwner::NotifyBitmapCompleted(class iTVPLayerManager * manager,
+-	tjs_int x, tjs_int y, const void * bits, const class BitmapInfomation * bmpinfo,
+-	const tTVPRect &cliprect, tTVPLayerType type, tjs_int opacity) {
+-
+-	// OGLDrawDevice と実装同じ
++void tTJSNI_TextureLayerTreeOwner::Update() {
++	// PaperVN：krkr2 的 tTVPLayerTreeOwner 没有 Update
++	for( auto *manager : Managers ) manager->UpdateToDrawDevice();
++}
+ 
++void tTJSNI_TextureLayerTreeOwner::NotifyBitmapCompleted(class iTVPLayerManager * manager,
++	tjs_int x, tjs_int y, class tTVPBaseTexture * bmp,
++	const tTVPRect &cliprect, tTVPLayerType type, tjs_int opacity) {
+ 	if (!TextureInstance) return;
+-
+-	int _width  = bmpinfo->GetWidth();
+-	int _height = bmpinfo->GetHeight(); 
+-	int _pitch  = bmpinfo->GetPitchBytes(); 
+-
++	int _width  = bmp->GetWidth();
++	int _height = bmp->GetHeight();
+ 	int src_w = cliprect.get_width();
+ 	int src_h = cliprect.get_height();
+-
+-	// bits, bitmapinfo で表されるビットマップの cliprect の領域を、x, y に描画
+-	// する。
+-	// opacity と type は無視するしかないので無視する
+ 	tjs_int w, h;
+ 	GetPrimaryLayerSize( w, h );
+-	if (!(x < 0 || y < 0 ||
+-			x + src_w > w ||
+-			y + src_h > h) &&
+-		!(cliprect.left < 0 || cliprect.top < 0 ||
+-			cliprect.right > _width ||
+-			cliprect.bottom > _height))
++	if (!(x < 0 || y < 0 || x + src_w > w || y + src_h > h) &&
++		!(cliprect.left < 0 || cliprect.top < 0 || cliprect.right > _width || cliprect.bottom > _height))
+ 	{
+-		// bitmapinfo で表された cliprect の領域を x,y にコピーする
+-		long src_y       = cliprect.top;
+-		long src_y_limit = cliprect.bottom;
+-		long src_x       = cliprect.left;
+-		long width_bytes   = cliprect.get_width() * 4; // 32bit
+-		const tjs_uint8 * src_p = (const tjs_uint8 *)bits;
+-		long src_pitch;
+-
+-		if(_height < 0)
+-		{
+-			// bottom-down
+-			src_pitch = _pitch;
+-		}
+-		else
+-		{
+-			// bottom-up
+-			src_p += _pitch * (_height - 1);
+-			src_pitch = -_pitch;
+-		}
+-
+-#ifdef TVP_USE_GPU_CANVAS
+-		// 矩形ごとに上から詰めて転送する
+-		std::vector<tjs_uint32> buf( (size_t)src_w * src_h );
+-		for( int row = 0; row < src_h; row++ )
+-			memcpy( &buf[(size_t)src_w * row], src_p + src_pitch * ( src_y + row ) + src_x * 4, (size_t)src_w * 4 );
+-		TextureInstance->UpdateDirect( x, y, src_w, src_h, buf.data(), src_w * 4 );
+-#else
+-		mTextureUpdateRect.Update(TextureInstance, x, y, src_w, src_h, src_p, src_pitch, src_x, src_y);
+-#endif
++		mTextureUpdateRect.Update(TextureInstance, x, y, src_w, src_h,
++			(const tjs_uint8 *)bmp->GetScanLine(0), bmp->GetPitchBytes(), cliprect.left, cliprect.top);
+ 	}
+ }
+-//----------------------------------------------------------------------
++
+ void TJS_INTF_METHOD tTJSNI_TextureLayerTreeOwner::EndBitmapCompletion(iTVPLayerManager * manager) {
+ #ifndef TVP_USE_GPU_CANVAS
+ 	if (TextureInstance) {
+diff --git a/common/visual/opengl/TextureLayerTreeOwner.h b/common/visual/opengl/TextureLayerTreeOwner.h
+index 8948895..d2f9e53 100644
+--- a/common/visual/opengl/TextureLayerTreeOwner.h
++++ b/common/visual/opengl/TextureLayerTreeOwner.h
+@@ -48,6 +48,7 @@ public:
+ 	// tTJSNativeInstance
+ 	tjs_error TJS_INTF_METHOD Construct(tjs_int numparams, tTJSVariant **param, iTJSDispatch2 *tjs_obj);
+ 	void TJS_INTF_METHOD Invalidate();
++	void Update();
+ 
+ 	tTJSVariant &GetTextureObject();
+ 
+@@ -55,9 +56,7 @@ public:
+ 	iTJSDispatch2 * TJS_INTF_METHOD GetOwnerNoAddRef() const { return Owner; }
+ 
+ 	virtual void TJS_INTF_METHOD StartBitmapCompletion(iTVPLayerManager * manager);
+-	virtual void TJS_INTF_METHOD NotifyBitmapCompleted(class iTVPLayerManager * manager,
+-		tjs_int x, tjs_int y, const void * bits, const class BitmapInfomation * bitmapinfo,
+-		const tTVPRect &cliprect, tTVPLayerType type, tjs_int opacity);
++	virtual void TJS_INTF_METHOD NotifyBitmapCompleted(class iTVPLayerManager * manager, tjs_int x, tjs_int y, class tTVPBaseTexture * bmp, const tTVPRect &cliprect, tTVPLayerType type, tjs_int opacity);
+ 	virtual void TJS_INTF_METHOD EndBitmapCompletion(iTVPLayerManager * manager);
+ 
+ 	virtual void OnSetMouseCursor( tjs_int cursor );
+diff --git a/common/visual/opengl/VertexBinderIntf.cpp b/common/visual/opengl/VertexBinderIntf.cpp
+index ec5932c..65ae92c 100644
+--- a/common/visual/opengl/VertexBinderIntf.cpp
++++ b/common/visual/opengl/VertexBinderIntf.cpp
+@@ -13,10 +13,10 @@
+ tTJSNI_VertexBinder::tTJSNI_VertexBinder() {
+ }
+ //---------------------------------------------------------------------------
+-tTJSNI_VertexBinder::~tTJSNI_VertexBinder() {
++tTJSNI_VertexBinder::~tTJSNI_VertexBinder() { PaperVNGLScope paperVNGLScope;
+ }
+ //---------------------------------------------------------------------------
+-tjs_error TJS_INTF_METHOD tTJSNI_VertexBinder::Construct(tjs_int numparams, tTJSVariant **param, iTJSDispatch2 *tjs_obj) {
++tjs_error TJS_INTF_METHOD tTJSNI_VertexBinder::Construct(tjs_int numparams, tTJSVariant **param, iTJSDispatch2 *tjs_obj) { PaperVNGLScope paperVNGLScope;
+ 	if( numparams < 1 ) return TJS_E_BADPARAMCOUNT;
+ 
+ 	if( param[0]->Type() == tvtObject ) {
+@@ -39,7 +39,7 @@ tjs_error TJS_INTF_METHOD tTJSNI_VertexBinder::Construct(tjs_int numparams, tTJS
+ 	return TJS_S_OK;
+ }
+ //---------------------------------------------------------------------------
+-void TJS_INTF_METHOD tTJSNI_VertexBinder::Invalidate() {
++void TJS_INTF_METHOD tTJSNI_VertexBinder::Invalidate() { PaperVNGLScope paperVNGLScope;
+ 	SetVertexBufferObject( tTJSVariant() );
+ }
+ //---------------------------------------------------------------------------
+diff --git a/common/visual/opengl/VertexBufferIntf.cpp b/common/visual/opengl/VertexBufferIntf.cpp
+index 0ca11b5..f027134 100644
+--- a/common/visual/opengl/VertexBufferIntf.cpp
++++ b/common/visual/opengl/VertexBufferIntf.cpp
+@@ -12,7 +12,7 @@
+ tTJSNI_VertexBuffer::tTJSNI_VertexBuffer() {
+ }
+ //---------------------------------------------------------------------------
+-tTJSNI_VertexBuffer::~tTJSNI_VertexBuffer() {
++tTJSNI_VertexBuffer::~tTJSNI_VertexBuffer() { PaperVNGLScope paperVNGLScope;
+ }
+ //---------------------------------------------------------------------------
+ template<typename TType>
+@@ -33,7 +33,7 @@ static void TVPCreateToVertexBuffer( GLVertexBufferObject& vtxBuff, const tTJSVa
+ 	}
+ }
+ //---------------------------------------------------------------------------
+-tjs_error TJS_INTF_METHOD tTJSNI_VertexBuffer::Construct(tjs_int numparams, tTJSVariant **param, iTJSDispatch2 *tjs_obj) {
++tjs_error TJS_INTF_METHOD tTJSNI_VertexBuffer::Construct(tjs_int numparams, tTJSVariant **param, iTJSDispatch2 *tjs_obj) { PaperVNGLScope paperVNGLScope;
+ 	if( numparams < 3 ) return TJS_E_BADPARAMCOUNT;
+ 	if( param[0]->Type() == tvtObject ) {
+ 		DataType = (GLenum)(tjs_int)*param[1];
+@@ -88,7 +88,7 @@ tjs_error TJS_INTF_METHOD tTJSNI_VertexBuffer::Construct(tjs_int numparams, tTJS
+ 	return TJS_S_OK;
+ }
+ //---------------------------------------------------------------------------
+-void TJS_INTF_METHOD tTJSNI_VertexBuffer::Invalidate() {
++void TJS_INTF_METHOD tTJSNI_VertexBuffer::Invalidate() { PaperVNGLScope paperVNGLScope;
+ 	VertexBufferObject.destory();
+ }
+ //---------------------------------------------------------------------------

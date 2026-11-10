@@ -1,6 +1,6 @@
 import Foundation
 
-/// 偏好分析模型和智能搜索模型共用的大文件下载：带进度、读取 ETag、只读取文件开头比较版本。
+/// “为你推荐”模型和智能搜索模型共用的大文件下载：带进度、读取 ETag、只读取文件开头比较版本。
 final class 模型文件下载代理: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
     let progress: @Sendable (Double) -> Void
     private let invalidResponseError: any Error

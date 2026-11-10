@@ -1,6 +1,6 @@
 import Foundation
 
-/// 本机记录的推荐曝光，按 VNDB 用户分开保存，不上传。
+/// 本机记录的推荐曝光，按 VNDB 用户（动画、漫画与轻小说按本地资料库的所有者）分开保存，不上传。
 @MainActor
 final class 推荐反馈中心 {
     static let shared = 推荐反馈中心()
@@ -41,6 +41,27 @@ final class 推荐反馈中心 {
             现在: now(),
             calendar: calendar
         )
+    }
+
+    /// 动画、漫画与轻小说的推荐：曝光按本地资料库的所有者另存一份。
+    func 展示排序(
+        _ recommendations: [作品推荐项],
+        owner: String
+    ) -> [作品推荐项] {
+        let userID = Self.作品曝光用户(owner)
+        return 推荐展示排序.排列(
+            recommendations,
+            编号: \.id,
+            分数: \.分数,
+            曝光: 曝光(userID: userID),
+            种子: userID,
+            现在: now(),
+            calendar: calendar
+        )
+    }
+
+    static func 作品曝光用户(_ owner: String) -> String {
+        "works:" + owner.lowercased()
     }
 
     func 记录展示(_ ids: [String], userID: String) {

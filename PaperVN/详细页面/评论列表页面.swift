@@ -1,5 +1,74 @@
 import SwiftUI
 
+/// 撰写评论的卡片：作品详情的 Bangumi 吐槽、数据维护的回复共用。
+struct 评论撰写卡片: View {
+    let 占位文字: LocalizedStringKey
+    @Binding var 内容: String
+    let 显示名称: String
+    let 正在发布: Bool
+    /// 放在分组列表里时由行背景当卡片，这里不再画材质。
+    var 使用卡片背景 = true
+    let 发布: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            TextField(占位文字, text: $内容, axis: .vertical)
+                .lineLimit(3...7)
+                .textFieldStyle(.plain)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(
+                    Color.secondary.opacity(0.14),
+                    in: RoundedRectangle(
+                        cornerRadius: 评论卡片布局.内层圆角,
+                        style: .continuous
+                    )
+                )
+
+            HStack(spacing: 10) {
+                Text("以“\(显示名称)”发布")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+
+                Spacer(minLength: 0)
+
+                Button(action: 发布) {
+                    if 正在发布 {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        // 不用 Label：List 里 Label 的图标会染成强调色，放在强调色按钮上就看不见了
+                        HStack(spacing: 6) {
+                            Image(systemName: "paperplane.fill")
+                                .accessibilityHidden(true)
+                            Text("发布")
+                        }
+                        .font(.subheadline.weight(.medium))
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.capsule)
+                .disabled(
+                    内容.trimmingCharacters(
+                        in: .whitespacesAndNewlines
+                    ).isEmpty || 正在发布
+                )
+            }
+        }
+        .padding(评论卡片布局.内边距)
+        .background {
+            if 使用卡片背景 {
+                RoundedRectangle(
+                    cornerRadius: 评论卡片布局.圆角,
+                    style: .continuous
+                )
+                .fill(.regularMaterial)
+            }
+        }
+    }
+}
+
 private extension View {
     @ViewBuilder
     func 评论容器背景(使用背景模糊: Bool) -> some View {
@@ -84,13 +153,8 @@ struct 评论卡片: View {
                 HStack(spacing: 6) {
                     Text(verbatim: 评论.source.title)
                     if let 时间 = 评论.timestamp {
-                        Text(
-                            Date(timeIntervalSince1970: TimeInterval(时间)),
-                            format: .relative(
-                                presentation: .numeric,
-                                unitsStyle: .wide
-                            )
-                        )
+                        Text(verbatim: Date(timeIntervalSince1970: TimeInterval(时间))
+                            .相对时间文本(presentation: .numeric))
                     } else if let dateText = 评论.dateText {
                         Text(verbatim: dateText)
                     }
@@ -275,7 +339,8 @@ struct 评论列表页面: View {
             }
             .pickerStyle(.inline)
         } label: {
-            Image(systemName: "ellipsis")
+            // 省略号留给系统溢出菜单，排序菜单使用独立符号
+            Image(systemName: "arrow.up.arrow.down")
         }
         .accessibilityLabel("排序")
     }
@@ -284,7 +349,7 @@ struct 评论列表页面: View {
         HStack(spacing: 8) {
             ProgressView()
                 .controlSize(.small)
-            Text("正在载入…")
+            Text("正在加载…")
         }
         .font(.footnote)
         .foregroundStyle(.secondary)
@@ -400,7 +465,7 @@ struct 评论加载占位卡片: View {
                 .frame(width: 32, height: 32)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(verbatim: "正在载入的用户名")
+                    Text(verbatim: "正在加载的用户名")
                         .font(.subheadline.weight(.semibold))
                         .lineLimit(1)
 
@@ -433,7 +498,7 @@ struct 评论加载占位卡片: View {
 
     private var 占位正文: String {
         序号.isMultiple(of: 2)
-            ? "正在载入的评论正文占位内容，长度用来撑开骨架的行数与宽度，遮蔽之后并不会显示出来。"
-            : "正在载入的评论正文占位内容，稍短一些。"
+            ? "正在加载的评论正文占位内容，长度用来撑开骨架的行数与宽度，遮蔽之后并不会显示出来。"
+            : "正在加载的评论正文占位内容，稍短一些。"
     }
 }

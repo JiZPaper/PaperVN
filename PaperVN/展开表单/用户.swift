@@ -5,70 +5,48 @@ import Foundation
 import Security
 import UIKit
 
+/// VNDB Token保存在App自己的钥匙串组中。
 struct VNDBCredentialStore {
-    private let service = "com.jizpaper.PaperVN"
-    private let account = "vndbToken"
+    private static let service = "com.jizpaper.PaperVN"
+    private static let account = "vndbToken"
+
+    private var query: [String: Any] {
+        [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: Self.service,
+            kSecAttrAccount as String: Self.account,
+        ]
+    }
 
     func readToken() throws -> String? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-
+        var query = query
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
         var item: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &item)
         if status == errSecItemNotFound { return nil }
-        guard status == errSecSuccess else {
-            throw KeychainError(status: status)
-        }
+        guard status == errSecSuccess else { throw KeychainError(status: status) }
         guard let data = item as? Data,
               let token = String(data: data, encoding: .utf8),
-              !token.isEmpty else {
-            throw KeychainError(status: errSecDecode)
-        }
+              !token.isEmpty else { return nil }
         return token
     }
 
     func saveToken(_ token: String) throws {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account
-        ]
         let value: [String: Any] = [
             kSecValueData as String: Data(token.utf8),
-            kSecAttrAccessible as String:
-                kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
         ]
-
-        let updateStatus = SecItemUpdate(
-            query as CFDictionary,
-            value as CFDictionary
-        )
+        let updateStatus = SecItemUpdate(query as CFDictionary, value as CFDictionary)
         if updateStatus == errSecSuccess { return }
-        guard updateStatus == errSecItemNotFound else {
-            throw KeychainError(status: updateStatus)
-        }
-
+        guard updateStatus == errSecItemNotFound else { throw KeychainError(status: updateStatus) }
         var newItem = query
-        newItem[kSecValueData as String] = Data(token.utf8)
-        newItem[kSecAttrAccessible as String] =
-            kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        newItem.merge(value) { _, new in new }
         let addStatus = SecItemAdd(newItem as CFDictionary, nil)
-        guard addStatus == errSecSuccess else {
-            throw KeychainError(status: addStatus)
-        }
+        guard addStatus == errSecSuccess else { throw KeychainError(status: addStatus) }
     }
 
     func deleteToken() {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account
-        ]
         SecItemDelete(query as CFDictionary)
     }
 
@@ -109,6 +87,12 @@ class 用户登录: ObservableObject {
     @Published var username: String = ""
     @Published var userID: String = ""
     @Published var errorMessage: String?
+
+    /// 可以使用资料库：登录了VNDB，或者因为登录了 Paper Account、其他平台而有本地资料库。
+    /// 没登录VNDB时，视觉小说的读写改用本地资料库（见 VNDB服务 的资料库方法）。
+    var 可使用资料库: Bool {
+        (isLoggedIn && !token.isEmpty && !userID.isEmpty) || 本地资料库.shared.所有者 != nil
+    }
 
     var vndb账户: VNDB账户 {
         VNDB账户(userID: userID, username: username, 已登录: isLoggedIn)
@@ -172,7 +156,7 @@ class 用户登录: ObservableObject {
                 try credentialStore.saveToken(devToken)
             }
 
-            强制内容安全策略.同步当前Token(token)
+            敏感内容网页设置.移除旧版本地解锁()
             if !token.isEmpty {
                 try credentialStore.saveToken(token)
             }
@@ -224,7 +208,6 @@ class 用户登录: ObservableObject {
     func logout() {
         authenticationGeneration += 1
         credentialStoreUnavailable = false
-        推荐后台分析中心.shared.停止分析()
         clearSession()
         errorMessage = nil
     }
@@ -251,7 +234,6 @@ class 用户登录: ObservableObject {
     private func clearSession() {
         credentialStore.deleteToken()
         token = ""
-        强制内容安全策略.同步当前Token("")
         isLoggedIn = false
         clearUserMetadata()
         isRestoringSession = false
@@ -290,7 +272,6 @@ class 用户登录: ObservableObject {
             if shouldPersist {
                 try credentialStore.saveToken(candidate)
             }
-            强制内容安全策略.同步当前Token(candidate)
             self.token = candidate
             self.username = authInfo.username
             self.userID = authInfo.id
@@ -436,6 +417,8 @@ struct 用户页面: View {
                 action: dismissPage
             )
         }
+        // 挂在 NavigationStack 外层：推入子页面时它不会消失，“资料库”设置里的“同步任务”页面也能弹出处理页面
+        .modifier(同步待处理弹出())
         .interactiveDismissDisabled(!isEmbedded)
     }
 
@@ -465,6 +448,19 @@ struct 用户页面: View {
                     "内容与安全限制",
                     systemImage: "hand.raised.fill",
                     color: .blue
+                )
+            }
+
+            NavigationLink {
+                Paper智能设置(
+                    isPresented: $isPresented,
+                    showsDismissButton: true
+                )
+            } label: {
+                设置项目标签(
+                    "Paper智能与Hiro API",
+                    systemImage: 设置图标.Paper智能,
+                    color: .purple
                 )
             }
 
@@ -510,35 +506,33 @@ struct 用户页面: View {
                 )
             }
 
-            if #available(iOS 27.0, *),
-               UIDevice.current.userInterfaceIdiom != .pad {
-                NavigationLink {
-                    搜索设置(
-                        isPresented: $isPresented,
-                        showsDismissButton: true
-                    )
-                } label: {
-                    设置项目标签(
-                        "搜索",
-                        systemImage: "magnifyingglass",
-                        color: .gray
-                    )
-                }
+            NavigationLink {
+                搜索设置(
+                    isPresented: $isPresented,
+                    showsDismissButton: true
+                )
+            } label: {
+                设置项目标签(
+                    "搜索",
+                    systemImage: "magnifyingglass",
+                    color: .gray
+                )
             }
         }
     }
 
+    /// PaperVN Premium 已停止销售，换成 PaperVN Senkou；买过 Premium 的用户在这里看到已终身解锁。
     private var supportSection: some View {
         Section {
             NavigationLink {
-                PaperVNPremiumView()
+                PaperVNSenkou设置页面()
                     .账户与设置关闭按钮(
                         isVisible: !isEmbedded,
                         action: dismissPage
                     )
             } label: {
                 设置项目标签(
-                    "资助开发者换台电脑",
+                    "PaperVN Senkou",
                     systemImage: "heart.fill",
                     color: .pink
                 )
@@ -561,9 +555,8 @@ private struct 账户与设置关闭按钮修饰器: ViewModifier {
             if isVisible {
                 ToolbarItem(placement: .平台关闭操作) {
                     Button(action: action) {
-                        Image(systemName: "xmark")
+                        Label("关闭", systemImage: "xmark")
                     }
-                    .accessibilityLabel("关闭")
                 }
             }
         }
@@ -588,12 +581,13 @@ private struct 账户页面: View {
     @ObservedObject var vndbAccount: 用户登录
     @ObservedObject var kunAccount: 鲲Galgame账户
     @ObservedObject var bangumiAccount: Bangumi账户
+    @EnvironmentObject private var myAnimeListAccount: MyAnimeList账户
+    @EnvironmentObject private var aniListAccount: AniList账户
+    @EnvironmentObject private var annictAccount: Annict账户
+    @EnvironmentObject private var tmdbAccount: TMDB账户
+    @State private var tmdbTokenInput = ""
     let showsCloseButton: Bool
     let closeAction: () -> Void
-    @Environment(\.webAuthenticationSession)
-    private var webAuthenticationSession
-    @AppStorage(Bangumi账户.同步设置键)
-    private var synchronizesWithBangumi = false
 
     private enum 输入焦点: Hashable {
         case vndbToken
@@ -603,6 +597,14 @@ private struct 账户页面: View {
         case vndbLogout
         case bangumiLogout
         case kunLogout
+        case malLogout
+        case malError(String)
+        case aniListLogout
+        case aniListError(String)
+        case annictLogout
+        case annictError(String)
+        case tmdbLogout
+        case tmdbError(String)
         case vndbError(String)
         case bangumiError(String)
         case bangumiSyncError(String)
@@ -616,6 +618,22 @@ private struct 账户页面: View {
                 return "bangumiLogout"
             case .kunLogout:
                 return "kunLogout"
+            case .malLogout:
+                return "malLogout"
+            case let .malError(message):
+                return "malError:\(message)"
+            case .aniListLogout:
+                return "aniListLogout"
+            case let .aniListError(message):
+                return "aniListError:\(message)"
+            case .annictLogout:
+                return "annictLogout"
+            case let .annictError(message):
+                return "annictError:\(message)"
+            case .tmdbLogout:
+                return "tmdbLogout"
+            case let .tmdbError(message):
+                return "tmdbError:\(message)"
             case let .vndbError(message):
                 return "vndbError:\(message)"
             case let .bangumiError(message):
@@ -629,15 +647,110 @@ private struct 账户页面: View {
     }
 
     @State private var inputToken = ""
+    @State private var deviceCode: String?
     @State private var isLoggingInToVNDB = false
     @State private var activeAlert: 账户提示?
     @FocusState private var focusedInput: 输入焦点?
+    @ObservedObject private var paperAccount = PaperAccount账户.shared
+
     var body: some View {
         Form {
-            vndbSection
-            otherAccountsSection
+            Section {
+                NavigationLink {
+                    PaperAccount页面()
+                        .账户与设置关闭按钮(isVisible: showsCloseButton, action: closeAction)
+                } label: {
+                    accountRow("Paper账户", status: paperAccount.登录已过期 && !paperAccount.正在登录
+                        ? Text("登录已过期")
+                        : accountStatus(
+                            isLoggedIn: paperAccount.isLoggedIn,
+                            isLoading: paperAccount.正在登录,
+                            name: paperAccount.资料?.nickname
+                        ))
+                }
+            } footer: {
+                Text("Today推荐使用Paper账户。登录后，这台设备上的反馈和数据维护内容会转入账户。")
+            }
+
+            Section {
+                NavigationLink {
+                    accountDetailPage("VNDB") { vndbSection }
+                } label: {
+                    accountRow("VNDB", status: vndbStatus)
+                }
+                NavigationLink {
+                    accountDetailPage("Bangumi番组计划") { bangumiSection }
+                } label: {
+                    accountRow("Bangumi番组计划", status: bangumiStatus)
+                }
+                NavigationLink {
+                    accountDetailPage("MyAnimeList") { malSection }
+                } label: {
+                    accountRow("MyAnimeList", status: malStatus)
+                }
+                NavigationLink {
+                    accountDetailPage("AniList") { aniListSection }
+                } label: {
+                    accountRow("AniList", status: aniListStatus)
+                }
+                NavigationLink {
+                    accountDetailPage("Annict") { annictSection }
+                } label: {
+                    accountRow("Annict", status: annictStatus)
+                }
+                NavigationLink {
+                    accountDetailPage("TMDB") { tmdbSection }
+                } label: {
+                    accountRow("TMDB", status: tmdbStatus)
+                }
+                NavigationLink {
+                    accountDetailPage("鲲Galgame") { kunSection }
+                } label: {
+                    accountRow("鲲Galgame", status: kunStatus)
+                }
+            }
+
+            Section {
+                LabeledContent("设备码") {
+                    if let deviceCode {
+                        Text(verbatim: deviceCode)
+                            .monospaced()
+                            .textSelection(.enabled)
+                    } else {
+                        Text("不可用")
+                    }
+                }
+                .contextMenu {
+                    if let deviceCode {
+                        Button("拷贝", systemImage: "doc.on.doc") {
+                            UIPasteboard.general.string = deviceCode
+                        }
+                    }
+                }
+            } footer: {
+                Text("")
+            }
         }
         .formStyle(.grouped)
+        .task {
+            deviceCode = 敏感内容网页设置.设备码
+        }
+        .onChange(of: bangumiAccount.isLoggedIn) { _, isLoggedIn in
+            if isLoggedIn {
+                startBangumiSynchronizationIfNeeded()
+                Task { await PaperVNSync中心.shared.同步动画漫画() }
+            }
+        }
+        .onChange(of: vndbAccount.isLoggedIn) { _, isLoggedIn in
+            if isLoggedIn {
+                startBangumiSynchronizationIfNeeded()
+                // 已登录 Paper Account 时，把以前用这个VNDB账户提交的内容转过去
+                let token = vndbAccount.token
+                Task { await PaperAccount账户.shared.迁移VNDB(token: token) }
+            } else {
+                bangumiAccount.cancelLibrarySynchronization()
+            }
+        }
         .平台柔和滚动边缘(for: .top)
         .navigationTitle("账户")
         .平台内联导航标题()
@@ -661,7 +774,43 @@ private struct 账户页面: View {
             guard let message else { return }
             activeAlert = .bangumiError(message)
         }
-        .onChange(of: bangumiAccount.synchronizationErrorMessage) { _, message in
+        .onChange(of: myAnimeListAccount.errorMessage) { _, message in
+            guard let message else { return }
+            activeAlert = .malError(message)
+        }
+        .onChange(of: myAnimeListAccount.isLoggedIn) { _, isLoggedIn in
+            if isLoggedIn {
+                Task { await PaperVNSync中心.shared.同步动画漫画() }
+            }
+        }
+        .onChange(of: aniListAccount.errorMessage) { _, message in
+            guard let message else { return }
+            activeAlert = .aniListError(message)
+        }
+        .onChange(of: aniListAccount.isLoggedIn) { _, isLoggedIn in
+            if isLoggedIn {
+                Task { await PaperVNSync中心.shared.同步动画漫画() }
+            }
+        }
+        .onChange(of: annictAccount.errorMessage) { _, message in
+            guard let message else { return }
+            activeAlert = .annictError(message)
+        }
+        .onChange(of: annictAccount.isLoggedIn) { _, isLoggedIn in
+            if isLoggedIn {
+                Task { await PaperVNSync中心.shared.同步动画漫画() }
+            }
+        }
+        .onChange(of: tmdbAccount.errorMessage) { _, message in
+            guard let message else { return }
+            activeAlert = .tmdbError(message)
+        }
+        .onChange(of: tmdbAccount.isLoggedIn) { _, isLoggedIn in
+            if isLoggedIn {
+                Task { await PaperVNSync中心.shared.同步动画漫画() }
+            }
+        }
+        .onReceive(bangumiAccount.同步进度.$synchronizationErrorMessage.removeDuplicates()) { message in
             guard let message else { return }
             activeAlert = .bangumiSyncError(message)
         }
@@ -691,32 +840,252 @@ private struct 账户页面: View {
         }
     }
 
+    private func accountRow(_ title: LocalizedStringKey, status: Text) -> some View {
+        LabeledContent {
+            status
+        } label: {
+            Text(title)
+                .foregroundStyle(.primary)
+        }
+    }
+
+    private func accountStatus(
+        isLoggedIn: Bool,
+        isLoading: Bool,
+        name: String?
+    ) -> Text {
+        if isLoading { return Text("正在加载…") }
+        guard isLoggedIn else { return Text("未登录") }
+        if let name, !name.isEmpty { return Text(verbatim: name) }
+        return Text("已登录")
+    }
+
+    private var vndbStatus: Text {
+        accountStatus(
+            isLoggedIn: vndbAccount.isLoggedIn,
+            isLoading: vndbAccount.isRestoringSession,
+            name: vndbAccount.username
+        )
+    }
+
+    private var bangumiStatus: Text {
+        accountStatus(
+            isLoggedIn: bangumiAccount.isLoggedIn,
+            isLoading: bangumiAccount.isRestoringSession,
+            name: bangumiAccount.profile?.displayName
+        )
+    }
+
+    private var malStatus: Text {
+        accountStatus(
+            isLoggedIn: myAnimeListAccount.isLoggedIn,
+            isLoading: false,
+            name: myAnimeListAccount.profile?.name
+        )
+    }
+
     @ViewBuilder
-    private var otherAccountsSection: some View {
-        Section {
-            NavigationLink {
-                otherAccountsPage
-            } label: {
-                Text("其他账户")
-                    .foregroundStyle(.primary)
+    private var malSection: some View {
+        if myAnimeListAccount.isLoggedIn {
+            Section {
+                if let picture = myAnimeListAccount.profile?.picture {
+                    LabeledContent("头像") {
+                        CachedAsyncImage(url: URL(string: picture), contentMode: .fill)
+                            .frame(width: 44, height: 44)
+                            .clipShape(Circle())
+                    }
+                }
+                if let profile = myAnimeListAccount.profile {
+                    LabeledContent("用户名", value: profile.name)
+                    LabeledContent("ID", value: String(profile.id))
+                }
+            } footer: {
+                Text("通过PaperVN Sync同步资料库中的动画、漫画与轻小说。")
+            }
+
+            账户同步方式设置区(平台: .myAnimeList)
+
+            Section {
+                Button("退出登录", role: .destructive) {
+                    activeAlert = .malLogout
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+        } else {
+            Section {
+                webLoginButton(
+                    title: myAnimeListAccount.isAuthenticating ? "正在登录…" : "登录MyAnimeList",
+                    isBusy: myAnimeListAccount.isAuthenticating
+                ) { authenticator in
+                    myAnimeListAccount.login(using: authenticator)
+                }
+            } header: {
+                Text("使用MyAnimeList账户登录")
+            } footer: {
+                if !MyAnimeListOAuth配置.isConfigured {
+                    Text("需要先在App配置中设置MALClientID。")
+                } else {
+                    Text("通过PaperVN Sync同步资料库中的动画、漫画与轻小说。")
+                }
             }
         }
     }
 
-    private var otherAccountsPage: some View {
+    private var aniListStatus: Text {
+        accountStatus(isLoggedIn: aniListAccount.isLoggedIn, isLoading: false, name: aniListAccount.profile?.name)
+    }
+
+    private var annictStatus: Text {
+        accountStatus(isLoggedIn: annictAccount.isLoggedIn, isLoading: false, name: annictAccount.profile?.username)
+    }
+
+    private var tmdbStatus: Text {
+        accountStatus(isLoggedIn: tmdbAccount.isLoggedIn, isLoading: false, name: tmdbAccount.profile?.username)
+    }
+
+    @ViewBuilder
+    private var tmdbSection: some View {
+        // 与 VNDB 的登录页面一致：已登录时显示用户名与 ID；未登录时粘贴令牌后登录
+        if tmdbAccount.isLoggedIn {
+            Section {
+                if let profile = tmdbAccount.profile {
+                    LabeledContent("用户名", value: profile.username)
+                    LabeledContent("ID", value: String(profile.id))
+                }
+            }
+
+            账户同步方式设置区(平台: .tmdb)
+
+            Section {
+                Button("退出登录", role: .destructive) {
+                    activeAlert = .tmdbLogout
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+        } else {
+            Section {
+                TMDB令牌输入行(token: $tmdbTokenInput, account: tmdbAccount)
+            } header: {
+                Text("使用TMDB账户登录")
+            } footer: {
+                Text("你需要使用API读取访问令牌来登录TMDB。如果你还没有，可以在TMDB网站的Settings > API中申请。")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var aniListSection: some View {
+        if aniListAccount.isLoggedIn {
+            Section {
+                if let avatar = aniListAccount.profile?.avatar {
+                    LabeledContent("头像") {
+                        CachedAsyncImage(url: URL(string: avatar), contentMode: .fill)
+                            .frame(width: 44, height: 44)
+                            .clipShape(Circle())
+                    }
+                }
+                if let profile = aniListAccount.profile {
+                    LabeledContent("用户名", value: profile.name)
+                    LabeledContent("ID", value: String(profile.id))
+                }
+            } footer: {
+                Text("通过PaperVN Sync同步资料库中的动画、漫画与轻小说。")
+            }
+            账户同步方式设置区(平台: .aniList)
+
+            Section {
+                Button("退出登录", role: .destructive) {
+                    activeAlert = .aniListLogout
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+        } else {
+            Section {
+                webLoginButton(
+                    title: aniListAccount.isAuthenticating ? "正在登录…" : "登录AniList",
+                    isBusy: aniListAccount.isAuthenticating
+                ) { authenticator in
+                    aniListAccount.login(using: authenticator)
+                }
+            } header: {
+                Text("使用AniList账户登录")
+            } footer: {
+                Text("通过PaperVN Sync同步资料库中的动画、漫画与轻小说。")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var annictSection: some View {
+        if annictAccount.isLoggedIn {
+            Section {
+                if let avatar = annictAccount.profile?.avatarUrl {
+                    LabeledContent("头像") {
+                        CachedAsyncImage(url: URL(string: avatar), contentMode: .fill)
+                            .frame(width: 44, height: 44)
+                            .clipShape(Circle())
+                    }
+                }
+                if let profile = annictAccount.profile {
+                    LabeledContent("用户名", value: profile.username)
+                    LabeledContent("名称", value: profile.name)
+                }
+            } footer: {
+                Text("通过PaperVN Sync同步资料库中动画的观看状态。Annict不同步评分与进度。")
+            }
+            账户同步方式设置区(平台: .annict)
+
+            Section {
+                Button("退出登录", role: .destructive) {
+                    activeAlert = .annictLogout
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+        } else {
+            Section {
+                webLoginButton(
+                    title: annictAccount.isAuthenticating ? "正在登录…" : "登录Annict",
+                    isBusy: annictAccount.isAuthenticating
+                ) { authenticator in
+                    annictAccount.login(using: authenticator)
+                }
+            } header: {
+                Text("使用Annict账户登录")
+            } footer: {
+                Text("通过PaperVN Sync同步资料库中动画的观看状态。Annict不同步评分与进度。")
+            }
+        }
+    }
+
+    private var kunStatus: Text {
+        accountStatus(
+            isLoggedIn: kunAccount.isLoggedIn,
+            isLoading: kunAccount.isRestoringSession,
+            name: kunAccount.profile?.displayName
+        )
+    }
+
+    /// 单个账户的页面：已登录时显示资料与退出登录，未登录时显示登录方式。
+    private func accountDetailPage<Content: View>(
+        _ title: LocalizedStringKey,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
         Form {
-            otherAccountsLoginSection
-            bangumiSection
-            kunSection
+            content()
         }
         .formStyle(.grouped)
         .平台柔和滚动边缘(for: .top)
-        .navigationTitle("其他账户")
+        .navigationTitle(title)
         .平台内联导航标题()
         .账户与设置关闭按钮(
             isVisible: showsCloseButton,
             action: closeAction
         )
+        .scrollDismissesKeyboard(.interactively)
         .alert(item: $activeAlert) { alert in
             accountAlert(alert)
         }
@@ -747,6 +1116,70 @@ private struct 账户页面: View {
                 primaryButton: .cancel(Text("取消")),
                 secondaryButton: .destructive(Text("退出登录")) {
                     bangumiAccount.logout()
+                }
+            )
+        case .malLogout:
+            return Alert(
+                title: Text("要退出MyAnimeList账户吗？"),
+                primaryButton: .cancel(Text("取消")),
+                secondaryButton: .destructive(Text("退出登录")) {
+                    myAnimeListAccount.logout()
+                }
+            )
+        case .aniListLogout:
+            return Alert(
+                title: Text("要退出AniList账户吗？"),
+                primaryButton: .cancel(Text("取消")),
+                secondaryButton: .destructive(Text("退出登录")) {
+                    aniListAccount.logout()
+                }
+            )
+        case let .aniListError(message):
+            return Alert(
+                title: Text("无法登录AniList"),
+                message: Text(verbatim: message),
+                dismissButton: .default(Text("好")) {
+                    aniListAccount.errorMessage = nil
+                }
+            )
+        case .annictLogout:
+            return Alert(
+                title: Text("要退出Annict账户吗？"),
+                primaryButton: .cancel(Text("取消")),
+                secondaryButton: .destructive(Text("退出登录")) {
+                    annictAccount.logout()
+                }
+            )
+        case let .annictError(message):
+            return Alert(
+                title: Text("无法登录Annict"),
+                message: Text(verbatim: message),
+                dismissButton: .default(Text("好")) {
+                    annictAccount.errorMessage = nil
+                }
+            )
+        case .tmdbLogout:
+            return Alert(
+                title: Text("要退出TMDB账户吗？"),
+                primaryButton: .cancel(Text("取消")),
+                secondaryButton: .destructive(Text("退出登录")) {
+                    tmdbAccount.logout()
+                }
+            )
+        case let .tmdbError(message):
+            return Alert(
+                title: Text("无法登录TMDB"),
+                message: Text(verbatim: message),
+                dismissButton: .default(Text("好")) {
+                    tmdbAccount.errorMessage = nil
+                }
+            )
+        case let .malError(message):
+            return Alert(
+                title: Text("无法登录MyAnimeList"),
+                message: Text(verbatim: message),
+                dismissButton: .default(Text("好")) {
+                    myAnimeListAccount.errorMessage = nil
                 }
             )
         case let .vndbError(message):
@@ -782,9 +1215,7 @@ private struct 账户页面: View {
                 },
                 secondaryButton: .default(Text("重试")) {
                     bangumiAccount.synchronizationErrorMessage = nil
-                    startBangumiSynchronizationIfNeeded(
-                        enabled: synchronizesWithBangumi
-                    )
+                    startBangumiSynchronizationIfNeeded()
                 }
             )
         }
@@ -810,37 +1241,11 @@ private struct 账户页面: View {
                 if !profile.sign.isEmpty {
                     LabeledContent("个人签名", value: profile.sign)
                 }
-                Toggle(isOn: $synchronizesWithBangumi) {
-                    HStack(spacing: 8) {
-                        Text("资料库同步")
-                        if bangumiAccount.isSynchronizing {
-                            ProgressView()
-                                .controlSize(.small)
-                        }
-                    }
-                    .accessibilityElement(children: .combine)
-                }
-                    .onChange(of: synchronizesWithBangumi) { _, enabled in
-                        if enabled {
-                            startBangumiSynchronizationIfNeeded(enabled: true)
-                        } else {
-                            bangumiAccount.cancelLibrarySynchronization()
-                        }
-                    }
-                    .onChange(of: vndbAccount.isLoggedIn) { _, isLoggedIn in
-                        if isLoggedIn {
-                            startBangumiSynchronizationIfNeeded(
-                                enabled: synchronizesWithBangumi
-                            )
-                        } else {
-                            bangumiAccount.cancelLibrarySynchronization()
-                        }
-                    }
-            } header: {
-                Text("Bangumi番组计划")
             } footer: {
-                Text("在编辑VNDB资料库时，向Bangumi番组计划资料库同步可用内容。")
+                Text("通过PaperVN Sync同步资料库中的视觉小说、动画、漫画与轻小说。")
             }
+
+            账户同步方式设置区(平台: .bangumi)
 
             Section {
                 Button("退出登录", role: .destructive) {
@@ -849,23 +1254,46 @@ private struct 账户页面: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
             }
+        } else {
+            Section {
+                webLoginButton(
+                    title: bangumiLoginButtonTitle,
+                    isBusy: bangumiAccount.isRestoringSession
+                        || bangumiAccount.isAuthenticating
+                ) { authenticator in
+                    bangumiAccount.login(using: authenticator)
+                }
+            } header: {
+                Text("使用Bangumi番组计划账户登录")
+            } footer: {
+                if !BangumiOAuth配置.isConfigured {
+                    Text("需要先在App配置中设置BangumiOAuthClientID。")
+                } else {
+                    Text("登录后可以发布吐槽，并通过PaperVN Sync同步资料库中的视觉小说、动画、漫画与轻小说。")
+                }
+            }
         }
     }
 
-    private func startBangumiSynchronizationIfNeeded(enabled: Bool) {
-        guard enabled,
-              vndbAccount.isLoggedIn,
+    private func webLoginButton(
+        title: LocalizedStringKey,
+        isBusy: Bool,
+        action: @escaping (WebAuthenticationSession) -> Void
+    ) -> some View {
+        网页登录按钮(title: title, isBusy: isBusy, action: action)
+    }
+
+    private func startBangumiSynchronizationIfNeeded() {
+        guard PaperVNSync中心.已启用,
+              本地资料库.shared.所有者 != nil,
               bangumiAccount.isLoggedIn else { return }
-        bangumiAccount.startLibrarySynchronization(
-            vndbToken: vndbAccount.token,
-            userID: vndbAccount.userID
-        )
+        bangumiAccount.startLibrarySynchronization()
     }
 
     @ViewBuilder
     private var vndbSection: some View {
         if vndbAccount.isLoggedIn {
-            Section("VNDB") {
+            Section {
                 LabeledContent("用户名", value: vndbAccount.username)
                 LabeledContent("ID", value: vndbAccount.userID)
             }
@@ -936,7 +1364,7 @@ private struct 账户页面: View {
     @ViewBuilder
     private var kunSection: some View {
         if kunAccount.isLoggedIn, let profile = kunAccount.profile {
-            Section("鲲Galgame") {
+            Section {
                 LabeledContent("头像") {
                     鲲账户头像(profile: profile, size: 44)
                 }
@@ -979,75 +1407,18 @@ private struct 账户页面: View {
                 .contentShape(Rectangle())
                 .disabled(kunAccount.isLoggingOut)
             }
-        }
-    }
-
-    @ViewBuilder
-    private var otherAccountsLoginSection: some View {
-        let showsBangumiLogin = !bangumiAccount.isLoggedIn
-        let showsKunLogin = !kunAccount.isLoggedIn
-
-        if showsBangumiLogin || showsKunLogin {
+        } else {
             Section {
-                if showsBangumiLogin {
-                    HStack(spacing: 12) {
-                        Text("Bangumi番组计划")
-                            .foregroundStyle(.primary)
-
-                        Spacer(minLength: 0)
-
-                        Button {
-                            bangumiAccount.login(using: webAuthenticationSession)
-                        } label: {
-                            HStack(spacing: 6) {
-                                if bangumiAccount.isRestoringSession
-                                    || bangumiAccount.isAuthenticating {
-                                    ProgressView()
-                                        .controlSize(.small)
-                                }
-                                Text(bangumiLoginButtonTitle)
-                            }
-                        }
-                        .buttonStyle(.borderless)
-                        .disabled(
-                            bangumiAccount.isRestoringSession
-                                || bangumiAccount.isAuthenticating
-                        )
-                    }
+                webLoginButton(
+                    title: kunLoginButtonTitle,
+                    isBusy: kunAccount.isRestoringSession
+                        || kunAccount.isAuthenticating
+                        || kunAccount.isLoggingOut
+                ) { authenticator in
+                    kunAccount.login(using: authenticator)
                 }
-
-                if showsKunLogin {
-                    HStack(spacing: 12) {
-                        Text("鲲Galgame")
-                            .foregroundStyle(.primary)
-
-                        Spacer(minLength: 0)
-
-                        Button {
-                            kunAccount.login(using: webAuthenticationSession)
-                        } label: {
-                            HStack(spacing: 6) {
-                                if kunAccount.isRestoringSession
-                                    || kunAccount.isAuthenticating
-                                    || kunAccount.isLoggingOut {
-                                    ProgressView()
-                                        .controlSize(.small)
-                                }
-                                Text(kunLoginButtonTitle)
-                            }
-                        }
-                        .buttonStyle(.borderless)
-                        .disabled(
-                            kunAccount.isRestoringSession
-                                || kunAccount.isAuthenticating
-                                || kunAccount.isLoggingOut
-                        )
-                    }
-                }
-            } footer: {
-                if showsBangumiLogin && !BangumiOAuth配置.isConfigured {
-                    Text("需要先在App配置中设置BangumiOAuthClientID和BangumiOAuthClientSecret。")
-                }
+            } header: {
+                Text("使用鲲Galgame账户登录")
             }
         }
     }
@@ -1116,7 +1487,7 @@ private struct 账户页面: View {
     }
 
     private var vndbLoginButtonTitle: LocalizedStringKey {
-        if vndbAccount.isRestoringSession { return "正在载入…" }
+        if vndbAccount.isRestoringSession { return "正在加载…" }
         if isLoggingInToVNDB { return "正在登录…" }
         if inputToken.isEmpty && !vndbAccount.token.isEmpty {
             return "使用上次登录时的Token"
@@ -1125,16 +1496,16 @@ private struct 账户页面: View {
     }
 
     private var kunLoginButtonTitle: LocalizedStringKey {
-        if kunAccount.isRestoringSession { return "正在载入…" }
+        if kunAccount.isRestoringSession { return "正在加载…" }
         if kunAccount.isLoggingOut { return "正在退出…" }
         if kunAccount.isAuthenticating { return "正在登录…" }
-        return "登录"
+        return "登录鲲Galgame"
     }
 
     private var bangumiLoginButtonTitle: LocalizedStringKey {
-        if bangumiAccount.isRestoringSession { return "正在载入…" }
+        if bangumiAccount.isRestoringSession { return "正在加载…" }
         if bangumiAccount.isAuthenticating { return "正在登录…" }
-        return "登录"
+        return "登录Bangumi番组计划"
     }
 
     private func performVNDBLogin() {
@@ -1171,6 +1542,12 @@ struct 关于页面: View {
                 Link(destination: Self.termsOfServiceURL) {
                     关于外部链接标签("服务条款") {
                         Image(systemName: "doc.text")
+                    }
+                }
+
+                Link(destination: Self.licenseURL) {
+                    关于外部链接标签("许可") {
+                        Image(systemName: "checkmark.seal")
                     }
                 }
             }
@@ -1214,20 +1591,6 @@ struct 关于页面: View {
                 }
             }
 
-            Section("开源项目") {
-                Link(destination: Self.localizationsRepositoryURL) {
-                    关于外部链接标签("翻译PaperVN") {
-                        Image(systemName: "chevron.left.forwardslash.chevron.right")
-                    }
-                }
-
-                Link(destination: Self.descriptionTranslationsRepositoryURL) {
-                    关于外部链接标签("翻译VNDB视觉小说与角色简介") {
-                        Image(systemName: "chevron.left.forwardslash.chevron.right")
-                    }
-                }
-            }
-
             Section("联系方式") {
                 Link(destination: Self.emailURL) {
                     关于外部链接标签("JiZPaper@gmail.com") {
@@ -1244,9 +1607,8 @@ struct 关于页面: View {
                 Button {
                     isPresented = false
                 } label: {
-                    Image(systemName: "xmark")
+                    Label("关闭", systemImage: "xmark")
                 }
-                .accessibilityLabel("关闭")
             }
         }
     }
@@ -1269,7 +1631,8 @@ struct 关于页面: View {
     private static let termsOfServiceURL = URL(
         string: "https://papervn.jizpaper.com/TermsOfService.html"
     )!
-    private static let discordURL = URL(string: "https://discord.gg/h2szTmfWS")!
+    private static let licenseURL = URL(string: "https://papervn.jizpaper.com/license")!
+    private static let discordURL = URL(string: "https://discord.gg/GkFWCsFq36")!
     static let telegramURL = URL(string: "https://t.me/papervn_app")!
     static let qqGroupURL = URL(
         string: "https://qun.qq.com/universal-share/share?ac=1"
@@ -1280,12 +1643,6 @@ struct 关于页面: View {
     )!
     private static let bilibiliURL = URL(
         string: "https://space.bilibili.com/355150816"
-    )!
-    private static let localizationsRepositoryURL = URL(
-        string: "https://github.com/JiZPaper/PaperVN-Localizations"
-    )!
-    private static let descriptionTranslationsRepositoryURL = URL(
-        string: "https://github.com/JiZPaper/VNDB-Description-Translations"
     )!
     private static let emailURL = URL(string: "mailto:JiZPaper@gmail.com")!
 }
@@ -1338,13 +1695,17 @@ struct 关于外部链接标签<IconContent: View>: View {
     .environmentObject(PaperVNPremiumStore(previewing: true))
     .environmentObject(鲲Galgame账户(previewing: true))
     .environmentObject(Bangumi账户(previewing: true))
+    .environmentObject(MyAnimeList账户(previewing: true))
     .environmentObject(家长控制中心.shared)
 }
 
 enum 开发环境配置 {
     static let 预设Token: String? = {
         #if DEBUG
-        return 内容安全私有配置.开发预设Token
+        // 在Scheme的环境变量中设置，不要写进源码。
+        let token = ProcessInfo.processInfo.environment["PAPERVN_DEV_VNDB_TOKEN"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return token?.isEmpty == false ? token : nil
         #else
         return nil
         #endif
@@ -1358,3 +1719,162 @@ enum 开发环境配置 {
         #endif
     }()
 }
+
+/// 网页登录按钮。`webAuthenticationSession` 要由按钮所在的页面读取：
+/// 在上一级页面读取后传进推入的账户页面，系统找不到用来弹出登录窗口的窗口，点按后没有反应。
+private struct 网页登录按钮: View {
+    let title: LocalizedStringKey
+    let isBusy: Bool
+    let action: (WebAuthenticationSession) -> Void
+    @Environment(\.webAuthenticationSession) private var webAuthenticationSession
+
+    var body: some View {
+        Button {
+            action(webAuthenticationSession)
+        } label: {
+            HStack(spacing: 8) {
+                Text(title)
+                Spacer(minLength: 0)
+                if isBusy {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .disabled(isBusy)
+    }
+}
+
+
+/// TMDB 的令牌输入行，排版与 VNDB 的 Token 输入相同。粘贴令牌后点箭头，在 TMDB 网站上批准登录。
+private struct TMDB令牌输入行: View {
+    @Binding var token: String
+    @ObservedObject var account: TMDB账户
+    @Environment(\.webAuthenticationSession) private var webAuthenticationSession
+
+    private var isDisabled: Bool {
+        account.isAuthenticating || token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "key.fill")
+                .foregroundStyle(.secondary)
+                .frame(width: 20)
+
+            TextField("在此处粘贴Token…", text: $token)
+                .textFieldStyle(.plain)
+                .autocorrectionDisabled()
+                .平台Token输入样式()
+                .lineLimit(1)
+                .mask(
+                    LinearGradient(
+                        stops: [
+                            .init(color: .black, location: 0),
+                            .init(color: .black, location: 0.76),
+                            .init(color: .clear, location: 1)
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .onSubmit(login)
+
+            Button(action: login) {
+                Group {
+                    if account.isAuthenticating {
+                        ProgressView()
+                            .controlSize(.small)
+                            .tint(.white)
+                    } else {
+                        Image(systemName: "arrow.right")
+                    }
+                }
+                .frame(width: 16, height: 16)
+            }
+            .buttonBorderShape(.circle)
+            .液态玻璃醒目按钮(in: Circle())
+            .controlSize(.small)
+            .frame(width: 30, height: 30)
+            .tint(isDisabled ? .gray : .blue)
+            .disabled(isDisabled)
+            .accessibilityLabel(Text("登录TMDB"))
+        }
+    }
+
+    private func login() {
+        guard !isDisabled else { return }
+        account.login(令牌: token, using: webAuthenticationSession)
+    }
+}
+
+#if DEBUG
+// MARK: - PaperVN 2 预览
+
+private struct 账户页面预览: View {
+    let 已登录: Bool
+    @StateObject private var vndb: 用户登录
+    @StateObject private var kun = 鲲Galgame账户(previewing: true)
+    @StateObject private var bangumi: Bangumi账户
+
+    init(已登录: Bool) {
+        self.已登录 = 已登录
+        _vndb = StateObject(wrappedValue: 预览数据.vndb(已登录: 已登录))
+        _bangumi = StateObject(wrappedValue: 预览数据.bangumi(已登录: 已登录))
+    }
+
+    var body: some View {
+        NavigationStack {
+            账户页面(
+                vndbAccount: vndb,
+                kunAccount: kun,
+                bangumiAccount: bangumi,
+                showsCloseButton: true,
+                closeAction: {}
+            )
+        }
+        // 离视图更近的环境对象优先，覆盖预览环境里的同类账户
+        .environmentObject(vndb)
+        .environmentObject(bangumi)
+        .预览环境(已登录: 已登录)
+    }
+}
+
+private struct TMDB令牌输入预览: View {
+    @State private var token = ""
+    @StateObject private var account = TMDB账户(previewing: true)
+
+    var body: some View {
+        Form {
+            Section {
+                TMDB令牌输入行(token: $token, account: account)
+            } header: {
+                Text("使用TMDB账户登录")
+            } footer: {
+                Text("你需要使用API读取访问令牌来登录TMDB。如果你还没有，可以在TMDB网站的Settings > API中申请。")
+            }
+        }
+    }
+}
+
+#Preview("账户") {
+    预览状态切换([
+        .init("全部未登录") { 账户页面预览(已登录: false) },
+        .init("MyAnimeList、AniList、Annict、TMDB与Bangumi已登录") { 账户页面预览(已登录: true) },
+        .init("网页登录按钮") {
+            Form {
+                Section {
+                    网页登录按钮(title: "登录MyAnimeList", isBusy: false) { _ in }
+                    网页登录按钮(title: "正在登录…", isBusy: true) { _ in }
+                } header: {
+                    Text("使用MyAnimeList账户登录")
+                } footer: {
+                    Text("通过PaperVN Sync同步资料库中的动画、漫画与轻小说。")
+                }
+            }
+        },
+        .init("TMDB令牌输入") { TMDB令牌输入预览() },
+    ])
+}
+#endif

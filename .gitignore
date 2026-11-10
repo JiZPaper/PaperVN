@@ -14,8 +14,7 @@ __pycache__/
 *.py[cod]
 
 # Generated Apple developer documentation
-Others/Apple Developer Documentation/
-Others/Documentation/AppleDeveloperDocumentation/
+Others/API文档/Apple Developer Documentation/
 
 # macOS filesystem metadata
 .DS_Store
@@ -37,11 +36,27 @@ Temporary Items
 
 # Private configuration kept out of the open-source repository
 Config/PaperVN.private.xcconfig
-PaperVN/Private/
 
 # Files unrelated to the app
 Others/
-.codex-skill-staging/
 Tools/export_apple_developer_docs.py
 .berr.txt
 .build_errors.txt
+
+# 生成主题曲映射的进度（可以断点续跑，不进仓库）
+Tools/主题曲映射/进度/
+
+# 视觉小说引擎库：本地用 Tools/构建Siglus.sh、Tools/构建KiriKiri.sh 编译，不进仓库
+Dependencies/Siglus/SiglusCore.xcframework/
+Dependencies/KiriKiri/KiriKiriCore.xcframework/
+# 运行资源包改为按需下载（已上传 R2），打包前的原始文件放在这里，不进仓库
+Dependencies/KiriKiri/下载资源/
+
+# 大模型文件不进仓库，从 R2 下载：Tools/R2模型.sh 下载（清单在 Tools/R2模型清单.txt）
+PaperVN/Resources/PaperVNSmartSearch.pvss
+
+# 内部文档，只留在本地
+docs/Apple用语术语表.md
+docs/MyAnimeList-API申请.md
+docs/PaperVN Sync新增字段审查.md
+docs/作品映射审计报告.md

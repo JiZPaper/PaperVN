@@ -7,6 +7,11 @@ nonisolated enum 系统状态服务类型: String, Codable, CaseIterable, Sendab
     case activity = "paperVNActivity"
     case connect = "paperVNConnect"
     case feedback = "paperVNFeedback"
+    case hiroAPI = "hiroAPI"
+    case sync = "paperVNSync"
+    case paperAccount = "paperAccount"
+    /// 主题曲映射的每日更新（服务器每天匹配新番的主题曲）
+    case themeSongs = "paperVNThemeSongs"
 
     var defaultName: String {
         switch self {
@@ -14,6 +19,10 @@ nonisolated enum 系统状态服务类型: String, Codable, CaseIterable, Sendab
         case .activity: return String(localized: "PaperVN活动")
         case .connect: return String(localized: "PaperVN Connect")
         case .feedback: return String(localized: "PaperVN反馈")
+        case .hiroAPI: return "Hiro API"
+        case .sync: return "PaperVN Sync"
+        case .paperAccount: return String(localized: "Paper账户")
+        case .themeSongs: return String(localized: "主题曲")
         }
     }
 }
@@ -203,19 +212,66 @@ nonisolated struct 系统状态服务: Codable, Identifiable, Sendable, Equatabl
     }
 }
 
+/// 后台设置的长期提示，与服务状态无关。
+nonisolated struct 系统状态提示: Codable, Sendable, Equatable {
+    let icon: String
+    let title: 系统状态本地化文本
+    let description: 系统状态本地化文本?
+
+    func cleanedDescription(localeIdentifier: String = Locale.current.identifier) -> String? {
+        guard let description else { return nil }
+        let value = description.resolved(localeIdentifier: localeIdentifier)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return value.isEmpty ? nil : value
+    }
+
+    #if DEBUG
+    /// 预览长期提示用（只在 Debug 构建、带 `-SystemStatusNoticeSample` 启动参数时使用）。
+    static var launchArgumentSample: 系统状态提示? {
+        guard ProcessInfo.processInfo.arguments.contains("-SystemStatusNoticeSample") else { return nil }
+        return 系统状态提示(
+            icon: "megaphone.fill",
+            title: 系统状态本地化文本("长期提示标题"),
+            description: 系统状态本地化文本("这里是后台填写的描述，可以显示多行文字。")
+        )
+    }
+    #endif
+}
+
 nonisolated struct 系统状态文档: Codable, Sendable, Equatable {
     let schemaVersion: Int
     let updatedAt: String?
+    let notice: 系统状态提示?
     let services: [系统状态服务]
 
     init(
         schemaVersion: Int = 1,
         updatedAt: String? = nil,
+        notice: 系统状态提示? = nil,
         services: [系统状态服务]
     ) {
         self.schemaVersion = schemaVersion
         self.updatedAt = updatedAt
+        self.notice = notice
         self.services = services
+    }
+
+    // 跳过不认识的服务：以后服务端新增服务时，此版本仍能显示已知的服务
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
+        updatedAt = try container.decodeIfPresent(String.self, forKey: .updatedAt)
+        // 提示内容有问题时不影响服务状态
+        notice = try? container.decodeIfPresent(系统状态提示.self, forKey: .notice)
+        services = try container.decode([可跳过的服务].self, forKey: .services).compactMap(\.service)
+    }
+
+    private struct 可跳过的服务: Decodable {
+        let service: 系统状态服务?
+
+        init(from decoder: Decoder) throws {
+            service = try? 系统状态服务(from: decoder)
+        }
     }
 
     var servicesInKnownOrder: [系统状态服务] {
@@ -449,8 +505,9 @@ nonisolated enum 系统状态日期工具 {
 }
 
 nonisolated enum 系统状态服务源 {
+    // status.json 只含旧版认识的四个服务（旧版遇到未知服务会解码失败），services.json 含全部服务
     static let statusURL = URL(
-        string: "https://papervn.jizpaper.com/status/status.json"
+        string: "https://papervn.jizpaper.com/status/services.json"
     )!
 }
 
@@ -485,7 +542,7 @@ actor 系统状态网络服务 {
         self.cacheURL = cacheURL ?? FileManager.default.urls(
             for: .cachesDirectory,
             in: .userDomainMask
-        ).first!.appendingPathComponent("PaperVNStatus/status.json")
+        ).first!.appendingPathComponent("PaperVNStatus/services.json")
         try? FileManager.default.createDirectory(
             at: self.cacheURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
@@ -621,7 +678,7 @@ struct 系统状态卡片: View {
             id: .activity,
             status: .issue,
             impact: .partial,
-            description: "中国大陆用户目前在使用此服务时可能遇到无法载入的问题。",
+            description: "中国大陆用户目前在使用此服务时可能遇到无法加载的问题。",
             startAt: "2026-08-22T09:00:00+08:00",
             timePrecision: .datetime
         )
@@ -816,6 +873,58 @@ struct 系统状态卡片: View {
             EmptyView()
         }
     }
+}
+
+struct 系统状态提示卡片: View {
+    @Environment(\.locale) private var locale
+    let notice: 系统状态提示
+
+    // 系统版本没有这个符号时 Image(systemName:) 会留白
+    private var iconName: String {
+        UIImage(systemName: notice.icon) != nil ? notice.icon : "info.circle.fill"
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: iconName)
+                .font(.title3)
+                .frame(width: 24, height: 24)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 7) {
+                Text(verbatim: notice.title.resolved(localeIdentifier: locale.identifier))
+                    .font(.headline)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if let description = notice.cleanedDescription(localeIdentifier: locale.identifier) {
+                    Text(verbatim: description)
+                        .font(.callout)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .平台卡片容器(
+            background: Color.平台次级分组背景,
+            stroke: .clear,
+            cornerRadius: 28,
+            lightModeShadowOpacity: 0,
+            shadowRadius: 0,
+            shadowY: 0
+        )
+        .accessibilityElement(children: .combine)
+    }
+}
+
+#Preview("长期提示") {
+    系统状态提示卡片(
+        notice: 系统状态提示(
+            icon: "megaphone.fill",
+            title: 系统状态本地化文本("长期提示标题"),
+            description: 系统状态本地化文本("这里是后台填写的描述，可以显示多行文字。")
+        )
+    )
 }
 
 #Preview("系统状态卡片") {

@@ -2,19 +2,48 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>BGTaskSchedulerPermittedIdentifiers</key>
-	<array>
-		<string>com.jizpaper.PaperVN.preference-analysis.*</string>
-	</array>
+	<key>AniListClientID</key>
+	<string>$(ANILIST_CLIENT_ID)</string>
+	<key>AnnictClientID</key>
+	<string>$(ANNICT_CLIENT_ID)</string>
 	<key>BangumiOAuthClientID</key>
 	<string>$(BANGUMI_OAUTH_CLIENT_ID)</string>
-	<key>BangumiOAuthClientSecret</key>
-	<string>$(BANGUMI_OAUTH_CLIENT_SECRET)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>CFBundleURLName</key>
+			<string>com.jizpaper.PaperVN</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>papervn</string>
+			</array>
+		</dict>
+	</array>
 	<key>KUNOAuthClientID</key>
 	<string>f80456b95e7a5aa2ccfbadad6d727981</string>
-	<key>UIBackgroundModes</key>
+	<key>MALClientID</key>
+	<string>$(MAL_CLIENT_ID)</string>
+	<key>UTExportedTypeDeclarations</key>
 	<array>
-		<string>processing</string>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.json</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>PaperVN Library</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.jizpaper.papervn.library</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>papervnlibrary</string>
+				</array>
+			</dict>
+		</dict>
 	</array>
 </dict>
 </plist>

@@ -1,13 +1,18 @@
 import Foundation
 
-/// 综合名称匹配和热度给候选打分的小型网络，权重由 `Tools/智能搜索模型/模糊.py` 训练。
+/// 综合名称匹配和热度给候选打分的小型网络，权重来自模型文件。
 /// 除候选外还有一个“没有合适结果”选项：它的概率高说明输入不像任何一个名字。
 nonisolated struct 智能搜索排序器: Sendable {
     static let 特征名 = [
         "f", "p", "r", "exact", "prefix", "contains", "f_gap", "prior", "prior_gap",
-        "is_char", "is_producer", "is_staff", "len_ratio", "query_len", "query_cjk",
+        "is_char", "is_producer", "is_staff", "is_anime", "is_manga", "is_novel",
+        "len_ratio", "query_len", "query_cjk",
+        "pf", "pf_gap", "p_exact", "ed", "ed_prefix",
+        "alias", "char_alias", "script_match",
+        "digit_query", "digit_match", "digit_conflict", "name_digit",
+        "group_top", "group_size",
     ]
-    static let 空特征名 = ["f_max", "exact_any", "prefix_any", "query_len", "query_cjk"]
+    static let 空特征名 = ["f_max", "exact_any", "prefix_any", "query_len", "query_cjk", "pf_max", "ed_max"]
 
     private nonisolated struct 层: Sendable {
         let 权重: [[Float]]

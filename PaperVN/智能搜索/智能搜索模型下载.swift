@@ -1,14 +1,6 @@
 import Foundation
 import Observation
 
-nonisolated enum 智能搜索设置 {
-    static let 启用键 = "smartSearchEnabled"
-
-    static var 已启用: Bool {
-        UserDefaults.standard.object(forKey: 启用键) as? Bool ?? true
-    }
-}
-
 /// 服务器上比本地新的智能搜索模型。
 nonisolated struct 智能搜索模型更新: Sendable, Equatable {
     let modelIdentifier: String
@@ -78,8 +70,7 @@ final class 智能搜索模型下载状态 {
         guard isModelAvailable,
               !isDownloading,
               !isCheckingForUpdate,
-              availableUpdate == nil,
-              智能搜索设置.已启用 else {
+              availableUpdate == nil else {
             return
         }
         if let lastUpdateCheck,
@@ -103,7 +94,9 @@ final class 智能搜索模型下载状态 {
               let remote = try? 智能搜索模型文件.读取头(head).modelIdentifier else {
             return
         }
-        if remote == Self.本地模型标识() {
+        // 只提示比正在用的更新的模型：App 内置的模型可能比服务器上的新（标识开头是构建日期）
+        let local = Self.本地模型标识()
+        if remote == local || (local.map { remote.prefix { $0 != "-" } <= $0.prefix { $0 != "-" } } ?? false) {
             if let validator = info.validator {
                 UserDefaults.standard.set(validator, forKey: Self.服务器文件校验值键)
             }
@@ -202,3 +195,14 @@ final class 智能搜索模型下载状态 {
         try 文件管理.moveItem(at: 下载文件, to: 智能搜索模型存储.下载URL)
     }
 }
+
+#if DEBUG
+extension 智能搜索模型下载状态 {
+    /// 预览用：显示下载或安装中的状态，不发起下载。
+    func 预览下载(进度 value: Double?, 正在安装 installing: Bool = false) {
+        isDownloading = value != nil || installing
+        isInstalling = installing
+        progress = value ?? 0
+    }
+}
+#endif

@@ -5,7 +5,7 @@
 #   Tools/archive.sh testflight [--upload]
 #   Tools/archive.sh appstore   [--upload]
 #
-# 不带 --upload 时只归档并在 Xcode Organizer 中打开；带 --upload 时直接上传到 App Store Connect。
+# 不带 --upload 时只归档并在 Xcode Organizer 中打开；带 --upload 时直接上传到 App Store Connect，上传成功后删除本地构建。
 set -euo pipefail
 
 usage() {
@@ -37,6 +37,21 @@ case "$mode" in
 esac
 
 project_root="$(cd "$(dirname "$0")/.." && pwd)"
+
+# 不进仓库的模型文件（智能搜索模型等）缺失时从 R2 下载。
+"$project_root/Tools/R2模型.sh" 下载
+
+# 视觉小说引擎库不进仓库，归档前要先在本机编译好
+for required in \
+    "Dependencies/Siglus/SiglusCore.xcframework:Tools/构建Siglus.sh" \
+    "Dependencies/KiriKiri/KiriKiriCore.xcframework:Tools/构建KiriKiri.sh" \
+    "Dependencies/KiriKiri/下载资源/res:Tools/构建KiriKiri.sh"; do
+    if [[ ! -e "$project_root/${required%%:*}" ]]; then
+        echo "error: 缺少 ${required%%:*}，先运行 ${required##*:}" >&2
+        exit 1
+    fi
+done
+
 timestamp="$(date +%Y%m%d-%H%M%S)"
 archive_path="$project_root/.build/archives/PaperVN-$mode-$timestamp.xcarchive"
 export_path="$project_root/.build/exports/PaperVN-$mode-$timestamp"
@@ -77,6 +92,10 @@ if [[ "$upload" == true ]]; then
         -exportOptionsPlist "$project_root/Tools/ExportOptions-AppStoreConnect.plist" \
         -allowProvisioningUpdates
     echo "✓ 已上传 $mode 构建（最低 iOS $expected_minimum_os）"
+    # 上传成功后删除本地的归档与导出文件（set -e 下上传失败不会走到这里，失败时保留以便重试）
+    rm -rf "$archive_path" "$export_path"
+    rmdir "$project_root/.build/archives" "$project_root/.build/exports" 2>/dev/null || true
+    echo "✓ 已删除本地构建"
     if [[ "$mode" == testflight ]]; then
         echo "提示：此构建只分发给 TestFlight 测试组，不要选它提交审核。"
     fi

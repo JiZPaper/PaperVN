@@ -2,8 +2,9 @@ import Foundation
 
 nonisolated enum 智能搜索模型存储 {
     static let 文件名 = "PaperVNSmartSearch.pvss"
+    /// 每个格式版本一个地址：旧版 App 只认得旧格式，仍从原来的地址下载格式 3 的模型。
     static let 下载地址 = URL(
-        string: "https://r2-papervn.jizpaper.com/Resources/PaperVNSmartSearch.pvss"
+        string: "https://r2-papervn.jizpaper.com/Resources/PaperVNSmartSearch-v4.pvss"
     )!
 
     static var 目录: URL {
@@ -106,9 +107,9 @@ nonisolated enum 智能搜索模型错误: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .文件无效, .缺少数据:
-            return String(localized: "Hiro智能模型文件已损坏，请重新下载。")
+            return String(localized: "智能搜索模型文件已损坏，请重新下载。")
         case .服务器响应无效:
-            return String(localized: "无法从服务器下载Hiro智能模型。")
+            return String(localized: "无法从服务器下载智能搜索模型。")
         }
     }
 }
@@ -140,11 +141,13 @@ nonisolated final class 只读映射文件: @unchecked Sendable {
 }
 
 
-/// `Tools/智能搜索模型/模糊.py` 生成的模型文件：
+/// 智能搜索模型的文件：
 /// "PVSS" | 格式版本 UInt32 | 头长度 UInt32 | 头 JSON | 各段数据（16 字节对齐，小端序）。
 nonisolated struct 智能搜索模型文件: @unchecked Sendable {
     /// 2：纯名称模糊匹配（名称索引 + 排序器），不再包含查询编码器。
-    static let 支持的格式版本: UInt32 = 2
+    /// 3：加入动画、漫画、轻小说条目（排在制作人员之后，编号是 MAL ID）。
+    /// 4：加入读音索引、名字标记、条目的静态特征，排序器的特征也随之改变；只支持这一版。
+    static let 支持的格式版本: ClosedRange<UInt32> = 4...4
 
     nonisolated struct 段: Decodable, Sendable {
         let offset: Int
@@ -158,12 +161,21 @@ nonisolated struct 智能搜索模型文件: @unchecked Sendable {
         let characterCount: Int
         let producerCount: Int
         let staffCount: Int
+        /// 格式 2 的文件没有这三项。
+        let animeCount: Int?
+        let mangaCount: Int?
+        let lightNovelCount: Int?
         let nameCount: Int
         let gramCount: Int
         let maxIDF: Double
+        let phoneticMaxIDF: Double
+        let phoneticMinQueryLength: Int
         let nameCandidateCount: Int
         let coverageCandidateCount: Int
+        let phoneticCandidateCount: Int
         let queryUnigramMaxHan: Int
+        /// docs/static 里每个条目的特征名，顺序与排序器的同名特征对应。
+        let staticFeatures: [String]
         let sections: [String: 段]
     }
 
@@ -193,7 +205,7 @@ nonisolated struct 智能搜索模型文件: @unchecked Sendable {
     static func 读取头(_ 数据: Data) throws -> 头信息 {
         let 版本 = try 读取格式版本(数据)
         let 头长度 = Int(数据.读取UInt32小端(偏移: 8))
-        guard 版本 == 支持的格式版本, 数据.count >= 12 + 头长度 else {
+        guard 支持的格式版本.contains(版本), 数据.count >= 12 + 头长度 else {
             throw 智能搜索模型错误.文件无效
         }
         let 起点 = 数据.startIndex + 12

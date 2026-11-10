@@ -1,0 +1,4 @@
+module PaperVNMPEG {
+    header "papervn_mpeg.h"
+    export *
+}

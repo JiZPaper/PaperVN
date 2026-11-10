@@ -336,7 +336,7 @@ private nonisolated enum PaperVN活动服务错误: LocalizedError {
         case .invalidResponse:
             String(localized: "活动数据响应无效。")
         case .unavailable:
-            String(localized: "暂时无法载入活动。")
+            String(localized: "暂时无法加载活动。")
         }
     }
 }
@@ -1448,21 +1448,6 @@ private extension View {
         }
     }
 
-    @ViewBuilder
-    func PaperVN活动半折双栏适配(_ isEnabled: Bool) -> some View {
-        if isEnabled {
-            self
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .containerRelativeFrame(
-                    .horizontal,
-                    count: 2,
-                    span: 1,
-                    spacing: 20
-                )
-        } else {
-            self
-        }
-    }
 }
 
 struct PaperVN活动栏目: View {
@@ -1475,7 +1460,6 @@ struct PaperVN活动栏目: View {
     var 液态玻璃回退色调: Color? = nil
     var title: String?
     var horizontalInset: CGFloat = 20
-    var usesTwoColumnFoldLayout = false
     var hidesWhenEmpty = false
     var onRetry: (() -> Void)?
 
@@ -1509,7 +1493,7 @@ struct PaperVN活动栏目: View {
                 loadingContent
             } else if events.isEmpty, let errorMessage {
                 unavailableContent(
-                    title: "无法载入活动",
+                    title: "无法加载活动",
                     systemImage: "wifi.exclamationmark",
                     description: errorMessage,
                     showsRetry: true
@@ -1525,7 +1509,7 @@ struct PaperVN活动栏目: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(
                         alignment: .top,
-                        spacing: usesTwoColumnFoldLayout ? 20 : 14
+                        spacing: 14
                     ) {
                         ForEach(events) { event in
                             PaperVN活动卡片(
@@ -1533,9 +1517,6 @@ struct PaperVN活动栏目: View {
                                 scene: cardScene,
                                 液态玻璃外观: 液态玻璃外观,
                                 液态玻璃回退色调: 液态玻璃回退色调
-                            )
-                            .PaperVN活动半折双栏适配(
-                                usesTwoColumnFoldLayout
                             )
                         }
                     }
@@ -1576,7 +1557,7 @@ struct PaperVN活动栏目: View {
             HStack(spacing: 8) {
                 ProgressView()
                     .controlSize(.small)
-                Text("正在载入…")
+                Text("正在加载…")
             }
             .font(.subheadline.weight(.semibold))
             .foregroundStyle(.secondary)
@@ -1585,13 +1566,10 @@ struct PaperVN活动栏目: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(
                     alignment: .top,
-                    spacing: usesTwoColumnFoldLayout ? 20 : 14
+                    spacing: 14
                 ) {
                     ForEach(0..<3, id: \.self) { _ in
                         PaperVN活动加载骨架卡片(scene: cardScene)
-                            .PaperVN活动半折双栏适配(
-                                usesTwoColumnFoldLayout
-                            )
                     }
                 }
                 .padding(.vertical, 2)

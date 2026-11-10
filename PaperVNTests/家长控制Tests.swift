@@ -295,49 +295,63 @@ struct 家长控制Tests {
     }
 
     @Test
-    func 特定入口解锁后可关闭安全限制并使用完整阈值() throws {
+    func 网站登记设备特例后可关闭安全限制且阈值不超过露骨阈值() throws {
         let (defaults, suiteName) = try makeDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
         defaults.set(false, forKey: "contentFilterEnabled")
-        defaults.set(1.5, forKey: "sexualThreshold")
+        defaults.set(1.2, forKey: "sexualThreshold")
 
-        #expect(强制内容安全策略.尝试解锁(token: "another-token", defaults: defaults))
-        #expect(强制内容安全策略.可使用高级设置(token: "another-token", defaults: defaults))
+        敏感内容网页设置.保存(已开启: true, defaults: defaults)
+
+        #expect(强制内容安全策略.可使用高级设置(defaults: defaults))
         #expect(!defaults.bool(forKey: "contentFilterEnabled"))
-        #expect(defaults.double(forKey: "sexualThreshold") == 1.5)
+        #expect(defaults.double(forKey: "sexualThreshold") == 1.2)
 
         defaults.set(3.0, forKey: "sexualThreshold")
-        强制内容安全策略.应用到用户设置(
-            defaults,
-            token: "another-token"
-        )
-        #expect(defaults.double(forKey: "sexualThreshold") == 2)
+        强制内容安全策略.应用到用户设置(defaults)
+        #expect(defaults.double(forKey: "sexualThreshold") == 强制内容安全策略.露骨阈值)
     }
 
-    @Test(.enabled(if: 内容安全私有配置.禁止解锁Token != nil))
-    func 禁止Token无法解锁且会重新强制安全设置() throws {
+    @Test
+    func 网站撤销设备特例后重新强制安全设置() throws {
         let (defaults, suiteName) = try makeDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }
-        let blockedToken = try #require(内容安全私有配置.禁止解锁Token)
 
-        #expect(强制内容安全策略.尝试解锁(token: "another-token", defaults: defaults))
+        敏感内容网页设置.保存(已开启: true, defaults: defaults)
         defaults.set(false, forKey: "contentFilterEnabled")
-        defaults.set(1.7, forKey: "sexualThreshold")
+        defaults.set(1.2, forKey: "sexualThreshold")
 
-        强制内容安全策略.同步当前Token(blockedToken, defaults: defaults)
+        敏感内容网页设置.保存(已开启: false, defaults: defaults)
 
-        #expect(!强制内容安全策略.可使用高级设置(token: blockedToken, defaults: defaults))
-        #expect(!强制内容安全策略.尝试解锁(token: blockedToken, defaults: defaults))
+        #expect(!强制内容安全策略.可使用高级设置(defaults: defaults))
         #expect(defaults.bool(forKey: "contentFilterEnabled"))
         #expect(defaults.double(forKey: "sexualThreshold") == 0.8)
     }
 
-    @Test(.enabled(if: 内容安全私有配置.禁止解锁Token != nil))
-    func 只有高级设置解锁后才允许手动解除色情内容模糊() throws {
+    @Test
+    func 设备码与服务器使用相同算法() {
+        let 密钥 = Data((0..<32).map { UInt8($0) })
+        // 服务器 deviceCodeFromSecret 对同一密钥的结果。
+        #expect(敏感内容网页设置.设备码(密钥: 密钥) == "CC6W-TAB6-RGSP-D48J")
+    }
+
+    @Test
+    func 旧版本地解锁标记不再生效() throws {
         let (defaults, suiteName) = try makeDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }
-        let blockedToken = try #require(内容安全私有配置.禁止解锁Token)
+
+        defaults.set(true, forKey: "contentSafetyAdvancedControlsUnlocked")
+        #expect(!强制内容安全策略.可使用高级设置(defaults: defaults))
+
+        敏感内容网页设置.移除旧版本地解锁(defaults: defaults)
+        #expect(defaults.object(forKey: "contentSafetyAdvancedControlsUnlocked") == nil)
+    }
+
+    @Test
+    func 只有网站登记后才允许手动解除色情内容模糊() throws {
+        let (defaults, suiteName) = try makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
 
         #expect(!内容安全限制判定.允许手动解除模糊(
             色情限制: true,
@@ -348,10 +362,8 @@ struct 家长控制Tests {
             defaults: defaults
         ))
 
-        #expect(强制内容安全策略.尝试解锁(
-            token: "another-token",
-            defaults: defaults
-        ))
+        敏感内容网页设置.保存(已开启: true, defaults: defaults)
+
         #expect(内容安全限制判定.图片允许手动解除模糊(
             sexual: 1.2,
             enabled: true,
@@ -359,38 +371,45 @@ struct 家长控制Tests {
             mode: .both,
             defaults: defaults
         ))
-
-        强制内容安全策略.同步当前Token(blockedToken, defaults: defaults)
-
-        #expect(!内容安全限制判定.允许手动解除模糊(
-            色情限制: true,
-            defaults: defaults
-        ))
     }
 
-    @Test(.enabled(if: 内容安全私有配置.解锁搜索词 != nil))
-    func 只有指定搜索词才注入固定角色() throws {
-        let 搜索词 = try #require(内容安全私有配置.解锁搜索词)
-        let 角色ID = try #require(内容安全私有配置.解锁角色?.id)
-        let ordinary = 角色搜索结果(
-            id: "c1",
-            name: "Test",
-            original: nil,
-            aliases: nil,
-            image: nil
-        )
+    @Test
+    func 露骨图片始终受限制() {
+        #expect(!内容安全限制判定.是露骨图片(强制内容安全策略.露骨阈值))
+        #expect(内容安全限制判定.是露骨图片(1.4))
+        #expect(内容安全限制判定.是露骨图片(2))
 
-        let triggered = 内容安全高级设置解锁入口.合并固定结果(
-            [ordinary],
-            query: "  \(搜索词)  "
-        )
-        let ordinarySearch = 内容安全高级设置解锁入口.合并固定结果(
-            [ordinary],
-            query: 角色ID
-        )
-
-        #expect(triggered.map(\.id) == [角色ID, "c1"])
-        #expect(ordinarySearch.map(\.id) == ["c1"])
+        // 关闭安全限制或只限制暴力内容时，露骨图片仍然受限制。
+        for (enabled, mode) in [
+            (false, 内容过滤模式.both),
+            (true, .violenceOnly),
+            (true, .sexualOnly)
+        ] {
+            #expect(内容安全限制判定.图片需要限制(
+                sexual: 2,
+                violence: 0,
+                enabled: enabled,
+                sexualThreshold: 强制内容安全策略.最大色情阈值,
+                violenceThreshold: 2,
+                mode: mode
+            ))
+        }
+        #expect(!内容安全限制判定.图片需要限制(
+            sexual: 1,
+            violence: 0,
+            enabled: false,
+            sexualThreshold: 0,
+            violenceThreshold: 0,
+            mode: .both
+        ))
+        #expect(内容安全限制判定.图片需要限制(
+            sexual: 0,
+            violence: 1.5,
+            enabled: true,
+            sexualThreshold: 0.8,
+            violenceThreshold: 1,
+            mode: .violenceOnly
+        ))
     }
 
     private func makeDefaults() throws -> (UserDefaults, String) {

@@ -355,8 +355,53 @@ extension ToolbarItemPlacement {
         .topBarLeading
     }
 
+    /// iOS 27 起固定在尾部：横向栏位置不变，iPhone Duo 纵向栏中紧随导航控件排在顶部。
     static var 平台关闭操作: ToolbarItemPlacement {
-        .topBarTrailing
+        if #available(iOS 27.0, *) {
+            return .topBarPinnedTrailing
+        }
+        return .topBarTrailing
+    }
+
+    /// 右上角已有操作时，关闭按钮放在左上角（没有固定版本，前导位置本就紧随导航控件）。
+    static var 平台前导关闭操作: ToolbarItemPlacement {
+        .topBarLeading
+    }
+}
+
+nonisolated enum 平台工具栏优先级 {
+    case 高
+    case 低
+}
+
+extension ToolbarContent {
+    /// iPhone Duo 纵向栏空间不足时，低优先级项目先收进溢出菜单；更早系统保持默认。
+    @ToolbarContentBuilder
+    func 平台可见优先级(_ priority: 平台工具栏优先级) -> some ToolbarContent {
+        if #available(iOS 27.0, *) {
+            switch priority {
+            case .高:
+                self.visibilityPriority(.high)
+            case .低:
+                self.visibilityPriority(.low)
+            }
+        } else {
+            self
+        }
+    }
+
+    /// iPhone Duo 同时有横栏和竖栏时，优先放进侧边竖栏；更早系统保持默认。
+    @ToolbarContentBuilder
+    func 平台优先纵向栏() -> some ToolbarContent {
+        #if canImport(SwiftUI, _version: 8.0.85) // iOS 27.1 SDK（iPhone Duo API）
+        if #available(iOS 27.1, *) {
+            self.axisBehavior(.verticalPreferred)
+        } else {
+            self
+        }
+        #else
+        self
+        #endif
     }
 }
 
@@ -427,6 +472,20 @@ extension View {
         self
             .presentationDetents([.fraction(0.98)])
             .presentationDragIndicator(dragIndicator)
+            .缩放弹窗上滑不关闭()
+    }
+
+    /// iOS 26：缩放转场的弹窗不是 .large 高度时，系统“轻扫内容关闭”手势会抢走
+    /// 内容顶部的上滑，往上翻内容时弹窗直接关闭。让该手势在上滑时失败，交回给滚动视图；
+    /// 下拉关闭、缩放动画都不受影响。没有缩放转场的弹窗找不到该手势，不做任何事。
+    func 缩放弹窗上滑不关闭() -> some View {
+        background(缩放弹窗上滑保护())
+    }
+
+    /// 挂在弹窗内的滚动视图上：只有从顶部开始的下拉才会关闭弹窗，
+    /// 浏览中途的滑动（包括一路滑回顶部）不会触发关闭。
+    func 仅顶部可下拉关闭() -> some View {
+        modifier(仅顶部可下拉关闭修饰器())
     }
 
     @ViewBuilder
@@ -484,6 +543,16 @@ extension View {
         }
     }
 
+    /// iOS 26 及以上隐藏滚动边缘效果；更早系统没有该效果。
+    @ViewBuilder
+    func 平台隐藏滚动边缘(_ hidden: Bool, for edges: Edge.Set) -> some View {
+        if #available(iOS 26.0, *) {
+            self.scrollEdgeEffectHidden(hidden, for: edges)
+        } else {
+            self
+        }
+    }
+
     /// iOS 26 及以上将内容延伸到安全区域外；更早系统保持默认。
     @ViewBuilder
     func 平台背景延伸效果() -> some View {
@@ -492,6 +561,11 @@ extension View {
         } else {
             self
         }
+    }
+
+    /// 读取 iPhone Duo 半折叠时把内屏分开的折叠区域；完全展开、合上或其他设备上为 nil。
+    func 沉浸详情折叠区域(读取到 divisionFrame: Binding<CGRect?>) -> some View {
+        modifier(沉浸详情折叠区域读取器(divisionFrame: divisionFrame))
     }
 
     /// iOS 26 及以上使用 `safeAreaBar`；更早系统退回 `safeAreaInset`。
@@ -638,6 +712,120 @@ extension View {
     }
 }
 
+private struct 仅顶部可下拉关闭修饰器: ViewModifier {
+    /// 离开顶部后禁止下拉关闭，回到顶部并停留一会儿才恢复。
+    /// 不能看滚动阶段：一路下拉滑回顶部时，手势会交给弹窗，
+    /// 滚动阶段随即变成 idle，但手指还按着，这时恢复就会直接关闭。
+    @State private var 允许关闭 = true
+    @State private var 恢复任务: Task<Void, Never>?
+
+    private static let 顶部停留时间: Duration = .milliseconds(500)
+
+    func body(content: Content) -> some View {
+        content
+            .onScrollGeometryChange(for: Bool.self) { geometry in
+                geometry.contentOffset.y + geometry.contentInsets.top <= 1
+            } action: { _, isAtTop in
+                恢复任务?.cancel()
+                if !isAtTop {
+                    允许关闭 = false
+                } else if !允许关闭 {
+                    恢复任务 = Task {
+                        try? await Task.sleep(for: Self.顶部停留时间)
+                        guard !Task.isCancelled else { return }
+                        允许关闭 = true
+                    }
+                }
+            }
+            .onDisappear { 恢复任务?.cancel() }
+            .interactiveDismissDisabled(!允许关闭)
+    }
+}
+
+private struct 缩放弹窗上滑保护: UIViewRepresentable {
+    func makeUIView(context: Context) -> 保护视图 { 保护视图() }
+    func updateUIView(_ uiView: 保护视图, context: Context) {}
+
+    final class 保护视图: UIView {
+        /// 只在上滑时识别；系统关闭手势要等它失败才能开始
+        private let 上滑手势 = UIPanGestureRecognizer()
+        private let 上滑判断 = 上滑手势代理()
+        private var 剩余尝试次数 = 0
+
+        override init(frame: CGRect) {
+            super.init(frame: frame)
+            isUserInteractionEnabled = false
+            上滑手势.cancelsTouchesInView = false
+            上滑手势.delaysTouchesBegan = false
+            上滑手势.delaysTouchesEnded = false
+            上滑手势.delegate = 上滑判断
+        }
+
+        required init?(coder: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            guard window != nil, 上滑手势.view == nil else { return }
+            // 关闭手势在弹出动画结束后才挂上
+            剩余尝试次数 = 20
+            尝试安装()
+        }
+
+        private func 尝试安装() {
+            guard 上滑手势.view == nil, window != nil, 剩余尝试次数 > 0 else { return }
+            剩余尝试次数 -= 1
+            var 祖先: [UIView] = []
+            var view = superview
+            while let current = view {
+                祖先.append(current)
+                view = current.superview
+            }
+            // 只处理缩放转场的弹窗：找到“轻扫内容关闭”手势才安装
+            guard let 内容视图 = 祖先.first(where: { current in
+                current.gestureRecognizers?.contains { Self.类名($0) == "_UIContentSwipeDismissGestureRecognizer" } == true
+            }) else {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+                    self?.尝试安装()
+                }
+                return
+            }
+            内容视图.addGestureRecognizer(上滑手势)
+            // 轻扫内容关闭、弹窗自身的拖移关闭都要等上滑判断失败
+            for 手势 in 祖先.flatMap({ $0.gestureRecognizers ?? [] }) where 手势 !== 上滑手势 {
+                let 名称 = Self.类名(手势)
+                let 代理名称 = 手势.delegate.map { String(describing: type(of: $0)) } ?? ""
+                if 名称 == "_UIContentSwipeDismissGestureRecognizer"
+                    || 代理名称 == "_UISheetInteraction"
+                    || 代理名称.hasSuffix("SheetPresentationController") {
+                    手势.require(toFail: 上滑手势)
+                }
+            }
+        }
+
+        private static func 类名(_ 手势: UIGestureRecognizer) -> String {
+            String(describing: type(of: 手势))
+        }
+    }
+
+    final class 上滑手势代理: NSObject, UIGestureRecognizerDelegate {
+        func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            guard let pan = gestureRecognizer as? UIPanGestureRecognizer,
+                  let view = pan.view else { return false }
+            let velocity = pan.velocity(in: view)
+            return velocity.y < 0 && abs(velocity.y) > abs(velocity.x)
+        }
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            true
+        }
+    }
+}
+
 private struct iPad横向内容可溢出修饰器: ViewModifier {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
@@ -713,3 +901,88 @@ private struct Safari浏览器控制器: UIViewControllerRepresentable {
     ) {}
 }
 
+private struct 沉浸详情折叠区域读取器: ViewModifier {
+    @Binding var divisionFrame: CGRect?
+
+    func body(content: Content) -> some View {
+        #if canImport(SwiftUI, _version: 8.0.85) // iOS 27.1 SDK（iPhone Duo API）
+        if #available(iOS 27.1, *) {
+            content
+                .onGeometryChange(for: CGRect?.self) { proxy in
+                    proxy.reservedRegions(kind: .division)
+                        .first(where: \.isActive)?
+                        .frame
+                } action: { frame in
+                    divisionFrame = frame
+                }
+        } else {
+            content
+        }
+        #else
+        content
+        #endif
+    }
+}
+
+/// 工具栏里独占一个玻璃按钮的图标标签。
+/// SwiftUI 按图标的实际宽度再加左右各 6pt 排版，square.and.pencil、info.circle 这类偏宽的符号会把玻璃按钮撑成 47×44 的椭圆；
+/// 图标宽度限制成和高度一样的 24pt，按钮就是 44×44 的正圆。
+struct 工具栏圆形图标标签: View {
+    private let title: Text
+    private let systemImage: String
+
+    init(_ title: LocalizedStringKey, systemImage: String) {
+        self.title = Text(title)
+        self.systemImage = systemImage
+    }
+
+    /// 已经本地化好的文字；和系统 Label 一样让字面量优先走本地化的版本
+    @_disfavoredOverload
+    init(_ title: String, systemImage: String) {
+        self.title = Text(verbatim: title)
+        self.systemImage = systemImage
+    }
+
+    var body: some View {
+        Label {
+            title
+        } icon: {
+            Image(systemName: systemImage)
+                .frame(width: 24)
+        }
+    }
+}
+
+#if DEBUG
+#Preview("仅在顶部可下拉关闭") {
+    // 滚动到中间后下拉只会滚回顶部，不会关闭页面；在顶部时下拉才关闭
+    @Previewable @State var 显示 = true
+    Button("显示页面") { 显示 = true }
+        .sheet(isPresented: $显示) {
+            NavigationStack {
+                List(1...40, id: \.self) { index in
+                    Text(verbatim: "第\(index)行")
+                }
+                .仅顶部可下拉关闭()
+                .navigationTitle("更多信息")
+                .navigationBarTitleDisplayMode(.inline)
+            }
+        }
+}
+
+#Preview("工具栏圆形图标按钮") {
+    NavigationStack {
+        Text("宽图标的工具栏按钮也是正圆")
+            .foregroundStyle(.secondary)
+            .navigationTitle("作品详情")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {} label: { 工具栏圆形图标标签("编辑", systemImage: "square.and.pencil") }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {} label: { 工具栏圆形图标标签("更多信息", systemImage: "info.circle") }
+                }
+            }
+    }
+}
+#endif

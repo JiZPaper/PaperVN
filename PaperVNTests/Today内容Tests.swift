@@ -98,7 +98,8 @@ struct Today内容Tests {
         let related = try #require(story.related.first)
 
         #expect(feed.date == "2026-08-07")
-        #expect(story.image?.aspectRatio == 2.0 / 3.0)
+        let aspectRatio = try #require(story.image?.aspectRatio)
+        #expect(abs(aspectRatio - 2.0 / 3.0) < 0.000_001)
         #expect(
             story.image?.url?.absoluteString
                 == "https://papervn.jizpaper.com/today/images/2026-08-07/v4.jpg"

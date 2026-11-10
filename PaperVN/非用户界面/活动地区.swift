@@ -281,8 +281,8 @@ nonisolated enum 活动地区目录 {
                         countryCode: normalizedCode,
                         name: "All regions",
                         nativeName: currentName,
-                        simplifiedChineseName: "全部地区",
-                        traditionalChineseName: "全部地區",
+                        simplifiedChineseName: "所有地区",
+                        traditionalChineseName: "所有地區",
                         japaneseName: "すべての地域",
                         aliases: [englishName, currentName]
                     )

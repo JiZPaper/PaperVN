@@ -6,6 +6,8 @@ private struct 资料库编辑草稿: Equatable {
     var releaseID: String?
     var started: Date?
     var finished: Date?
+    /// VNDB标签（不含状态与“已投票”）。
+    var tagIDs: Set<Int>
 }
 
 struct 资料库编辑页面: View {
@@ -34,6 +36,8 @@ struct 资料库编辑页面: View {
     @State private var hasManuallyModifiedDate = false
     @State private var isSaving = false
     @State private var saveError: String?
+    /// 存储后清除了VNDB上的日期时显示的提示；关闭后关闭编辑页。
+    @State private var 日期清除提示: VNDB日期清除提示?
     @State private var automaticallyFilledStarted = false
     @State private var automaticallyFilledFinished = false
     @State private var loadedReleases: [视觉小说发行版本]
@@ -66,7 +70,8 @@ struct 资料库编辑页面: View {
             rating: (currentItem?.vote ?? 0) / 10,
             releaseID: currentItem?.releases?.first?.id ?? initialReleaseID,
             started: Self.date(from: currentItem?.started),
-            finished: Self.date(from: currentItem?.finished)
+            finished: Self.date(from: currentItem?.finished),
+            tagIDs: currentItem?.标签ID ?? []
         )
         _draft = State(initialValue: initial)
         _originalDraft = State(initialValue: initial)
@@ -98,6 +103,9 @@ struct 资料库编辑页面: View {
 
                 if mode == .full {
                     datesSection
+                    编辑页面游玩路径区域(vnID: vnID)
+                    编辑页面游戏文件夹区域(vnID: vnID)
+                    tagsSection
                 }
             }
             .onChange(of: draft.status) { _, status in
@@ -112,20 +120,19 @@ struct 资料库编辑页面: View {
                         .lineLimit(1)
                 }
 
-                ToolbarItem(placement: .平台前导操作) {
+                ToolbarItem(placement: .cancellationAction) {
                     Button {
                         requestDismiss()
                     } label: {
-                        Image(systemName: "xmark")
+                        Label("关闭", systemImage: "xmark")
                     }
-                    .accessibilityLabel("关闭")
                     .disabled(isSaving)
                     .confirmationDialog(
                         "要放弃更改吗？",
                         isPresented: $showDiscardAlert,
                         titleVisibility: .visible
                     ) {
-                        Button("存储更改") {
+                        Button("保存更改") {
                             Task {
                                 await save()
                             }
@@ -135,11 +142,11 @@ struct 资料库编辑页面: View {
                             dismiss()
                         }
                     } message: {
-                        Text("尚未存储的状态、评分或日期将会丢失。")
+                        Text("尚未保存的状态、评分、日期或标签将会丢失。")
                     }
                 }
 
-                ToolbarItem(placement: .平台主操作) {
+                ToolbarItem(placement: .confirmationAction) {
                     Button {
                         Task {
                             await save()
@@ -151,17 +158,18 @@ struct 资料库编辑页面: View {
                                 .tint(.gray)
                                 .frame(width: 22, height: 22)
                         } else {
-                            Image(systemName: "checkmark")
+                            Label("保存更改", systemImage: "checkmark")
                         }
                     }
                     .液态玻璃醒目按钮(in: Circle())
                     .tint(.blue)
-                    .accessibilityLabel("存储更改")
+                    .accessibilityLabel("保存更改")
                     .disabled(isSaving)
                 }
             }
         }
         .interactiveDismissDisabled(hasChanges || isSaving)
+        .task { await 游玩路径中心.shared.刷新() }
         .task(id: vnID) {
             await loadReleasesIfNeeded()
         }
@@ -179,7 +187,7 @@ struct 资料库编辑页面: View {
                 }
         )
         .alert(
-            "无法存储",
+            "无法保存",
             isPresented: Binding(
                 get: { saveError != nil },
                 set: { if !$0 { saveError = nil } }
@@ -219,6 +227,15 @@ struct 资料库编辑页面: View {
             }
         } message: {
             Text(verbatim: dateCorrectionAlertMessage)
+        }
+        .alert(
+            日期清除提示?.标题 ?? "",
+            isPresented: Binding(get: { 日期清除提示 != nil }, set: { if !$0 { 日期清除提示 = nil } }),
+            presenting: 日期清除提示
+        ) { _ in
+            Button("好") { dismiss() }
+        } message: { notice in
+            Text(notice.说明)
         }
     }
 
@@ -290,7 +307,7 @@ struct 资料库编辑页面: View {
                 HStack(spacing: 8) {
                     ProgressView()
                         .controlSize(.small)
-                    Text("正在载入可选版本…")
+                    Text("正在加载可选版本…")
                 }
                 .font(.footnote)
                 .foregroundStyle(.secondary)
@@ -433,6 +450,36 @@ struct 资料库编辑页面: View {
         }
     }
 
+    private var tagsSection: some View {
+        Section {
+            NavigationLink {
+                资料库标签选择页面(
+                    selection: $draft.tagIDs,
+                    currentLabels: currentItem?.labels ?? []
+                )
+            } label: {
+                LabeledContent {
+                    Text(verbatim: selectedTagNames)
+                        .lineLimit(1)
+                } label: {
+                    Label(String(localized: "资料库标签", defaultValue: "标签", comment: "VNDB用户列表的标签（labels），不是作品的内容标签（tags）"), systemImage: "tag")
+                }
+            }
+        }
+    }
+
+    private var selectedTagNames: String {
+        guard !draft.tagIDs.isEmpty else { return String(localized: "无") }
+        let known = Dictionary(
+            (PaperVNSync中心.shared.VNDB标签.map { ($0.id, $0.显示名称) })
+                + (currentItem?.labels ?? []).map { ($0.id, $0.显示名称) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        return ListFormatter.localizedString(
+            byJoining: draft.tagIDs.sorted().compactMap { known[$0] }
+        )
+    }
+
     private func optionalDateRow(
         title: LocalizedStringKey,
         systemImage: String,
@@ -467,7 +514,7 @@ struct 资料库编辑页面: View {
                     date.wrappedValue = Calendar.current.startOfDay(for: Date())
                 }
                 .buttonStyle(.borderless)
-                .foregroundStyle(.blue)
+                .foregroundStyle(Color.blue)
             }
         }
         .frame(height: 34)
@@ -551,11 +598,11 @@ struct 资料库编辑页面: View {
         } catch {
             if (error as? URLError)?.code == .timedOut {
                 releaseLoadError = String(
-                    localized: "载入发行版本超时，请检查网络后再试。"
+                    localized: "加载发行版本超时，请检查网络后再试。"
                 )
             } else {
                 releaseLoadError = String(
-                    localized: "无法载入发行版本：\(error.localizedDescription)"
+                    localized: "无法加载发行版本：\(error.localizedDescription)"
                 )
             }
         }
@@ -564,8 +611,9 @@ struct 资料库编辑页面: View {
     @MainActor
     private func save() async {
         guard !isSaving else { return }
-        guard !token.isEmpty else {
-            saveError = String(localized: "请先登录VNDB账户。")
+        // 没登录VNDB时写入本地资料库（随 Paper Account 同步），见 VNDB服务
+        guard !token.isEmpty || 本地资料库.shared.所有者 != nil else {
+            saveError = String(localized: "请先在“账户”中登录Paper账户或任意平台账户。")
             return
         }
 
@@ -588,6 +636,8 @@ struct 资料库编辑页面: View {
 
         isSaving = true
         saveError = nil
+        var clearedStarted: String?
+        var clearedFinished: String?
 
         do {
             switch mode {
@@ -607,6 +657,9 @@ struct 资料库编辑页面: View {
                 )
 
             case .full:
+                // VNDB API 清除不了日期（见 VNDB服务.patchUserList），记下清除前VNDB上的值
+                clearedStarted = !token.isEmpty && draft.started == nil && originalDraft.started != nil ? currentItem?.started : nil
+                clearedFinished = !token.isEmpty && draft.finished == nil && originalDraft.finished != nil ? currentItem?.finished : nil
                 try await VNDB服务.shared.updateUserListEntry(
                     token: token,
                     vnID: vnID,
@@ -619,7 +672,9 @@ struct 资料库编辑页面: View {
                     updateStarted: draft.started != originalDraft.started,
                     finished: Self.string(from: draft.finished),
                     updateFinished: draft.finished != originalDraft.finished,
-                    existingLabels: currentItem?.labels ?? []
+                    existingLabels: currentItem?.labels ?? [],
+                    addedTagIDs: draft.tagIDs.subtracting(originalDraft.tagIDs),
+                    removedTagIDs: originalDraft.tagIDs.subtracting(draft.tagIDs)
                 )
 
                 if draft.releaseID != originalDraft.releaseID {
@@ -631,7 +686,7 @@ struct 资料库编辑页面: View {
                 }
             }
 
-            if UserDefaults.standard.bool(forKey: Bangumi账户.同步设置键),
+            if PaperVNSync中心.已启用,
                bangumiAccount.isLoggedIn {
                 try await bangumiAccount.synchronize(
                     vndbID: vnID,
@@ -641,10 +696,20 @@ struct 资料库编辑页面: View {
                 )
             }
 
+            if clearedStarted != nil || clearedFinished != nil {
+                if PaperAccount账户.shared.isLoggedIn {
+                    // 资料库随 Paper Account 同步：只在资料库中清除，导入VNDB时也保持清除
+                    本地资料库.shared.记录VNDB已清除日期(vnID: vnID, started: clearedStarted, finished: clearedFinished)
+                    日期清除提示 = .只在资料库中清除
+                } else {
+                    日期清除提示 = .无法清除
+                }
+            }
+
             originalDraft = draft
             await onSaved()
             isSaving = false
-            dismiss()
+            if 日期清除提示 == nil { dismiss() }
         } catch {
             isSaving = false
             saveError = error.localizedDescription
@@ -685,4 +750,124 @@ struct 资料库编辑页面: View {
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter
     }()
+}
+
+/// 选择作品的VNDB标签。标签只能在VNDB网站上新建、重命名或删除，这里只列出已有的标签。
+private struct 资料库标签选择页面: View {
+    @Binding var selection: Set<Int>
+    /// 作品现有的标签：账户的标签还没读到时也能显示它们。
+    let currentLabels: [用户列表项目.用户列表标签]
+
+    @EnvironmentObject private var auth: 用户登录
+    @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var labels = PaperVNSync中心.shared.VNDB标签
+    @State private var searchText = ""
+
+    private var options: [用户列表标签信息] {
+        var result = labels
+        let known = Set(labels.map(\.id))
+        result += currentLabels
+            .filter { $0.可作为标签 && !known.contains($0.id) }
+            .map { 用户列表标签信息(id: $0.id, label: $0.label, private: false) }
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return result }
+        return result.filter { $0.显示名称.localizedCaseInsensitiveContains(query) }
+    }
+
+    var body: some View {
+        List {
+            Section {
+                ForEach(options) { tag in
+                    Button {
+                        if selection.contains(tag.id) {
+                            selection.remove(tag.id)
+                        } else {
+                            selection.insert(tag.id)
+                        }
+                    } label: {
+                        HStack {
+                            Text(verbatim: tag.显示名称)
+                                .foregroundStyle(.primary)
+                            if tag.private {
+                                Image(systemName: "lock")
+                                    .foregroundStyle(.secondary)
+                                    .accessibilityLabel("私有")
+                            }
+                            Spacer()
+                            if selection.contains(tag.id) {
+                                Image(systemName: "checkmark")
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(.tint)
+                            }
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    // 默认样式会把标签名称也染成强调色
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(selection.contains(tag.id) ? .isSelected : [])
+                }
+            } footer: {
+                Text("标签只能在VNDB上新建、重命名或删除。")
+            }
+
+            Section {
+                Button("在VNDB上管理标签") {
+                    if let url = URL(string: "https://vndb.org/\(auth.userID)/ulist") {
+                        openURL(url)
+                    }
+                }
+            }
+        }
+        .overlay {
+            if options.isEmpty {
+                if searchText.isEmpty {
+                    平台内容不可用视图(
+                        "没有标签",
+                        systemImage: "tag",
+                        description: Text("在VNDB上新建标签后，即可在此选择。")
+                    )
+                } else {
+                    平台内容不可用视图.search(text: searchText)
+                }
+            }
+        }
+        .searchable(text: $searchText, prompt: Text("搜索标签"))
+        .navigationTitle(String(localized: "资料库标签", defaultValue: "标签", comment: "VNDB用户列表的标签（labels），不是作品的内容标签（tags）"))
+        .平台内联导航标题()
+        .onReceive(PaperVNSync中心.shared.$VNDB标签) { labels = $0 }
+        .task { await 刷新标签() }
+        // 从VNDB网站回来时，读取新建或改名后的标签
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await 刷新标签() } }
+        }
+    }
+
+    private func 刷新标签() async {
+        await PaperVNSync中心.shared.读取VNDB标签(token: auth.token, userID: auth.userID)
+    }
+}
+
+/// VNDB API 清除不了开始日期与结束日期（不接受 null）。登录了VNDB时在编辑页清除日期，存储后显示这个提示。
+private enum VNDB日期清除提示 {
+    /// 登录了 Paper Account：只在资料库中清除，随 Paper Cloud 同步。
+    case 只在资料库中清除
+    /// 没登录 Paper Account：资料库属于VNDB账户，日期没有清除，其他更改已保存。
+    case 无法清除
+
+    var 标题: LocalizedStringKey {
+        switch self {
+        case .只在资料库中清除: "部分更改无法与VNDB同步"
+        case .无法清除: "部分更改无法完成"
+        }
+    }
+
+    var 说明: LocalizedStringKey {
+        switch self {
+        case .只在资料库中清除:
+            "由于VNDB API错误，当前无法通过API清除VNDB上的开始日期或结束日期。此更改将保留在PaperVN资料库中并与Paper Cloud同步。"
+        case .无法清除:
+            "由于VNDB API错误，当前无法清除VNDB上的开始日期或结束日期，其他更改已保存。你可以通过登录Paper账户来暂时解决此问题。"
+        }
+    }
 }

@@ -1,0 +1,2399 @@
+diff --git a/src/GLES.cpp b/src/GLES.cpp
+index 9b7605f..7da82e1 100644
+--- a/src/GLES.cpp
++++ b/src/GLES.cpp
+@@ -1,1032 +1,843 @@
+-#include <Windows.h>
+-#include <ncbind.hpp>
+-
+-#include <memory>
+-#include <string>
+-#include <vector>
+-
+-#include <glad/egl.h>
+-
+-#include "GLFrameBufferObject.h"
+-#include "GLTexture.h"
+-#include "GLEffect.h"
+-#include "GLClip.h"
+-
+-static GLADapiproc gladload(const char *name)
+-{
+-	return (GLADapiproc)eglGetProcAddress(name);
+-}
+-
+-enum class tTVPBlendMode : tjs_int {
+-	bmDisable = 0,
+-	bmOpaque = 1,
+-	bmAlpha = 2,
+-	bmAdd = 3,
+-	bmAddWithAlpha = 4,
+-	bmSubtract = 5,
+-	bmMultiply = 6,
+-	bmMin = 7,
+-	bmMax = 8,
+-	bmScreen = 9
+-};
+-
+-class GLESAdaptor {
+-
+- public:
+-  GLESAdaptor(iTJSDispatch2 *objthis, iTJSDispatch2 *window, bool forceD3D9);
+-  virtual ~GLESAdaptor();
+-
+-	static tjs_error factory(GLESAdaptor **result, tjs_int numparams, tTJSVariant **params, iTJSDispatch2 *objthis);
+-
+-  int getScreenWidth() const { return mWidth; };
+-  void setScreenWidth(int width) { setScreenSize(width, mHeight); }
+-  int getScreenHeight() const { return mHeight; };
+-  void setScreenHeight(int height) { setScreenSize(mWidth, height); }
+-  void setScreenSize(int width, int height);
+-
+-  void makeCurrent(); //< �R���e�L�X�g����
+-
+-  void alloc();  //< ���\�[�X����
+-  void free();   //< ���\�[�X���
+-
+-  void capture(tTJSVariant layer, tTJSVariant func, tTJSVariant param, tjs_uint32 color);  //< �`�挋�ʃL���v�`��
+-
+-  void copyLayer(tTJSVariant layer, int left, int top); //< ���C�����w��ʒu�ɃR�s�[
+-
+-  void drawLayer(tTJSVariant layer, float a, float b, float c, float d, float tx, float ty, int opacity=255);
+-
+-  void beginEffect();                                    //< 以降の描画を中間FBOへ捕捉開始
+-  void endEffect(tTJSVariant effect, int opacity = 255); //< 捕捉内容にエフェクトを適用し直前ターゲットへ opacity 込みで合成
+-
+-  // クリッピング (AffineLayer の clip / clipImage 相当)
+-  void setClipRect(int left, int top, int width, int height);  //< 矩形クリップ設定 (scissor)
+-  void clearClipRect();                                        //< 矩形クリップ解除
+-  void beginMaskClip();                                        //< マスククリップ捕捉開始 (中間FBO)
+-  void endMaskClip(tTJSVariant mask, float x, float y);        //< αマスク適用合成 (mask=void で素通し)
+-  void beginStencilClip(tTJSVariant mask, float x, float y, int threshold);  //< ステンシルクリップ開始
+-  void endStencilClip();                                       //< ステンシルクリップ終了
+-
+-  tjs_int64 GLGetProcAddress() {
+-    return reinterpret_cast<tjs_int64>(gladload);
+-  }
+-
+-  int getBlendMode() { return (int)mBlendMode; }
+-  void setBlendMode(int blendMode);
+-
+-  // capture の読み戻しで premultiplied-alpha を straight-alpha に戻すか。
+-  // GL 側で MSAA 等により縁が premultiplied になる描画を、吉里吉里の straight-alpha
+-  // レイヤへ合成する際の縁フリンジを防ぐ。既定 false (従来どおり素通し)。
+-  bool getUnpremultiply() { return mUnpremultiply; }
+-  void setUnpremultiply(bool b) { mUnpremultiply = b; }
+-
+- private:
+-  iTJSDispatch2 *objthis;
+-  iTJSDispatch2 *mWindow;
+-  HWND mHWND;
+-  HDC mDeviceContext;
+-  EGLDisplay mDisplay;
+-  EGLContext mContext;
+-  EGLSurface mSurface;
+-
+-  GLFrameBufferObject mFBO;
+-
+-  int mWidth;
+-  int mHeight;
+-
+-  HWND getHwnd();
+-
+-  void InitContext();
+-  void ReleaseContext();
+-
+-  static bool egl_inited;
+-  static bool gles_inited;
+-
+-  static std::vector<EGLContext> contextList;
+-
+-  bool mForceD3D9;
+-
+-	GLTextureDrawer *mTextureDrawer;
+-
+-  tTVPBlendMode mBlendMode;
+-  void ApplyBlendMode();
+-
+-  bool mDrawing;
+-  bool mUnpremultiply;///< capture 読み戻しで un-premultiply するか (既定 false)
+-
+-  // ポストエフェクト用
+-  GLFboPool mFboPool;
+-  GLEffectContext mEffectCtx;
+-  std::vector<GLuint> mTargetStack;                  //< beginEffect 時の退避ターゲット(FBO id)
+-  std::vector<GLFrameBufferObject *> mCaptureStack;  //< 捕捉中の中間FBO
+-  float mEffectSeed;                                 //< noise 用シード(endEffect毎に更新)
+-  void unwindEffects();                              //< 取りこぼした begin/end の後始末
+-
+-  // クリッピング用
+-  GLClipContext mClipCtx;
+-  bool  mClipRectEnabled;   //< 矩形クリップ有効
+-  int   mClipRect[4];       //< 矩形クリップ (レイヤ座標 l,t,w,h)
+-  GLint mScissorBox[4];     //< GL 座標系に変換済みの scissor 矩形
+-  bool  mStencilClip;       //< ステンシルクリップ有効
+-  void updateScissorBox();                                       //< mClipRect → mScissorBox 変換
+-  const GLint *scissorBox() const { return mClipRectEnabled ? mScissorBox : nullptr; }
+-  void resetClipState();                                         //< クリップ状態の強制解除
+-  GLTexture *resolveTexture(tTJSVariant &layer, int &width, int &height, bool &alloc);  //< Layer/GLESTexture からテクスチャ取得
+-};
+-
+-class GLESTexture {
+-public:
+-  GLESTexture();
+-  virtual ~GLESTexture();
+-  void load(tTJSVariant layer);
+-  int width() const { return _width; }
+-  int height() const { return _height; }
+-  GLTexture *getTexture() { return _texture; }
+-private:
+-  GLTexture *_texture;
+-  int _width;
+-  int _height;
+-};
+-
+-std::vector<EGLContext> GLESAdaptor::contextList;
+-
+-// ----------------------------------------------------------
+-
+-GLESAdaptor::GLESAdaptor(iTJSDispatch2 *objthis, iTJSDispatch2 *window, bool forceD3D9=false)
+-  : objthis(objthis),
+-    mWindow(window),
+-    mHWND(0),
+-    mDeviceContext(0),
+-    mDisplay(EGL_NO_DISPLAY),
+-    mContext(EGL_NO_CONTEXT),
+-    mSurface(EGL_NO_SURFACE),
+-    mWidth(32),
+-    mHeight(32),
+-    mForceD3D9(forceD3D9),
+-    mTextureDrawer(nullptr),
+-    mBlendMode(tTVPBlendMode::bmAlpha),
+-    mDrawing(false),
+-    mUnpremultiply(false),
+-    mEffectSeed(0.0f),
+-    mClipRectEnabled(false),
+-    mStencilClip(false)
+-{
+-  mWindow->AddRef();
+-  InitContext();
+-}
+-
+-GLESAdaptor::~GLESAdaptor() 
+-{
+-  free();
+-  if (mWindow) {
+-    mWindow->Release();
+-    mWindow = 0;
+-  }
+-}
+-
+-tjs_error GLESAdaptor::factory(GLESAdaptor **result, tjs_int numparams, tTJSVariant **params, iTJSDispatch2 *objthis) 
+-{
+-		if (numparams < 1) {
+-			return TJS_E_BADPARAMCOUNT;
+-		}
+-		iTJSDispatch2 *window = params[0]->AsObjectNoAddRef();
+-		if (window->IsInstanceOf(0, NULL, NULL, TJS_W("Window"), window) != TJS_S_TRUE) {
+-			TVPThrowExceptionMessage(TJS_W("InvalidObject"));
+-		}
+-
+-		bool forceD3D9 = numparams >= 2 ? params[1]->AsInteger() != 0 : false;
+-
+-		*result = new GLESAdaptor(objthis, window, forceD3D9);
+-		return S_OK;
+-}
+-
+-HWND GLESAdaptor::getHwnd()
+-{
+-  HWND hwnd = 0;
+-  if (mWindow) {
+-    tTJSVariant val;
+-    mWindow->PropGet(0, TJS_W("HWND"), NULL, &val, objthis);
+-    // HWND はポインタ。x64 では 64bit なので tjs_int(32bit) では切り詰められる。
+-    // 一旦フル幅整数で受けてからポインタ幅の intptr_t 経由でキャストする。
+-    hwnd = reinterpret_cast<HWND>((tjs_intptr_t)(tTVInteger)(val));
+-  }
+-  return hwnd;
+-}
+-
+-bool GLESAdaptor::egl_inited = false;
+-bool GLESAdaptor::gles_inited = false;
+-
+-// ANGLE の libEGL / libGLESv2 は plugin(64) フォルダに置かれるが、その DLL 検索
+-// パスは吉里吉里本体がプラグインロード時に設定済み (WINVER: SetDefaultDllDirectories
+-// + AddDllDirectory(PluginPath) / SDL: SetDllDirectory(PluginPath))。glad の
+-// LoadLibraryA("libEGL.dll") が既定検索でそれを拾うため、プラグイン側での
+-// SetDllDirectory 設定 (旧 DllPathSetter) は不要。
+-
+-#define EGL_PLATFORM_ANGLE_ANGLE          0x3202
+-#define EGL_PLATFORM_ANGLE_TYPE_ANGLE     0x3203
+-#define EGL_PLATFORM_ANGLE_TYPE_D3D9_ANGLE 0x3207
+-#define EGL_PLATFORM_ANGLE_DEVICE_TYPE_ANGLE 0x3209
+-#define EGL_PLATFORM_ANGLE_DEVICE_TYPE_HARDWARE_ANGLE 0x320A
+-
+-void GLESAdaptor::InitContext() 
+-{
+-  HWND hwnd = getHwnd();
+-  if (hwnd != mHWND) {
+-    ReleaseContext();
+-  }
+-
+-  if (!mContext) {
+-
+-    mHWND = hwnd;
+-    mDeviceContext = GetDC(mHWND);
+-
+-    if (!egl_inited) {
+-      // initial opengl
+-      {
+-        int egl_version = gladLoaderLoadEGL(nullptr);
+-        if (!egl_version) {
+-            TVPThrowExceptionMessage(TJS_W("Unable to load EGL."));
+-        }
+-        {
+-          ttstr major_version(GLAD_VERSION_MAJOR(egl_version));
+-          ttstr minor_version(GLAD_VERSION_MINOR(egl_version));
+-          TVPAddLog(TVPFormatMessage(TJS_W("GLESAdaptor:Loaded EGL %1.%2."), 
+-                    major_version, minor_version));
+-        }
+-      }
+-
+-      if (mForceD3D9) {
+-        EGLint displayAttributes[] = {
+-          EGL_PLATFORM_ANGLE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_TYPE_D3D9_ANGLE,
+-          EGL_PLATFORM_ANGLE_DEVICE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_DEVICE_TYPE_HARDWARE_ANGLE,
+-          EGL_NONE
+-        };
+-        mDisplay = eglGetPlatformDisplayEXT( EGL_PLATFORM_ANGLE_ANGLE, (EGLNativeDisplayType)mDeviceContext, displayAttributes );
+-      } else {
+-        mDisplay = eglGetDisplay((EGLNativeDisplayType)mDeviceContext);
+-      }
+-
+-      if (mDisplay == EGL_NO_DISPLAY) {
+-        TVPThrowExceptionMessage(TJS_W("fail to get platform depent display"));
+-      }
+-
+-      EGLint major, minor;
+-      if (!eglInitialize(mDisplay, &major, &minor)) {
+-        TVPThrowExceptionMessage(TJS_W("fail to initialize EGL"));
+-      }
+-
+-      int egl_version = gladLoaderLoadEGL(mDisplay);
+-      if (!egl_version) {
+-          TVPThrowExceptionMessage(TJS_W("Unable to reload EGL."));
+-      }
+-      {
+-        ttstr major_version(GLAD_VERSION_MAJOR(egl_version));
+-        ttstr minor_version(GLAD_VERSION_MINOR(egl_version));
+-        TVPAddLog(TVPFormatMessage(TJS_W("GLESAdaptor:Loaded EGL %1.%2 after reload."), 
+-                  major_version, minor_version));
+-      }
+-
+-      egl_inited = true;
+-
+-    } else {
+-
+-      if (mForceD3D9) {
+-        EGLint displayAttributes[] = {
+-          EGL_PLATFORM_ANGLE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_TYPE_D3D9_ANGLE,
+-          EGL_PLATFORM_ANGLE_DEVICE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_DEVICE_TYPE_HARDWARE_ANGLE,
+-          EGL_NONE
+-        };
+-        mDisplay = eglGetPlatformDisplayEXT( EGL_PLATFORM_ANGLE_ANGLE, (EGLNativeDisplayType)mDeviceContext, displayAttributes );
+-      } else {
+-        mDisplay = eglGetDisplay((EGLNativeDisplayType)mDeviceContext);
+-      }
+-
+-      if (mDisplay == EGL_NO_DISPLAY) {
+-        TVPThrowExceptionMessage(TJS_W("fail to get platform depent display"));
+-      }
+-
+-      EGLint major, minor;
+-      eglInitialize(mDisplay, &major, &minor);
+-
+-    }
+-
+-    // config
+-    // RGBA8888 + Stencil8 を要求する (krkrz 本体 EglContext.cpp と同基準)。
+-    // ステンシルはマスク描画 (Emote の目ぱち切り抜き等) に必要。
+-    EGLConfig config = nullptr;
+-    {
+-      EGLint configAttributes[] = {EGL_RENDERABLE_TYPE, EGL_OPENGL_ES3_BIT,
+-                                   EGL_RED_SIZE,     8,
+-                                   EGL_GREEN_SIZE,   8,
+-                                   EGL_BLUE_SIZE,    8,
+-                                   EGL_ALPHA_SIZE,   8,
+-                                   EGL_STENCIL_SIZE, 8,
+-                                   EGL_NONE};
+-      EGLint num_config = 0;
+-      eglChooseConfig(mDisplay, configAttributes, nullptr, 0, &num_config);
+-      if (num_config > 0) {
+-        std::vector<EGLConfig> configs(num_config);
+-        EGLint count = 0;
+-        eglChooseConfig(mDisplay, configAttributes, &configs[0], num_config, &count);
+-        // eglChooseConfig は要求値以上のチャネルを持つ config を
+-        // 深い色から順に返し得るので、ぴったり R=G=B=A=8 のものを選ぶ
+-        for (EGLint i = 0; i < count; i++) {
+-          EGLint r = 0, g = 0, b = 0, a = 0;
+-          eglGetConfigAttrib(mDisplay, configs[i], EGL_RED_SIZE,   &r);
+-          eglGetConfigAttrib(mDisplay, configs[i], EGL_GREEN_SIZE, &g);
+-          eglGetConfigAttrib(mDisplay, configs[i], EGL_BLUE_SIZE,  &b);
+-          eglGetConfigAttrib(mDisplay, configs[i], EGL_ALPHA_SIZE, &a);
+-          if (r == 8 && g == 8 && b == 8 && a == 8) {
+-            config = configs[i];
+-            break;
+-          }
+-        }
+-        if (!config && count > 0) {
+-          config = configs[0];
+-        }
+-      }
+-    }
+-    if (!config) {
+-      // ステンシル付きが取れない環境では従来条件で継続 (マスク描画は不完全になる)
+-      TVPAddLog(TJS_W("GLESAdaptor: no RGBA8888+Stencil8 EGL config, fallback to RGBA8888 only"));
+-      EGLint configAttributes[] = {EGL_RENDERABLE_TYPE, EGL_OPENGL_ES3_BIT,
+-                                   EGL_BUFFER_SIZE, 32, EGL_NONE};
+-      EGLint num_config = 0;
+-      eglChooseConfig(mDisplay, configAttributes, &config, 1, &num_config);
+-      if (num_config <= 0 || !config) {
+-        TVPThrowExceptionMessage(TJS_W("fail to choose EGL config"));
+-      }
+-    }
+-
+-    // context
+-    EGLint contextAttributes[] = {EGL_CONTEXT_CLIENT_VERSION, 3, EGL_NONE};
+-
+-    auto shareContext = contextList.size() == 0 ? EGL_NO_CONTEXT : contextList.at(0);
+-    mContext = eglCreateContext(mDisplay, config, shareContext, contextAttributes);
+-    contextList.push_back(mContext);
+-
+-    // surface
+-    mSurface = eglCreateWindowSurface(mDisplay, config, mHWND, NULL);
+-
+-    eglMakeCurrent(mDisplay, mSurface, mSurface, mContext);
+-    eglBindAPI(EGL_OPENGL_ES_API);
+-
+-    if (!gles_inited) {
+-      // glad �� GLES ��������(egl�o�R�ŏ��������)
+-      int gles_version = gladLoadGLES2(gladload);
+-      if (!gles_version) {
+-          TVPThrowExceptionMessage(TJS_W("Unable to load GLES."));
+-      }
+-      {
+-        ttstr major_version(GLAD_VERSION_MAJOR(gles_version));
+-        ttstr minor_version(GLAD_VERSION_MINOR(gles_version));
+-        TVPAddLog(TVPFormatMessage(TJS_W("GLESAdaptor:Loaded GLES %1.%2."),
+-                  major_version, minor_version));
+-      }
+-      gles_inited = true;
+-    }
+-
+-    if (!mTextureDrawer) {
+-      mTextureDrawer = new GLTextureDrawer();
+-      mTextureDrawer->Init();
+-    }
+-  }
+-}
+-
+-void GLESAdaptor::ReleaseContext() {
+-  if (mHWND) {
+-    unwindEffects();
+-    mClipRectEnabled = false;
+-    mStencilClip = false;
+-    mClipCtx.done();
+-    mEffectCtx.done();
+-    mFboPool.clear();
+-    if (mTextureDrawer) {
+-      mTextureDrawer->Done();
+-      delete mTextureDrawer;
+-      mTextureDrawer = nullptr;
+-    }
+-    if (mSurface) eglDestroySurface(mDisplay, mSurface);
+-    if (mContext) {
+-      contextList.erase(std::remove(std::begin(contextList), std::end(contextList), mContext), std::end(contextList));
+-      eglDestroyContext(mDisplay, mContext);
+-    }
+-    if (mDisplay) eglTerminate(mDisplay);
+-    if (mDeviceContext) ReleaseDC(mHWND, mDeviceContext);
+-    mDeviceContext = NULL;
+-    mDisplay = EGL_NO_DISPLAY;
+-    mContext = EGL_NO_CONTEXT;
+-    mSurface = EGL_NO_SURFACE;
+-    mHWND = NULL;
+-  }
+-}
+-
+-void GLESAdaptor::setScreenSize(int width, int height) { 
+-  if (mWidth != width || mHeight != height) {
+-    mWidth = width; 
+-    mHeight = height; 
+-    mFBO.destory();
+-  }
+-}
+-
+-void GLESAdaptor::makeCurrent()
+-{
+-  InitContext();
+-  if (mContext) {
+-    eglMakeCurrent(mDisplay, mSurface, mSurface, mContext);
+-  }
+-}
+-
+-void GLESAdaptor::alloc() 
+-{
+-  makeCurrent();
+-  if (mContext) {
+-    if (!mFBO.textureId()) {
+-      mFBO.create(mWidth, mHeight, GL_BGRA_EXT);
+-    }
+-  }
+-}
+-
+-void GLESAdaptor::free() 
+-{
+-  mFBO.destory();
+-  ReleaseContext();
+-}
+-
+-void GLESAdaptor::capture(tTJSVariant layer, tTJSVariant callback, tTJSVariant param, tjs_uint32 color) {
+-
+-	if (layer.AsObjectNoAddRef()->IsInstanceOf(0, 0, 0, TJS_W("Layer"), NULL) != TJS_S_TRUE) {
+-		TVPThrowExceptionMessage(TJS_W("not layer"));
+-	}
+-
+-  alloc();
+-
+-  if (!mContext || !mFBO.textureId()) {
+-    return;
+-  }
+-
+-  // �`�揀��
+-  // ���݂�FB��ۑ�
+-  GLint fb;
+-  glGetIntegerv(GL_FRAMEBUFFER_BINDING, &fb);
+-
+-  mFBO.bindFramebuffer();
+-  // 前フレームで解除し損ねたクリップ状態が残っているとクリアが欠けるため強制解除
+-  resetClipState();
+-  float a = ((color >> 24) & 0xff) / 255.0f;
+-  float r = ((color >> 16) & 0xff) / 255.0f;
+-  float g = ((color >> 8) & 0xff) / 255.0f;
+-  float b = ((color >> 0) & 0xff) / 255.0f;
+-  glClearColor(r, g, b, a);
+-  glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+-
+-  // blendmode������
+-  ApplyBlendMode();
+-
+-  mDrawing = true;
+-  // �`�揈���Ăяo��
+-	if (callback.Type() == tvtObject) {
+-    tTJSVariant width = mWidth;
+-    tTJSVariant height = mHeight;
+-    tTJSVariant *vars[3] = {&width, &height, &param};
+-    callback.AsObjectClosureNoAddRef().FuncCall(0,0,0,NULL,3,vars,objthis);
+-  }
+-  mDrawing = false;
+-
+-  // begin/end の取りこぼしを後始末し、読み戻し先を確実に mFBO へ戻す
+-  unwindEffects();
+-  resetClipState();
+-  mFBO.bindFramebuffer();
+-
+-  // �`�抮��
+-  glFlush();
+-
+-  // �擾�o�b�t�@
+-	std::unique_ptr<char[]> buffer(new char[mWidth*mHeight*4]);
+-	glReadPixels(0, 0, mWidth, mHeight, mFBO.format(), GL_UNSIGNED_BYTE, &buffer[0] );
+-
+-  // ���C����resize���ăL���v�`�����s
+-  ncbPropAccessor p(layer.AsObjectNoAddRef());
+-  p.FuncCall(0, TJS_W("setSize"), 0, NULL, mWidth, mHeight);
+-	char *dst = (char*)p.getIntPtrValue(TJS_W("mainImageBufferForWrite"));
+-  int dst_pitch = (int)p.getIntValue(TJS_W("mainImageBufferPitch"));
+-
+-  if (mFBO.format() == GL_BGRA_EXT) {
+-    char *src = (char*)&buffer[0];
+-    int src_pitch = mWidth * 4;
+-    for (tjs_int i = 0; i < mHeight; i++ ) {
+-      // Y�����͋t���ɓ��ꊷ��
+-      char* dest = dst + dst_pitch * (mHeight - i - 1);
+-      if (mUnpremultiply) {
+-        // premultiplied-alpha を straight-alpha へ戻す (RGB = RGB*255/A)。
+-        // MSAA 等で縁が premultiplied になる描画を straight-alpha レイヤへ綺麗に合成するため。
+-        const unsigned char* s = (const unsigned char*)src;
+-        unsigned char* d = (unsigned char*)dest;
+-        for (tjs_int x = 0; x < mWidth; x++) {
+-          unsigned int a = s[3];
+-          if (a == 0) {
+-            d[0] = d[1] = d[2] = d[3] = 0;
+-          } else if (a >= 255) {
+-            d[0] = s[0]; d[1] = s[1]; d[2] = s[2]; d[3] = 255;
+-          } else {
+-            unsigned int r = (s[0] * 255u + a / 2) / a;
+-            unsigned int g = (s[1] * 255u + a / 2) / a;
+-            unsigned int b = (s[2] * 255u + a / 2) / a;
+-            d[0] = (unsigned char)(r > 255u ? 255u : r);
+-            d[1] = (unsigned char)(g > 255u ? 255u : g);
+-            d[2] = (unsigned char)(b > 255u ? 255u : b);
+-            d[3] = (unsigned char)a;
+-          }
+-          s += 4; d += 4;
+-        }
+-      } else {
+-        ::memcpy(dest, src, src_pitch);
+-      }
+-      src += src_pitch;
+-    }
+-
+-  } else {
+-    char *src = &buffer[0];
+-    for( tjs_int i = 0; i < mHeight; i++ ) {
+-      // Y�����͋t���ɓ��ꊷ��
+-      tjs_uint32* dest = (tjs_uint32*)(dst + dst_pitch * (mHeight - i - 1));
+-      // XXX TVPRedBlueSwapCopy(dest, src, mWidth);
+-      src += mWidth;
+-    }
+-  }
+-
+-  // ���� FB��߂��Ă���
+-  glBindFramebuffer(GL_FRAMEBUFFER, fb);
+-}
+-
+-void GLESAdaptor::ApplyBlendMode() {
+-	if( mBlendMode == tTVPBlendMode::bmDisable ) {
+-		glDisable( GL_BLEND );
+-	} else {
+-		glEnable( GL_BLEND );
+-		switch( mBlendMode ) {
+-		case tTVPBlendMode::bmOpaque:
+-			glBlendEquationSeparate(GL_FUNC_ADD, GL_FUNC_ADD);
+-			glBlendFuncSeparate( GL_ONE, GL_ZERO, GL_ONE, GL_ZERO );
+-			break;
+-		case tTVPBlendMode::bmAdd:
+-			glBlendEquationSeparate(GL_FUNC_ADD, GL_FUNC_ADD);
+-			glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE, GL_ZERO, GL_ONE);
+-			break;
+-		case tTVPBlendMode::bmAddWithAlpha:
+-			glBlendEquation( GL_FUNC_ADD );
+-			glBlendFunc( GL_SRC_ALPHA, GL_ONE );
+-			break;
+-		case tTVPBlendMode::bmSubtract:
+-			glBlendEquationSeparate(GL_FUNC_REVERSE_SUBTRACT, GL_FUNC_ADD);
+-			glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE, GL_ZERO, GL_ONE);
+-			break;
+-		case tTVPBlendMode::bmMultiply:
+-			glBlendEquationSeparate(GL_FUNC_ADD, GL_FUNC_ADD);
+-			glBlendFuncSeparate(GL_DST_COLOR, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE);
+-			break;
+-		case tTVPBlendMode::bmMin:
+-			glBlendEquation( GL_MIN );
+-			glBlendFunc( GL_ONE, GL_ONE );
+-			break;
+-		case tTVPBlendMode::bmMax:
+-			glBlendEquation( GL_MAX );
+-			glBlendFunc( GL_ONE, GL_ONE );
+-			break;
+-		case tTVPBlendMode::bmScreen:
+-			glBlendEquationSeparate(GL_FUNC_ADD, GL_FUNC_ADD);
+-			glBlendFuncSeparate(GL_ONE_MINUS_DST_COLOR, GL_ONE, GL_ZERO, GL_ONE);
+-			break;
+-		case tTVPBlendMode::bmAlpha:
+-		default:
+-			glBlendEquationSeparate(GL_FUNC_ADD, GL_FUNC_ADD);
+-			glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+-			break;
+-		}
+-	}
+-}
+-
+-void GLESAdaptor::setBlendMode(int blendMode)
+-{
+-  if (mBlendMode != (tTVPBlendMode)blendMode) {
+-    mBlendMode = (tTVPBlendMode)blendMode;
+-    if (mDrawing) {
+-      ApplyBlendMode();
+-    }
+-  }
+-}
+-
+-void GLESAdaptor::copyLayer(tTJSVariant layer, int left, int top)
+-{
+-  drawLayer(layer, 1.0, 0.0, 0.0, 1.0, (float)left, (float)top, 255);
+-}
+-
+-// Layer または GLESTexture の variant から描画用テクスチャを得る。
+-// Layer の場合は一時テクスチャを生成し alloc=true を返す (呼び出し側で delete)。
+-GLTexture *GLESAdaptor::resolveTexture(tTJSVariant &layer, int &width, int &height, bool &alloc)
+-{
+-  GLTexture *texture = nullptr;
+-  width = 0;
+-  height = 0;
+-  alloc = false;
+-
+-  if (layer.AsObjectNoAddRef()->IsInstanceOf(0, 0, 0, TJS_W("Layer"), NULL) == TJS_S_TRUE) {
+-    // ���C���̓��e��`��
+-    ncbPropAccessor p(layer.AsObjectNoAddRef());
+-    char *src      = (char*)p.getIntPtrValue(TJS_W("mainImageBuffer"));
+-    width      = (int)p.getIntValue(TJS_W("width"));
+-    height     = (int)p.getIntValue(TJS_W("height"));
+-    int src_pitch  = (int)p.getIntValue(TJS_W("mainImageBufferPitch"));
+-    if (width > 0 && height > 0 && src != 0) {
+-      alloc = true;
+-      texture = new GLTexture(width, height, nullptr, GL_BGRA_EXT);
+-      texture->UpdateTexture(0, 0, width, height, [src,src_pitch,width,height](char *dest, int pitch) {
+-        // �㉺���]
+-        char *s = src + src_pitch * (height - 1);
+-        for (int i = 0; i < height; i++) {
+-          memcpy(dest, s, width*4);
+-          s -= src_pitch;
+-          dest += pitch;
+-        }
+-      });
+-    }
+-  } else {
+-    // �����ς݂̂��̂���擾
+-    GLESTexture *lay = ncbInstanceAdaptor<GLESTexture>::GetNativeInstance(layer.AsObjectNoAddRef());
+-    if (lay) {
+-      texture = lay->getTexture();
+-      width   = lay->width();
+-      height  = lay->height();
+-    } else {
+-	  	TVPThrowExceptionMessage(TJS_W("not layer"));
+-	  }
+-  }
+-  return texture;
+-}
+-
+-void GLESAdaptor::drawLayer(tTJSVariant layer, float a, float b, float c, float d, float tx, float ty, int opacity)
+-{
+-  if (!mTextureDrawer) {
+-    return;
+-  }
+-
+-  // 直前に Emote/Live2D 等のモジュールが自前で描画していると、そのブレンド設定が
+-  // 残ったままここへ来る (E-mote は glBlendFuncSeparate(ONE, ZERO, ZERO, ONE) を残す)。
+-  // その状態で描くと RGB は書けても α が書かれず、マスク合成や不透明度合成の
+-  // 段階で消えてしまうため、描画前に必ず自分のブレンドモードを当て直す。
+-  ApplyBlendMode();
+-
+-  GLTexture *texture = nullptr;
+-  int width = 0;
+-  int height = 0;
+-  bool alloc = false;
+-
+-  texture = resolveTexture(layer, width, height, alloc);
+-
+-  if (texture) {
+-    GLfloat _position[8];
+-    int w = width;
+-    int h = height;
+-    int w2 = mWidth/2;
+-    int h2 = mHeight/2;
+-    tx -= w2;
+-    ty -= h2;
+-    _position[0] =   tx / w2; // left top
+-    _position[1] = - ty / h2;
+-    _position[2] =   (b * h + tx) / w2;  // left bottom
+-    _position[3] = - (d * h + ty) / h2;
+-    _position[4] =   (a * w + tx) / w2; // right top
+-    _position[5] = - (c * w + ty) / h2;
+-    _position[6] =   (a * w + b * h + tx) / w2; // right bottom
+-    _position[7] = - (c * w + d * h + ty) / h2;
+-    mTextureDrawer->DrawTexture(texture, mWidth, mHeight, _position, width, height, opacity,
+-                                scissorBox(), mStencilClip);
+-    if (alloc) {
+-      delete texture;
+-    }
+-  }
+-}
+-
+-//-----------------------------------------------------
+-// クリッピング
+-//-----------------------------------------------------
+-
+-// mClipRect (レイヤ座標、左上原点) を GL 座標系 (左下原点) の scissor 矩形へ変換
+-void GLESAdaptor::updateScissorBox()
+-{
+-  int w = mClipRect[2] > 0 ? mClipRect[2] : 0;
+-  int h = mClipRect[3] > 0 ? mClipRect[3] : 0;
+-  mScissorBox[0] = mClipRect[0];
+-  mScissorBox[1] = mHeight - mClipRect[1] - h;
+-  mScissorBox[2] = w;
+-  mScissorBox[3] = h;
+-}
+-
+-void GLESAdaptor::setClipRect(int left, int top, int width, int height)
+-{
+-  mClipRect[0] = left;
+-  mClipRect[1] = top;
+-  mClipRect[2] = width;
+-  mClipRect[3] = height;
+-  mClipRectEnabled = true;
+-  updateScissorBox();
+-  // モジュール(Emote/Live2D 等)が直接描画する場合に備えて即時適用もしておく
+-  if (mContext) {
+-    glEnable(GL_SCISSOR_TEST);
+-    glScissor(mScissorBox[0], mScissorBox[1], mScissorBox[2], mScissorBox[3]);
+-  }
+-}
+-
+-void GLESAdaptor::clearClipRect()
+-{
+-  mClipRectEnabled = false;
+-  if (mContext) {
+-    glDisable(GL_SCISSOR_TEST);
+-  }
+-}
+-
+-// クリップ状態の強制解除 (フレーム開始/終了時の後始末用)
+-void GLESAdaptor::resetClipState()
+-{
+-  mClipRectEnabled = false;
+-  mStencilClip = false;
+-  if (mContext) {
+-    glDisable(GL_SCISSOR_TEST);
+-    glDisable(GL_STENCIL_TEST);
+-  }
+-}
+-
+-// マスククリップ捕捉開始。内容は beginEffect と同じ (中間FBOへリダイレクト)。
+-void GLESAdaptor::beginMaskClip()
+-{
+-  beginEffect();
+-}
+-
+-// 捕捉内容へ αマスクを適用して直前ターゲットへ合成する。
+-//   mask : GLESTexture または Layer。void なら素通し合成
+-//          (矩形クリップだけを合成時に適用したい場合に使う)。
+-//   x, y : マスク配置位置 (レイヤ座標)
+-// マスク矩形の外側は α=0 (CPU 版 Layer.clipAlphaRect の第8引数 0 相当)。
+-void GLESAdaptor::endMaskClip(tTJSVariant mask, float x, float y)
+-{
+-  if (mCaptureStack.empty()) {
+-    return;  // begin/end 不整合
+-  }
+-
+-  GLFrameBufferObject *cap = mCaptureStack.back();
+-  mCaptureStack.pop_back();
+-  GLuint prevFb = mTargetStack.back();
+-  mTargetStack.pop_back();
+-
+-  if (!mClipCtx.ready()) {
+-    mClipCtx.init();
+-  }
+-
+-  GLTexture *maskTex = nullptr;
+-  int maskW = 0, maskH = 0;
+-  bool alloc = false;
+-  if (mask.Type() == tvtObject) {
+-    maskTex = resolveTexture(mask, maskW, maskH, alloc);
+-  }
+-
+-  glBindFramebuffer(GL_FRAMEBUFFER, prevFb);
+-  glViewport(0, 0, mWidth, mHeight);
+-  ApplyBlendMode();
+-
+-  float uScale = 1.0f, vScale = 1.0f;
+-  if (maskTex && maskTex->width() > 0 && maskTex->height() > 0) {
+-    uScale = (float)maskW / maskTex->width();
+-    vScale = (float)maskH / maskTex->height();
+-  }
+-  mClipCtx.drawMaskComposite(cap->textureId(), maskTex, x, y, (float)maskW, (float)maskH,
+-                             uScale, vScale, mWidth, mHeight, scissorBox());
+-
+-  if (alloc && maskTex) {
+-    delete maskTex;
+-  }
+-  mFboPool.release(cap);
+-}
+-
+-// マスク画像の α を現ターゲットのステンシルへ書き込み、
+-// 以降の drawLayer をステンシルで切り抜く。
+-//   threshold : ステンシルを立てる α 閾値 (1～255)。0 以下は 1 扱い。
+-// 注意: 描画モジュールが自前でステンシルを使う場合 (Emote 等) は競合するため
+-//       単純テクスチャ描画ソース専用。モジュール系は mask 方式を使うこと。
+-void GLESAdaptor::beginStencilClip(tTJSVariant mask, float x, float y, int threshold)
+-{
+-  if (!mContext) {
+-    return;
+-  }
+-  if (!mClipCtx.ready()) {
+-    mClipCtx.init();
+-  }
+-
+-  GLTexture *maskTex = nullptr;
+-  int maskW = 0, maskH = 0;
+-  bool alloc = false;
+-  maskTex = resolveTexture(mask, maskW, maskH, alloc);
+-  if (!maskTex) {
+-    return;
+-  }
+-
+-  // ステンシルは全面クリアしたいので scissor を一時解除
+-  glDisable(GL_SCISSOR_TEST);
+-  glStencilMask(0xFF);
+-  glClearStencil(0);
+-  glClear(GL_STENCIL_BUFFER_BIT);
+-
+-  float uScale = maskTex->width()  > 0 ? (float)maskW / maskTex->width()  : 1.0f;
+-  float vScale = maskTex->height() > 0 ? (float)maskH / maskTex->height() : 1.0f;
+-  if (threshold <= 0) threshold = 1;
+-  if (threshold > 255) threshold = 255;
+-  mClipCtx.drawStencilWrite(maskTex, x, y, (float)maskW, (float)maskH,
+-                            uScale, vScale, mWidth, mHeight, threshold / 255.0f);
+-
+-  if (alloc) {
+-    delete maskTex;
+-  }
+-  mStencilClip = true;
+-}
+-
+-void GLESAdaptor::endStencilClip()
+-{
+-  mStencilClip = false;
+-  if (mContext) {
+-    glDisable(GL_STENCIL_TEST);
+-  }
+-}
+-
+-//-----------------------------------------------------
+-// ポストエフェクト
+-//-----------------------------------------------------
+-
+-void GLESAdaptor::beginEffect()
+-{
+-  if (!mContext) {
+-    return;
+-  }
+-  if (!mEffectCtx.ready()) {
+-    mEffectCtx.init();
+-  }
+-
+-  // 現在のレンダーターゲットを退避
+-  GLint fb = 0;
+-  glGetIntegerv(GL_FRAMEBUFFER_BINDING, &fb);
+-  mTargetStack.push_back((GLuint)fb);
+-
+-  // 中間FBOを捕捉先にする
+-  GLFrameBufferObject *cap = mFboPool.acquire(mWidth, mHeight);
+-  mCaptureStack.push_back(cap);
+-  cap->bindFramebuffer();
+-  // scissor が有効なままだとクリアが欠けるので一時無効化して全面クリア
+-  // (矩形クリップは drawLayer / 合成時に個別に適用される)
+-  glDisable(GL_SCISSOR_TEST);
+-  glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+-  glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+-}
+-
+-// 捕捉内容へエフェクトを適用し、直前ターゲットへ現在のブレンドモードで合成する。
+-//   opacity : 合成時に α へ乗算する不透明度 (0～255)。
+-//             Emote/Live2D 等、自前描画で opacity を解釈しないモジュールの
+-//             レイヤ不透明度をここで反映するために使う。
+-void GLESAdaptor::endEffect(tTJSVariant effect, int opacity)
+-{
+-  if (mCaptureStack.empty()) {
+-    return;  // begin/end 不整合
+-  }
+-
+-  GLFrameBufferObject *cap = mCaptureStack.back();
+-  mCaptureStack.pop_back();
+-  GLuint prevFb = mTargetStack.back();
+-  mTargetStack.pop_back();
+-
+-  // コマンド配列をコンパイルして適用(GPU内で完結)
+-  mEffectSeed += 1.0f;  // noise を毎回変化させる
+-  mEffectCtx.setSeed(mEffectSeed);
+-  GLEffectChain chain;
+-  chain.compile(effect);
+-  GLFrameBufferObject *produced = chain.apply(cap->textureId(), mWidth, mHeight, mFboPool, mEffectCtx);
+-  GLuint resultTex = produced ? produced->textureId() : cap->textureId();
+-
+-  // 直前のターゲットへ現在のブレンドモードで合成
+-  glBindFramebuffer(GL_FRAMEBUFFER, prevFb);
+-  glViewport(0, 0, mWidth, mHeight);
+-  ApplyBlendMode();
+-  // 素通し描画 (矩形クリップが有効ならこの合成にも適用する)
+-  if (opacity < 0) opacity = 0;
+-  if (opacity > 255) opacity = 255;
+-  mEffectCtx.drawPointwise(resultTex, nullptr, nullptr, 0, mWidth, mHeight, scissorBox(),
+-                           opacity / 255.0f);
+-
+-  // 後始末
+-  if (produced) mFboPool.release(produced);
+-  mFboPool.release(cap);
+-}
+-
+-void GLESAdaptor::unwindEffects()
+-{
+-  // capture 終了時などに begin/end の取りこぼしがあれば解放
+-  for (size_t i = 0; i < mCaptureStack.size(); i++) {
+-    mFboPool.release(mCaptureStack[i]);
+-  }
+-  mCaptureStack.clear();
+-  mTargetStack.clear();
+-}
+-
+-//-----------------------------------------------------
+-
+-
+-GLESTexture::GLESTexture()
+-  : _texture(nullptr)
+-  , _width(0)
+-  , _height(0)  
+-{
+-}
+-
+-GLESTexture::~GLESTexture() 
+-{
+-  if (_texture) {
+-    delete _texture;
+-    _texture = nullptr;
+-  }
+-}
+-
+-void GLESTexture::load(tTJSVariant layer) 
+-{
+-  if (layer.AsObjectNoAddRef()->IsInstanceOf(0, 0, 0, TJS_W("Layer"), NULL) == TJS_S_FALSE) {
+-    TVPThrowExceptionMessage(TJS_W("not layer"));
+-  }
+-
+-  // ���C���̓��e��`��
+-  ncbPropAccessor p(layer.AsObjectNoAddRef());
+-  char *src      = (char*)p.getIntPtrValue(TJS_W("mainImageBuffer"));
+-  int width      = (int)p.getIntValue(TJS_W("width"));
+-  int height     = (int)p.getIntValue(TJS_W("height"));
+-  int src_pitch  = (int)p.getIntValue(TJS_W("mainImageBufferPitch"));
+-
+-  if (width > 0 && height > 0) {
+-    if (_texture && (_texture->width() < width || _texture->height() < height)) {
+-      delete _texture;
+-      _texture = nullptr;
+-    }
+-    if (!_texture) {
+-      _texture = new GLTexture(width, height, nullptr, GL_BGRA_EXT);
+-      _width = width;
+-      _height = height;
+-    }
+-    _texture->UpdateTexture(0, 0, width, height, [src,src_pitch,width,height](char *dest, int pitch) {
+-      // �㉺���]
+-      char *s = src + src_pitch * (height - 1);
+-      for (int i = 0; i < height; i++) {
+-        memcpy(dest, s, width*4);
+-        s -= src_pitch;
+-        dest += pitch;
+-      }
+-    });
+-  }
+-}
+-
+-//-----------------------------------------------------
+-
+-// endEffect は opacity を後から追加したため、旧来の endEffect(cmds) 呼び出し
+-// (他プロジェクトが共有する engine/*.tjs) をそのまま通せるよう生コールバックで
+-// 登録して引数を省略可能にする。
+-static tjs_error TJS_INTF_METHOD endEffectCallback(tTJSVariant *result, tjs_int numparams,
+-                                                   tTJSVariant **param, GLESAdaptor *self)
+-{
+-  if (numparams < 1) return TJS_E_BADPARAMCOUNT;
+-  int opacity = 255;
+-  if (numparams >= 2 && param[1]->Type() != tvtVoid) {
+-    opacity = (int)(tjs_int)*param[1];
+-  }
+-  self->endEffect(*param[0], opacity);
+-  return TJS_S_OK;
+-}
+-
+-NCB_REGISTER_CLASS(GLESAdaptor) {
+-	Factory(&Class::factory);
+-  NCB_PROPERTY(screenWidth, getScreenWidth, setScreenWidth);
+-  NCB_PROPERTY(screenHeight, getScreenHeight, setScreenHeight);
+-  NCB_PROPERTY(unpremultiply, getUnpremultiply, setUnpremultiply);// capture 読み戻しで un-premultiply (既定 false)
+-  NCB_METHOD(setScreenSize);
+-  NCB_METHOD(makeCurrent);
+-  NCB_METHOD(capture);
+-  NCB_METHOD(copyLayer);
+-  NCB_METHOD(drawLayer);
+-  NCB_METHOD(beginEffect);
+-  NCB_METHOD_RAW_CALLBACK(endEffect, &endEffectCallback, 0);
+-  NCB_METHOD(setClipRect);
+-  NCB_METHOD(clearClipRect);
+-  NCB_METHOD(beginMaskClip);
+-  NCB_METHOD(endMaskClip);
+-  NCB_METHOD(beginStencilClip);
+-  NCB_METHOD(endStencilClip);
+-  NCB_PROPERTY(blendMode, getBlendMode, setBlendMode);
+-  NCB_PROPERTY_RO(GLGetProcAddress, GLGetProcAddress);
+-};
+-
+-NCB_REGISTER_CLASS(GLESTexture) {
+-  NCB_CONSTRUCTOR(());
+-  NCB_METHOD(load);
+-  NCB_PROPERTY_RO(width, width);
+-  NCB_PROPERTY_RO(height, height);
+-};
++#include <Windows.h>
++#include <ncbind.hpp>
++
++#include <memory>
++#include <string>
++#include <vector>
++
++#include <glad/egl.h>
++
++#include "GLFrameBufferObject.h"
++#include "GLTexture.h"
++#include "GLEffect.h"
++#include "GLClip.h"
++
++static GLADapiproc gladload(const char *name)
++{
++	return eglGetProcAddress(name);
++}
++
++// PaperVN：krkr2 的图层内存是 RGBA（吉里吉里Z 是 BGRA），和这边的纹理、读回格式相同，不用交换红蓝
++
++enum class tTVPBlendMode : tjs_int {
++	bmDisable = 0,
++	bmOpaque = 1,
++	bmAlpha = 2,
++	bmAdd = 3,
++	bmAddWithAlpha = 4,
++	bmSubtract = 5,
++	bmMultiply = 6,
++	bmMin = 7,
++	bmMax = 8,
++	bmScreen = 9
++};
++
++class GLESAdaptor {
++
++ public:
++  GLESAdaptor(iTJSDispatch2 *objthis, iTJSDispatch2 *window, bool forceD3D9);
++  virtual ~GLESAdaptor();
++
++	static tjs_error factory(GLESAdaptor **result, tjs_int numparams, tTJSVariant **params, iTJSDispatch2 *objthis);
++
++  int getScreenWidth() const { return mWidth; };
++  void setScreenWidth(int width) { setScreenSize(width, mHeight); }
++  int getScreenHeight() const { return mHeight; };
++  void setScreenHeight(int height) { setScreenSize(mWidth, height); }
++  void setScreenSize(int width, int height);
++
++  void makeCurrent(); //< �R���e�L�X�g����
++
++  void alloc();  //< ���\�[�X����
++  void free();   //< ���\�[�X���
++
++  void capture(tTJSVariant layer, tTJSVariant func, tTJSVariant param, tjs_uint32 color);  //< �`�挋�ʃL���v�`��
++
++  void copyLayer(tTJSVariant layer, int left, int top); //< ���C�����w��ʒu�ɃR�s�[
++
++  void drawLayer(tTJSVariant layer, float a, float b, float c, float d, float tx, float ty, int opacity=255);
++
++  void beginEffect();                                    //< 以降の描画を中間FBOへ捕捉開始
++  void endEffect(tTJSVariant effect, int opacity = 255); //< 捕捉内容にエフェクトを適用し直前ターゲットへ opacity 込みで合成
++
++  // クリッピング (AffineLayer の clip / clipImage 相当)
++  void setClipRect(int left, int top, int width, int height);  //< 矩形クリップ設定 (scissor)
++  void clearClipRect();                                        //< 矩形クリップ解除
++  void beginMaskClip();                                        //< マスククリップ捕捉開始 (中間FBO)
++  void endMaskClip(tTJSVariant mask, float x, float y);        //< αマスク適用合成 (mask=void で素通し)
++  void beginStencilClip(tTJSVariant mask, float x, float y, int threshold);  //< ステンシルクリップ開始
++  void endStencilClip();                                       //< ステンシルクリップ終了
++
++  tjs_int64 GLGetProcAddress() {
++    return reinterpret_cast<tjs_int64>(gladload);
++  }
++
++  int getBlendMode() { return (int)mBlendMode; }
++  void setBlendMode(int blendMode);
++
++  // capture の読み戻しで premultiplied-alpha を straight-alpha に戻すか。
++  // GL 側で MSAA 等により縁が premultiplied になる描画を、吉里吉里の straight-alpha
++  // レイヤへ合成する際の縁フリンジを防ぐ。既定 false (従来どおり素通し)。
++  bool getUnpremultiply() { return mUnpremultiply; }
++  void setUnpremultiply(bool b) { mUnpremultiply = b; }
++
++ private:
++  iTJSDispatch2 *objthis;
++  iTJSDispatch2 *mWindow;
++  bool mContext;
++
++  GLFrameBufferObject mFBO;
++
++  int mWidth;
++  int mHeight;
++
++  void InitContext();
++  void ReleaseContext();
++
++  bool mForceD3D9;
++
++	GLTextureDrawer *mTextureDrawer;
++
++  tTVPBlendMode mBlendMode;
++  void ApplyBlendMode();
++
++  bool mDrawing;
++  bool mUnpremultiply;///< capture 読み戻しで un-premultiply するか (既定 false)
++
++  // ポストエフェクト用
++  GLFboPool mFboPool;
++  GLEffectContext mEffectCtx;
++  std::vector<GLuint> mTargetStack;                  //< beginEffect 時の退避ターゲット(FBO id)
++  std::vector<GLFrameBufferObject *> mCaptureStack;  //< 捕捉中の中間FBO
++  float mEffectSeed;                                 //< noise 用シード(endEffect毎に更新)
++  void unwindEffects();                              //< 取りこぼした begin/end の後始末
++
++  // クリッピング用
++  GLClipContext mClipCtx;
++  bool  mClipRectEnabled;   //< 矩形クリップ有効
++  int   mClipRect[4];       //< 矩形クリップ (レイヤ座標 l,t,w,h)
++  GLint mScissorBox[4];     //< GL 座標系に変換済みの scissor 矩形
++  bool  mStencilClip;       //< ステンシルクリップ有効
++  void updateScissorBox();                                       //< mClipRect → mScissorBox 変換
++  const GLint *scissorBox() const { return mClipRectEnabled ? mScissorBox : nullptr; }
++  void resetClipState();                                         //< クリップ状態の強制解除
++  GLTexture *resolveTexture(tTJSVariant &layer, int &width, int &height, bool &alloc);  //< Layer/GLESTexture からテクスチャ取得
++};
++
++class GLESTexture {
++public:
++  GLESTexture();
++  virtual ~GLESTexture();
++  void load(tTJSVariant layer);
++  int width() const { return _width; }
++  int height() const { return _height; }
++  GLTexture *getTexture() { return _texture; }
++private:
++  GLTexture *_texture;
++  int _width;
++  int _height;
++};
++
++// ----------------------------------------------------------
++
++GLESAdaptor::GLESAdaptor(iTJSDispatch2 *objthis, iTJSDispatch2 *window, bool forceD3D9=false)
++  : objthis(objthis),
++    mWindow(window),
++    mContext(false),
++    mWidth(32),
++    mHeight(32),
++    mForceD3D9(forceD3D9),
++    mTextureDrawer(nullptr),
++    mBlendMode(tTVPBlendMode::bmAlpha),
++    mDrawing(false),
++    mUnpremultiply(false),
++    mEffectSeed(0.0f),
++    mClipRectEnabled(false),
++    mStencilClip(false)
++{
++  mWindow->AddRef();
++  InitContext();
++}
++
++GLESAdaptor::~GLESAdaptor() 
++{
++  free();
++  if (mWindow) {
++    mWindow->Release();
++    mWindow = 0;
++  }
++}
++
++tjs_error GLESAdaptor::factory(GLESAdaptor **result, tjs_int numparams, tTJSVariant **params, iTJSDispatch2 *objthis) 
++{
++		if (numparams < 1) {
++			return TJS_E_BADPARAMCOUNT;
++		}
++		iTJSDispatch2 *window = params[0]->AsObjectNoAddRef();
++		if (window->IsInstanceOf(0, NULL, NULL, TJS_W("Window"), window) != TJS_S_TRUE) {
++			TVPThrowExceptionMessage(TJS_W("InvalidObject"));
++		}
++
++		bool forceD3D9 = numparams >= 2 ? params[1]->AsInteger() != 0 : false;
++
++		*result = new GLESAdaptor(objthis, window, forceD3D9);
++		return S_OK;
++}
++
++void GLESAdaptor::InitContext()
++{
++  // PaperVN：上下文由 PaperVNGLContext 提供，这里只准备绘制用的对象
++  if (mTextureDrawer) return;
++  PaperVNGLScope scope;
++  if (!scope.ok) {
++    TVPThrowExceptionMessage(TJS_W("fail to create OpenGL ES 3 context"));
++  }
++  mContext = true;
++  mTextureDrawer = new GLTextureDrawer();
++  mTextureDrawer->Init();
++}
++
++void GLESAdaptor::ReleaseContext() {
++  if (!mContext) return;
++  PaperVNGLScope scope;
++  unwindEffects();
++  mClipRectEnabled = false;
++  mStencilClip = false;
++  mClipCtx.done();
++  mEffectCtx.done();
++  mFboPool.clear();
++  if (mTextureDrawer) {
++    mTextureDrawer->Done();
++    delete mTextureDrawer;
++    mTextureDrawer = nullptr;
++  }
++  mContext = false;
++}
++
++void GLESAdaptor::setScreenSize(int width, int height) { 
++  if (mWidth != width || mHeight != height) {
++    mWidth = width; 
++    mHeight = height; 
++    mFBO.destory();
++  }
++}
++
++void GLESAdaptor::makeCurrent()
++{
++  // PaperVN：各个原生方法进入时会自己切换上下文
++  InitContext();
++}
++
++void GLESAdaptor::alloc()
++{
++  makeCurrent();
++  if (mContext) {
++    if (!mFBO.textureId()) {
++      mFBO.create(mWidth, mHeight, GL_RGBA);
++    }
++  }
++}
++
++void GLESAdaptor::free()
++{
++  PaperVNGLScope scope;
++  mFBO.destory();
++  ReleaseContext();
++}
++
++void GLESAdaptor::capture(tTJSVariant layer, tTJSVariant callback, tTJSVariant param, tjs_uint32 color) {
++  PaperVNGLScope scope;
++
++	if (layer.AsObjectNoAddRef()->IsInstanceOf(0, 0, 0, TJS_W("Layer"), NULL) != TJS_S_TRUE) {
++		TVPThrowExceptionMessage(TJS_W("not layer"));
++	}
++
++  alloc();
++
++  if (!mContext || !mFBO.textureId()) {
++    return;
++  }
++
++  // �`�揀��
++  // ���݂�FB��ۑ�
++  GLint fb;
++  glGetIntegerv(GL_FRAMEBUFFER_BINDING, &fb);
++
++  mFBO.bindFramebuffer();
++  // 前フレームで解除し損ねたクリップ状態が残っているとクリアが欠けるため強制解除
++  resetClipState();
++  float a = ((color >> 24) & 0xff) / 255.0f;
++  float r = ((color >> 16) & 0xff) / 255.0f;
++  float g = ((color >> 8) & 0xff) / 255.0f;
++  float b = ((color >> 0) & 0xff) / 255.0f;
++  glClearColor(r, g, b, a);
++  glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
++
++  // blendmode������
++  ApplyBlendMode();
++
++  mDrawing = true;
++  // �`�揈���Ăяo��
++	if (callback.Type() == tvtObject) {
++    tTJSVariant width = mWidth;
++    tTJSVariant height = mHeight;
++    tTJSVariant *vars[3] = {&width, &height, &param};
++    callback.AsObjectClosureNoAddRef().FuncCall(0,0,0,NULL,3,vars,objthis);
++  }
++  mDrawing = false;
++
++  // begin/end の取りこぼしを後始末し、読み戻し先を確実に mFBO へ戻す
++  unwindEffects();
++  resetClipState();
++  mFBO.bindFramebuffer();
++
++  // �`�抮��
++  glFlush();
++
++  // �擾�o�b�t�@
++	std::unique_ptr<char[]> buffer(new char[mWidth*mHeight*4]);
++	glPixelStorei(GL_PACK_ALIGNMENT, 4);
++	glReadPixels(0, 0, mWidth, mHeight, GL_RGBA, GL_UNSIGNED_BYTE, &buffer[0] );
++
++  // ���C����resize���ăL���v�`�����s
++  ncbPropAccessor p(layer.AsObjectNoAddRef());
++  p.FuncCall(0, TJS_W("setSize"), 0, NULL, mWidth, mHeight);
++	char *dst = (char*)p.GetValue(TJS_W("mainImageBufferForWrite"), ncbTypedefs::Tag<tjs_intptr_t>());
++  int dst_pitch = (int)p.getIntValue(TJS_W("mainImageBufferPitch"));
++
++  {
++    char *src = (char*)&buffer[0];
++    int src_pitch = mWidth * 4;
++    for (tjs_int i = 0; i < mHeight; i++ ) {
++      // Y�����͋t���ɓ��ꊷ��
++      char* dest = dst + dst_pitch * (mHeight - i - 1);
++      if (mUnpremultiply) {
++        // premultiplied-alpha を straight-alpha へ戻す (RGB = RGB*255/A)。
++        // MSAA 等で縁が premultiplied になる描画を straight-alpha レイヤへ綺麗に合成するため。
++        const unsigned char* s = (const unsigned char*)src;
++        unsigned char* d = (unsigned char*)dest;
++        for (tjs_int x = 0; x < mWidth; x++) {
++          unsigned int a = s[3];
++          if (a == 0) {
++            d[0] = d[1] = d[2] = d[3] = 0;
++          } else if (a >= 255) {
++            d[0] = s[0]; d[1] = s[1]; d[2] = s[2]; d[3] = 255;
++          } else {
++            unsigned int r = (s[0] * 255u + a / 2) / a;
++            unsigned int g = (s[1] * 255u + a / 2) / a;
++            unsigned int b = (s[2] * 255u + a / 2) / a;
++            d[0] = (unsigned char)(r > 255u ? 255u : r);
++            d[1] = (unsigned char)(g > 255u ? 255u : g);
++            d[2] = (unsigned char)(b > 255u ? 255u : b);
++            d[3] = (unsigned char)a;
++          }
++          s += 4; d += 4;
++        }
++      } else {
++        ::memcpy(dest, src, src_pitch);
++      }
++      src += src_pitch;
++    }
++
++  }
++
++  glBindFramebuffer(GL_FRAMEBUFFER, fb);
++}
++
++void GLESAdaptor::ApplyBlendMode() {
++	if( mBlendMode == tTVPBlendMode::bmDisable ) {
++		glDisable( GL_BLEND );
++	} else {
++		glEnable( GL_BLEND );
++		switch( mBlendMode ) {
++		case tTVPBlendMode::bmOpaque:
++			glBlendEquationSeparate(GL_FUNC_ADD, GL_FUNC_ADD);
++			glBlendFuncSeparate( GL_ONE, GL_ZERO, GL_ONE, GL_ZERO );
++			break;
++		case tTVPBlendMode::bmAdd:
++			glBlendEquationSeparate(GL_FUNC_ADD, GL_FUNC_ADD);
++			glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE, GL_ZERO, GL_ONE);
++			break;
++		case tTVPBlendMode::bmAddWithAlpha:
++			glBlendEquation( GL_FUNC_ADD );
++			glBlendFunc( GL_SRC_ALPHA, GL_ONE );
++			break;
++		case tTVPBlendMode::bmSubtract:
++			glBlendEquationSeparate(GL_FUNC_REVERSE_SUBTRACT, GL_FUNC_ADD);
++			glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE, GL_ZERO, GL_ONE);
++			break;
++		case tTVPBlendMode::bmMultiply:
++			glBlendEquationSeparate(GL_FUNC_ADD, GL_FUNC_ADD);
++			glBlendFuncSeparate(GL_DST_COLOR, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE);
++			break;
++		case tTVPBlendMode::bmMin:
++			glBlendEquation( GL_MIN );
++			glBlendFunc( GL_ONE, GL_ONE );
++			break;
++		case tTVPBlendMode::bmMax:
++			glBlendEquation( GL_MAX );
++			glBlendFunc( GL_ONE, GL_ONE );
++			break;
++		case tTVPBlendMode::bmScreen:
++			glBlendEquationSeparate(GL_FUNC_ADD, GL_FUNC_ADD);
++			glBlendFuncSeparate(GL_ONE_MINUS_DST_COLOR, GL_ONE, GL_ZERO, GL_ONE);
++			break;
++		case tTVPBlendMode::bmAlpha:
++		default:
++			glBlendEquationSeparate(GL_FUNC_ADD, GL_FUNC_ADD);
++			glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
++			break;
++		}
++	}
++}
++
++void GLESAdaptor::setBlendMode(int blendMode)
++{
++  PaperVNGLScope scope;
++  if (mBlendMode != (tTVPBlendMode)blendMode) {
++    mBlendMode = (tTVPBlendMode)blendMode;
++    if (mDrawing) {
++      ApplyBlendMode();
++    }
++  }
++}
++
++void GLESAdaptor::copyLayer(tTJSVariant layer, int left, int top)
++{
++  drawLayer(layer, 1.0, 0.0, 0.0, 1.0, (float)left, (float)top, 255);
++}
++
++// Layer または GLESTexture の variant から描画用テクスチャを得る。
++// Layer の場合は一時テクスチャを生成し alloc=true を返す (呼び出し側で delete)。
++GLTexture *GLESAdaptor::resolveTexture(tTJSVariant &layer, int &width, int &height, bool &alloc)
++{
++  GLTexture *texture = nullptr;
++  width = 0;
++  height = 0;
++  alloc = false;
++
++  if (layer.AsObjectNoAddRef()->IsInstanceOf(0, 0, 0, TJS_W("Layer"), NULL) == TJS_S_TRUE) {
++    // ���C���̓��e��`��
++    ncbPropAccessor p(layer.AsObjectNoAddRef());
++    char *src      = (char*)p.GetValue(TJS_W("mainImageBuffer"), ncbTypedefs::Tag<tjs_intptr_t>());
++    width      = (int)p.getIntValue(TJS_W("width"));
++    height     = (int)p.getIntValue(TJS_W("height"));
++    int src_pitch  = (int)p.getIntValue(TJS_W("mainImageBufferPitch"));
++    if (width > 0 && height > 0 && src != 0) {
++      alloc = true;
++      texture = new GLTexture(width, height, nullptr, GL_BGRA_EXT);
++      texture->UpdateTexture(0, 0, width, height, [src,src_pitch,width,height](char *dest, int pitch) {
++        // �㉺���]
++        char *s = src + src_pitch * (height - 1);
++        for (int i = 0; i < height; i++) {
++          memcpy(dest, s, width*4);
++          s -= src_pitch;
++          dest += pitch;
++        }
++      });
++    }
++  } else {
++    // �����ς݂̂��̂���擾
++    GLESTexture *lay = ncbInstanceAdaptor<GLESTexture>::GetNativeInstance(layer.AsObjectNoAddRef());
++    if (lay) {
++      texture = lay->getTexture();
++      width   = lay->width();
++      height  = lay->height();
++    } else {
++	  	TVPThrowExceptionMessage(TJS_W("not layer"));
++	  }
++  }
++  return texture;
++}
++
++void GLESAdaptor::drawLayer(tTJSVariant layer, float a, float b, float c, float d, float tx, float ty, int opacity)
++{
++  PaperVNGLScope scope;
++  if (!mTextureDrawer) {
++    return;
++  }
++
++  // 直前に Emote/Live2D 等のモジュールが自前で描画していると、そのブレンド設定が
++  // 残ったままここへ来る (E-mote は glBlendFuncSeparate(ONE, ZERO, ZERO, ONE) を残す)。
++  // その状態で描くと RGB は書けても α が書かれず、マスク合成や不透明度合成の
++  // 段階で消えてしまうため、描画前に必ず自分のブレンドモードを当て直す。
++  ApplyBlendMode();
++
++  GLTexture *texture = nullptr;
++  int width = 0;
++  int height = 0;
++  bool alloc = false;
++
++  texture = resolveTexture(layer, width, height, alloc);
++
++  if (texture) {
++    GLfloat _position[8];
++    int w = width;
++    int h = height;
++    int w2 = mWidth/2;
++    int h2 = mHeight/2;
++    tx -= w2;
++    ty -= h2;
++    _position[0] =   tx / w2; // left top
++    _position[1] = - ty / h2;
++    _position[2] =   (b * h + tx) / w2;  // left bottom
++    _position[3] = - (d * h + ty) / h2;
++    _position[4] =   (a * w + tx) / w2; // right top
++    _position[5] = - (c * w + ty) / h2;
++    _position[6] =   (a * w + b * h + tx) / w2; // right bottom
++    _position[7] = - (c * w + d * h + ty) / h2;
++    mTextureDrawer->DrawTexture(texture, mWidth, mHeight, _position, width, height, opacity,
++                                scissorBox(), mStencilClip);
++    if (alloc) {
++      delete texture;
++    }
++  }
++}
++
++//-----------------------------------------------------
++// クリッピング
++//-----------------------------------------------------
++
++// mClipRect (レイヤ座標、左上原点) を GL 座標系 (左下原点) の scissor 矩形へ変換
++void GLESAdaptor::updateScissorBox()
++{
++  int w = mClipRect[2] > 0 ? mClipRect[2] : 0;
++  int h = mClipRect[3] > 0 ? mClipRect[3] : 0;
++  mScissorBox[0] = mClipRect[0];
++  mScissorBox[1] = mHeight - mClipRect[1] - h;
++  mScissorBox[2] = w;
++  mScissorBox[3] = h;
++}
++
++void GLESAdaptor::setClipRect(int left, int top, int width, int height)
++{
++  PaperVNGLScope scope;
++  mClipRect[0] = left;
++  mClipRect[1] = top;
++  mClipRect[2] = width;
++  mClipRect[3] = height;
++  mClipRectEnabled = true;
++  updateScissorBox();
++  // モジュール(Emote/Live2D 等)が直接描画する場合に備えて即時適用もしておく
++  if (mContext) {
++    glEnable(GL_SCISSOR_TEST);
++    glScissor(mScissorBox[0], mScissorBox[1], mScissorBox[2], mScissorBox[3]);
++  }
++}
++
++void GLESAdaptor::clearClipRect()
++{
++  PaperVNGLScope scope;
++  mClipRectEnabled = false;
++  if (mContext) {
++    glDisable(GL_SCISSOR_TEST);
++  }
++}
++
++// クリップ状態の強制解除 (フレーム開始/終了時の後始末用)
++void GLESAdaptor::resetClipState()
++{
++  mClipRectEnabled = false;
++  mStencilClip = false;
++  if (mContext) {
++    glDisable(GL_SCISSOR_TEST);
++    glDisable(GL_STENCIL_TEST);
++  }
++}
++
++// マスククリップ捕捉開始。内容は beginEffect と同じ (中間FBOへリダイレクト)。
++void GLESAdaptor::beginMaskClip()
++{
++  beginEffect();
++}
++
++// 捕捉内容へ αマスクを適用して直前ターゲットへ合成する。
++//   mask : GLESTexture または Layer。void なら素通し合成
++//          (矩形クリップだけを合成時に適用したい場合に使う)。
++//   x, y : マスク配置位置 (レイヤ座標)
++// マスク矩形の外側は α=0 (CPU 版 Layer.clipAlphaRect の第8引数 0 相当)。
++void GLESAdaptor::endMaskClip(tTJSVariant mask, float x, float y)
++{
++  PaperVNGLScope scope;
++  if (mCaptureStack.empty()) {
++    return;  // begin/end 不整合
++  }
++
++  GLFrameBufferObject *cap = mCaptureStack.back();
++  mCaptureStack.pop_back();
++  GLuint prevFb = mTargetStack.back();
++  mTargetStack.pop_back();
++
++  if (!mClipCtx.ready()) {
++    mClipCtx.init();
++  }
++
++  GLTexture *maskTex = nullptr;
++  int maskW = 0, maskH = 0;
++  bool alloc = false;
++  if (mask.Type() == tvtObject) {
++    maskTex = resolveTexture(mask, maskW, maskH, alloc);
++  }
++
++  glBindFramebuffer(GL_FRAMEBUFFER, prevFb);
++  glViewport(0, 0, mWidth, mHeight);
++  ApplyBlendMode();
++
++  float uScale = 1.0f, vScale = 1.0f;
++  if (maskTex && maskTex->width() > 0 && maskTex->height() > 0) {
++    uScale = (float)maskW / maskTex->width();
++    vScale = (float)maskH / maskTex->height();
++  }
++  mClipCtx.drawMaskComposite(cap->textureId(), maskTex, x, y, (float)maskW, (float)maskH,
++                             uScale, vScale, mWidth, mHeight, scissorBox());
++
++  if (alloc && maskTex) {
++    delete maskTex;
++  }
++  mFboPool.release(cap);
++}
++
++// マスク画像の α を現ターゲットのステンシルへ書き込み、
++// 以降の drawLayer をステンシルで切り抜く。
++//   threshold : ステンシルを立てる α 閾値 (1～255)。0 以下は 1 扱い。
++// 注意: 描画モジュールが自前でステンシルを使う場合 (Emote 等) は競合するため
++//       単純テクスチャ描画ソース専用。モジュール系は mask 方式を使うこと。
++void GLESAdaptor::beginStencilClip(tTJSVariant mask, float x, float y, int threshold)
++{
++  PaperVNGLScope scope;
++  if (!mContext) {
++    return;
++  }
++  if (!mClipCtx.ready()) {
++    mClipCtx.init();
++  }
++
++  GLTexture *maskTex = nullptr;
++  int maskW = 0, maskH = 0;
++  bool alloc = false;
++  maskTex = resolveTexture(mask, maskW, maskH, alloc);
++  if (!maskTex) {
++    return;
++  }
++
++  // ステンシルは全面クリアしたいので scissor を一時解除
++  glDisable(GL_SCISSOR_TEST);
++  glStencilMask(0xFF);
++  glClearStencil(0);
++  glClear(GL_STENCIL_BUFFER_BIT);
++
++  float uScale = maskTex->width()  > 0 ? (float)maskW / maskTex->width()  : 1.0f;
++  float vScale = maskTex->height() > 0 ? (float)maskH / maskTex->height() : 1.0f;
++  if (threshold <= 0) threshold = 1;
++  if (threshold > 255) threshold = 255;
++  mClipCtx.drawStencilWrite(maskTex, x, y, (float)maskW, (float)maskH,
++                            uScale, vScale, mWidth, mHeight, threshold / 255.0f);
++
++  if (alloc) {
++    delete maskTex;
++  }
++  mStencilClip = true;
++}
++
++void GLESAdaptor::endStencilClip()
++{
++  PaperVNGLScope scope;
++  mStencilClip = false;
++  if (mContext) {
++    glDisable(GL_STENCIL_TEST);
++  }
++}
++
++//-----------------------------------------------------
++// ポストエフェクト
++//-----------------------------------------------------
++
++void GLESAdaptor::beginEffect()
++{
++  PaperVNGLScope scope;
++  if (!mContext) {
++    return;
++  }
++  if (!mEffectCtx.ready()) {
++    mEffectCtx.init();
++  }
++
++  // 現在のレンダーターゲットを退避
++  GLint fb = 0;
++  glGetIntegerv(GL_FRAMEBUFFER_BINDING, &fb);
++  mTargetStack.push_back((GLuint)fb);
++
++  // 中間FBOを捕捉先にする
++  GLFrameBufferObject *cap = mFboPool.acquire(mWidth, mHeight);
++  mCaptureStack.push_back(cap);
++  cap->bindFramebuffer();
++  // scissor が有効なままだとクリアが欠けるので一時無効化して全面クリア
++  // (矩形クリップは drawLayer / 合成時に個別に適用される)
++  glDisable(GL_SCISSOR_TEST);
++  glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
++  glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
++}
++
++// 捕捉内容へエフェクトを適用し、直前ターゲットへ現在のブレンドモードで合成する。
++//   opacity : 合成時に α へ乗算する不透明度 (0～255)。
++//             Emote/Live2D 等、自前描画で opacity を解釈しないモジュールの
++//             レイヤ不透明度をここで反映するために使う。
++void GLESAdaptor::endEffect(tTJSVariant effect, int opacity)
++{
++  PaperVNGLScope scope;
++  if (mCaptureStack.empty()) {
++    return;  // begin/end 不整合
++  }
++
++  GLFrameBufferObject *cap = mCaptureStack.back();
++  mCaptureStack.pop_back();
++  GLuint prevFb = mTargetStack.back();
++  mTargetStack.pop_back();
++
++  // コマンド配列をコンパイルして適用(GPU内で完結)
++  mEffectSeed += 1.0f;  // noise を毎回変化させる
++  mEffectCtx.setSeed(mEffectSeed);
++  GLEffectChain chain;
++  chain.compile(effect);
++  GLFrameBufferObject *produced = chain.apply(cap->textureId(), mWidth, mHeight, mFboPool, mEffectCtx);
++  GLuint resultTex = produced ? produced->textureId() : cap->textureId();
++
++  // 直前のターゲットへ現在のブレンドモードで合成
++  glBindFramebuffer(GL_FRAMEBUFFER, prevFb);
++  glViewport(0, 0, mWidth, mHeight);
++  ApplyBlendMode();
++  // 素通し描画 (矩形クリップが有効ならこの合成にも適用する)
++  if (opacity < 0) opacity = 0;
++  if (opacity > 255) opacity = 255;
++  mEffectCtx.drawPointwise(resultTex, nullptr, nullptr, 0, mWidth, mHeight, scissorBox(),
++                           opacity / 255.0f);
++
++  // 後始末
++  if (produced) mFboPool.release(produced);
++  mFboPool.release(cap);
++}
++
++void GLESAdaptor::unwindEffects()
++{
++  // capture 終了時などに begin/end の取りこぼしがあれば解放
++  for (size_t i = 0; i < mCaptureStack.size(); i++) {
++    mFboPool.release(mCaptureStack[i]);
++  }
++  mCaptureStack.clear();
++  mTargetStack.clear();
++}
++
++//-----------------------------------------------------
++
++
++GLESTexture::GLESTexture()
++  : _texture(nullptr)
++  , _width(0)
++  , _height(0)  
++{
++}
++
++GLESTexture::~GLESTexture() 
++{
++  PaperVNGLScope scope;
++  if (_texture) {
++    delete _texture;
++    _texture = nullptr;
++  }
++}
++
++void GLESTexture::load(tTJSVariant layer) 
++{
++  PaperVNGLScope scope;
++  if (layer.AsObjectNoAddRef()->IsInstanceOf(0, 0, 0, TJS_W("Layer"), NULL) == TJS_S_FALSE) {
++    TVPThrowExceptionMessage(TJS_W("not layer"));
++  }
++
++  // ���C���̓��e��`��
++  ncbPropAccessor p(layer.AsObjectNoAddRef());
++  char *src      = (char*)p.GetValue(TJS_W("mainImageBuffer"), ncbTypedefs::Tag<tjs_intptr_t>());
++  int width      = (int)p.getIntValue(TJS_W("width"));
++  int height     = (int)p.getIntValue(TJS_W("height"));
++  int src_pitch  = (int)p.getIntValue(TJS_W("mainImageBufferPitch"));
++
++  if (width > 0 && height > 0) {
++    if (_texture && (_texture->width() < width || _texture->height() < height)) {
++      delete _texture;
++      _texture = nullptr;
++    }
++    if (!_texture) {
++      _texture = new GLTexture(width, height, nullptr, GL_BGRA_EXT);
++      _width = width;
++      _height = height;
++    }
++    _texture->UpdateTexture(0, 0, width, height, [src,src_pitch,width,height](char *dest, int pitch) {
++      // �㉺���]
++      char *s = src + src_pitch * (height - 1);
++      for (int i = 0; i < height; i++) {
++        memcpy(dest, s, width*4);
++        s -= src_pitch;
++        dest += pitch;
++      }
++    });
++  }
++}
++
++//-----------------------------------------------------
++
++// endEffect は opacity を後から追加したため、旧来の endEffect(cmds) 呼び出し
++// (他プロジェクトが共有する engine/*.tjs) をそのまま通せるよう生コールバックで
++// 登録して引数を省略可能にする。
++static tjs_error TJS_INTF_METHOD endEffectCallback(tTJSVariant *result, tjs_int numparams,
++                                                   tTJSVariant **param, GLESAdaptor *self)
++{
++  if (numparams < 1) return TJS_E_BADPARAMCOUNT;
++  int opacity = 255;
++  if (numparams >= 2 && param[1]->Type() != tvtVoid) {
++    opacity = (int)(tjs_int)*param[1];
++  }
++  self->endEffect(*param[0], opacity);
++  return TJS_S_OK;
++}
++
++// PaperVN：krkr2 的 ncbind 不支持省略参数，opacity 省略时按 255
++static tjs_error TJS_INTF_METHOD drawLayerCallback(tTJSVariant *result, tjs_int numparams,
++                                                   tTJSVariant **param, GLESAdaptor *self)
++{
++  if (numparams < 7) return TJS_E_BADPARAMCOUNT;
++  int opacity = 255;
++  if (numparams >= 8 && param[7]->Type() != tvtVoid) {
++    opacity = (int)(tjs_int)*param[7];
++  }
++  self->drawLayer(*param[0], (float)(tjs_real)*param[1], (float)(tjs_real)*param[2], (float)(tjs_real)*param[3],
++                  (float)(tjs_real)*param[4], (float)(tjs_real)*param[5], (float)(tjs_real)*param[6], opacity);
++  return TJS_S_OK;
++}
++
++NCB_REGISTER_CLASS(GLESAdaptor) {
++	Factory(&Class::factory);
++  NCB_PROPERTY(screenWidth, getScreenWidth, setScreenWidth);
++  NCB_PROPERTY(screenHeight, getScreenHeight, setScreenHeight);
++  NCB_PROPERTY(unpremultiply, getUnpremultiply, setUnpremultiply);// capture 読み戻しで un-premultiply (既定 false)
++  NCB_METHOD(setScreenSize);
++  NCB_METHOD(makeCurrent);
++  NCB_METHOD(capture);
++  NCB_METHOD(copyLayer);
++  NCB_METHOD_RAW_CALLBACK(drawLayer, &drawLayerCallback, 0);
++  NCB_METHOD(beginEffect);
++  NCB_METHOD_RAW_CALLBACK(endEffect, &endEffectCallback, 0);
++  NCB_METHOD(setClipRect);
++  NCB_METHOD(clearClipRect);
++  NCB_METHOD(beginMaskClip);
++  NCB_METHOD(endMaskClip);
++  NCB_METHOD(beginStencilClip);
++  NCB_METHOD(endStencilClip);
++  NCB_PROPERTY(blendMode, getBlendMode, setBlendMode);
++  NCB_PROPERTY_RO(GLGetProcAddress, GLGetProcAddress);
++};
++
++NCB_REGISTER_CLASS(GLESTexture) {
++  NCB_CONSTRUCTOR(());
++  NCB_METHOD(load);
++  NCB_PROPERTY_RO(width, width);
++  NCB_PROPERTY_RO(height, height);
++};
+diff --git a/src/GLTexture.cpp b/src/GLTexture.cpp
+index cd89e76..426b094 100644
+--- a/src/GLTexture.cpp
++++ b/src/GLTexture.cpp
+@@ -1,254 +1,260 @@
+-#include "GLTexture.h"
+-#include <memory>
+-
+-void 
+-GLTexture::create( GLuint w, GLuint h, const GLvoid* bits, GLint format) 
+-{
+-    int pixel_size = format == GL_ALPHA ? 1 : 4;
+-
+-    // internal format
+-    GLuint fmt;
+-    if (format == GL_RGBA) {
+-        fmt = GL_RGBA8;
+-    } else if (format == GL_BGRA_EXT) {
+-        fmt = GL_BGRA8_EXT;
+-    } else {
+-        fmt = GL_R8;
+-    }
+-
+-    format_ = format;
+-    width_ = w;
+-    height_ = h;
+-
+-    glPixelStorei( GL_UNPACK_ALIGNMENT, pixel_size);
+-    glGenTextures( 1, &texture_id_ );
+-    glBindTexture( GL_TEXTURE_2D, texture_id_ );
+-
+-    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,stretchType_);
+-    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,stretchType_);
+-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrapS_);
+-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrapT_);
+-
+-    if (format == GL_ALPHA) {
+-		glTexImage2D( GL_TEXTURE_2D, 0, format, w, h, 0, format, GL_UNSIGNED_BYTE, bits );
+-		glBindTexture( GL_TEXTURE_2D, 0 );
+-        return;
+-    }
+-
+-    glTexStorage2D(GL_TEXTURE_2D, 1, fmt, w, h);
+-    CheckGLErrorAndLog("glTexStorage2D");
+-
+-    // PBO を作成
+-    int size = w * h * pixel_size;
+-    glGenBuffers(1, &pbo_);
+-    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo_);
+-    glBufferData(GL_PIXEL_UNPACK_BUFFER, size, 0, GL_DYNAMIC_DRAW);
+-    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+-
+-    if (bits) {
+-        if (pbo_) {
+-            glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo_);
+-            GLubyte *texPixels = (GLubyte *)glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, size, GL_MAP_WRITE_BIT);
+-            if (texPixels) {
+-                memcpy(texPixels, bits, size);
+-                glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
+-            }
+-            //glTexImage2D( GL_TEXTURE_2D, 0, fmt, w, h, 0, format, GL_UNSIGNED_BYTE, 0 );
+-            //CheckGLErrorAndLog("glTexImage2D");
+-            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w, h, format, GL_UNSIGNED_BYTE, 0);
+-            CheckGLErrorAndLog("glTexSubImage2D");
+-            glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+-        } else {
+-            //glTexImage2D( GL_TEXTURE_2D, 0, fmt, w, h, 0, format, GL_UNSIGNED_BYTE, bits );
+-            //CheckGLErrorAndLog("glTexImage2D"));
+-            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w, h, format, GL_UNSIGNED_BYTE, bits);
+-            CheckGLErrorAndLog("glTexSubImage2D");
+-        }
+-    }
+-
+-    glBindTexture( GL_TEXTURE_2D, 0 );
+-}
+-
+-
+-void 
+-GLTexture::destory() 
+-{
+-    if( texture_id_ != 0 ) {
+-        glDeleteTextures( 1, &texture_id_ );
+-        texture_id_ = 0;
+-        hasMipmap_ = false;
+-    }
+-    if (pbo_) {
+-        glDeleteBuffers(1, &pbo_);
+-        pbo_ = 0;
+-    }
+-}
+-
+-
+-void 
+-GLTexture::UpdateTexture(GLuint tex_id, GLuint pbo, int format, int x, int y, int w, int h, std::function<void(char *dest, int pitch)> updator)
+-{
+-    int size = w*h*4;
+-    int pitch = w*4;
+-
+-    if (pbo) {
+-        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
+-        GLubyte *texPixels = (GLubyte *)glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, size, GL_MAP_WRITE_BIT);
+-        if (texPixels) {
+-            updator((char*)texPixels, pitch);
+-            glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
+-        }
+-
+-        glBindTexture(GL_TEXTURE_2D, tex_id);
+-        glTexSubImage2D(GL_TEXTURE_2D, 0, x, y, w, h, format, GL_UNSIGNED_BYTE, 0);
+-        CheckGLErrorAndLog("glTexSubImage2D");
+-        glBindTexture(GL_TEXTURE_2D, 0);
+-        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+-
+-    } else {
+-
+-        std::unique_ptr<char[]> buffer(new char[size]);
+-        updator(&buffer[0], pitch);
+-        glBindTexture(GL_TEXTURE_2D, tex_id);
+-        glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+-        glTexSubImage2D( GL_TEXTURE_2D, 0, x, y, w, h, format, GL_UNSIGNED_BYTE, &buffer[0]);
+-        CheckGLErrorAndLog("glTexSubImage2D");
+-        glBindTexture(GL_TEXTURE_2D, 0);
+-    }
+-};
+-
+-void 
+-GLTexture::UpdateTexture(int x, int y, int w, int h, std::function<void(char *dest, int pitch)> updator)
+-{
+-    if (w==0) w = width_;
+-    if (h==0) h = height_;
+-    UpdateTexture(texture_id_, pbo_, format_, x, y, w, h, updator);
+-}
+-
+-//---------------------------------------------------------------------------
+-// テクスチャべた書き
+-//---------------------------------------------------------------------------
+-
+-#include "GLShaderUtil.h"
+-
+-static const char *vsSource = 
+-"attribute vec2 a_position;"
+-"attribute vec2 a_texCoord;"
+-"varying vec2 v_texCoord;"
+-"void main()"
+-"{"
+-"gl_Position = vec4( a_position, 0.0, 1.0 );"
+-"v_texCoord = a_texCoord;"
+-"}"
+-;
+-
+-static const char *fsSource = 
+-"precision mediump float;"
+-"varying vec2 v_texCoord;"
+-"uniform sampler2D s_texture;"
+-"uniform float a_opacity;"
+-"void main()"
+-"{"
+-"vec4 color = texture2D( s_texture, v_texCoord );"
+-"color.a *= a_opacity;"
+-"gl_FragColor = color;"
+-"}"
+-;
+-
+-
+-GLTextureDrawer::GLTextureDrawer()
+-    : _shader_program(0)
+-    , _attr_position(0)
+-    , _attr_texCoord(0)
+-    , _unif_texture(0)
+-    , _unif_opacity(0)
+-{
+-}
+-
+-GLTextureDrawer::~GLTextureDrawer()
+-{
+-    Done();
+-}
+-
+-void
+-GLTextureDrawer::Init()
+-{
+-    if (!_shader_program) {
+-        // べた書き用シェーダー
+-        _shader_program = CompileProgram(vsSource, fsSource);
+-        _attr_position  = glGetAttribLocation(_shader_program, "a_position");
+-        _attr_texCoord  = glGetAttribLocation(_shader_program, "a_texCoord");
+-        _unif_texture   = glGetUniformLocation(_shader_program, "s_texture");
+-        _unif_opacity   = glGetUniformLocation(_shader_program, "a_opacity");
+-    }
+-}
+-
+-void
+-GLTextureDrawer::Done()
+-{
+-    if (_shader_program) {
+-        glDeleteProgram(_shader_program);
+-        _shader_program = 0;
+-    }
+-}
+-
+-// 描画範囲にべた書き処理
+-void
+-GLTextureDrawer::DrawTexture(GLTexture *tex, int scr_w, int scr_h, float position[], int tex_w, int tex_h, int opacity,
+-                             const GLint *scissorBox, bool stencilTest)
+-{
+-	if (_shader_program && tex) {
+-
+-        glViewport(0, 0, scr_w, scr_h);
+-
+-        GLfloat u = tex_w == 0 ? 1.0 : (float)tex_w / tex->width();
+-        GLfloat v = tex_h == 0 ? 1.0 : (float)tex_h / tex->height();
+-
+-		// UV補正
+-    	GLfloat _uv[8];
+-		_uv[0] = 0;
+-		_uv[1] = v;
+-		_uv[2] = 0;
+-		_uv[3] = 0;
+-		_uv[4] = u;
+-		_uv[5] = v;
+-		_uv[6] = u;
+-		_uv[7] = 0;
+-
+-        // 描画調整
+-		glDisable( GL_DEPTH_TEST );
+-		glDisable( GL_CULL_FACE );
+-		//glDisable( GL_BLEND );
+-
+-		// クリッピング状態 (GLESAdaptor の clip 指定時のみ有効化)
+-		if (stencilTest) {
+-			glEnable( GL_STENCIL_TEST );
+-		} else {
+-			glDisable( GL_STENCIL_TEST );
+-		}
+-		if (scissorBox) {
+-			glEnable( GL_SCISSOR_TEST );
+-			glScissor( scissorBox[0], scissorBox[1], scissorBox[2], scissorBox[3] );
+-		} else {
+-			glDisable( GL_SCISSOR_TEST );
+-		}
+-
+-		// シェーダー設定
+-		glUseProgram(_shader_program);
+-		glEnableVertexAttribArray(_attr_position);
+-    	glEnableVertexAttribArray(_attr_texCoord);
+-		glUniform1i(_unif_texture, 0);
+-        glUniform1f(_unif_opacity, opacity/255.0f);
+-
+-		// テクスチャをバインド (外部モジュールがアクティブユニットを変えていても良いように明示)
+-		glActiveTexture(GL_TEXTURE0);
+-		glBindTexture(GL_TEXTURE_2D, tex->id());
+-		// パラメータ設定
+-        glVertexAttribPointer(_attr_position, 2, GL_FLOAT, GL_FALSE, 0, (GLvoid*) position);
+-        glVertexAttribPointer(_attr_texCoord, 2, GL_FLOAT, GL_FALSE, 0, (GLvoid*) _uv);
+-		// 描画実行
+-        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+-	}
+-}
+-
+-
++#include "GLTexture.h"
++#include <memory>
++
++void 
++GLTexture::create( GLuint w, GLuint h, const GLvoid* bits, GLint format) 
++{
++    int pixel_size = format == GL_ALPHA ? 1 : 4;
++
++    // internal format
++    GLuint fmt;
++    if (format == GL_RGBA) {
++        fmt = GL_RGBA8;
++    } else if (format == GL_BGRA_EXT) {
++        fmt = GL_BGRA8_EXT;
++    } else {
++        fmt = GL_R8;
++    }
++
++    // PaperVN：krkr2 的图层内存就是 RGBA，统一按 RGBA8 存
++    if (format == GL_BGRA_EXT) {
++        format = GL_RGBA;
++        fmt = GL_RGBA8;
++    }
++
++    format_ = format;
++    width_ = w;
++    height_ = h;
++
++    glPixelStorei( GL_UNPACK_ALIGNMENT, pixel_size);
++    glGenTextures( 1, &texture_id_ );
++    glBindTexture( GL_TEXTURE_2D, texture_id_ );
++
++    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,stretchType_);
++    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,stretchType_);
++    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrapS_);
++    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrapT_);
++
++    if (format == GL_ALPHA) {
++		glTexImage2D( GL_TEXTURE_2D, 0, format, w, h, 0, format, GL_UNSIGNED_BYTE, bits );
++		glBindTexture( GL_TEXTURE_2D, 0 );
++        return;
++    }
++
++    glTexStorage2D(GL_TEXTURE_2D, 1, fmt, w, h);
++    CheckGLErrorAndLog("glTexStorage2D");
++
++    // PBO を作成
++    int size = w * h * pixel_size;
++    glGenBuffers(1, &pbo_);
++    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo_);
++    glBufferData(GL_PIXEL_UNPACK_BUFFER, size, 0, GL_DYNAMIC_DRAW);
++    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
++
++    if (bits) {
++        if (pbo_) {
++            glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo_);
++            GLubyte *texPixels = (GLubyte *)glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, size, GL_MAP_WRITE_BIT);
++            if (texPixels) {
++                memcpy(texPixels, bits, size);
++                glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
++            }
++            //glTexImage2D( GL_TEXTURE_2D, 0, fmt, w, h, 0, format, GL_UNSIGNED_BYTE, 0 );
++            //CheckGLErrorAndLog("glTexImage2D");
++            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w, h, format, GL_UNSIGNED_BYTE, 0);
++            CheckGLErrorAndLog("glTexSubImage2D");
++            glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
++        } else {
++            //glTexImage2D( GL_TEXTURE_2D, 0, fmt, w, h, 0, format, GL_UNSIGNED_BYTE, bits );
++            //CheckGLErrorAndLog("glTexImage2D"));
++            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w, h, format, GL_UNSIGNED_BYTE, bits);
++            CheckGLErrorAndLog("glTexSubImage2D");
++        }
++    }
++
++    glBindTexture( GL_TEXTURE_2D, 0 );
++}
++
++
++void 
++GLTexture::destory() 
++{
++    if( texture_id_ != 0 ) {
++        glDeleteTextures( 1, &texture_id_ );
++        texture_id_ = 0;
++        hasMipmap_ = false;
++    }
++    if (pbo_) {
++        glDeleteBuffers(1, &pbo_);
++        pbo_ = 0;
++    }
++}
++
++
++void 
++GLTexture::UpdateTexture(GLuint tex_id, GLuint pbo, int format, int x, int y, int w, int h, std::function<void(char *dest, int pitch)> updator)
++{
++    int size = w*h*4;
++    int pitch = w*4;
++
++    if (pbo) {
++        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
++        GLubyte *texPixels = (GLubyte *)glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, size, GL_MAP_WRITE_BIT);
++        if (texPixels) {
++            updator((char*)texPixels, pitch);
++            glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
++        }
++
++        glBindTexture(GL_TEXTURE_2D, tex_id);
++        glTexSubImage2D(GL_TEXTURE_2D, 0, x, y, w, h, format, GL_UNSIGNED_BYTE, 0);
++        CheckGLErrorAndLog("glTexSubImage2D");
++        glBindTexture(GL_TEXTURE_2D, 0);
++        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
++
++    } else {
++
++        std::unique_ptr<char[]> buffer(new char[size]);
++        updator(&buffer[0], pitch);
++        glBindTexture(GL_TEXTURE_2D, tex_id);
++        glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
++        glTexSubImage2D( GL_TEXTURE_2D, 0, x, y, w, h, format, GL_UNSIGNED_BYTE, &buffer[0]);
++        CheckGLErrorAndLog("glTexSubImage2D");
++        glBindTexture(GL_TEXTURE_2D, 0);
++    }
++};
++
++void 
++GLTexture::UpdateTexture(int x, int y, int w, int h, std::function<void(char *dest, int pitch)> updator)
++{
++    if (w==0) w = width_;
++    if (h==0) h = height_;
++    UpdateTexture(texture_id_, pbo_, format_, x, y, w, h, updator);
++}
++
++//---------------------------------------------------------------------------
++// テクスチャべた書き
++//---------------------------------------------------------------------------
++
++#include "GLShaderUtil.h"
++
++static const char *vsSource = 
++"attribute vec2 a_position;"
++"attribute vec2 a_texCoord;"
++"varying vec2 v_texCoord;"
++"void main()"
++"{"
++"gl_Position = vec4( a_position, 0.0, 1.0 );"
++"v_texCoord = a_texCoord;"
++"}"
++;
++
++static const char *fsSource = 
++"precision mediump float;"
++"varying vec2 v_texCoord;"
++"uniform sampler2D s_texture;"
++"uniform float a_opacity;"
++"void main()"
++"{"
++"vec4 color = texture2D( s_texture, v_texCoord );"
++"color.a *= a_opacity;"
++"gl_FragColor = color;"
++"}"
++;
++
++
++GLTextureDrawer::GLTextureDrawer()
++    : _shader_program(0)
++    , _attr_position(0)
++    , _attr_texCoord(0)
++    , _unif_texture(0)
++    , _unif_opacity(0)
++{
++}
++
++GLTextureDrawer::~GLTextureDrawer()
++{
++    Done();
++}
++
++void
++GLTextureDrawer::Init()
++{
++    if (!_shader_program) {
++        // べた書き用シェーダー
++        _shader_program = CompileProgram(vsSource, fsSource);
++        _attr_position  = glGetAttribLocation(_shader_program, "a_position");
++        _attr_texCoord  = glGetAttribLocation(_shader_program, "a_texCoord");
++        _unif_texture   = glGetUniformLocation(_shader_program, "s_texture");
++        _unif_opacity   = glGetUniformLocation(_shader_program, "a_opacity");
++    }
++}
++
++void
++GLTextureDrawer::Done()
++{
++    if (_shader_program) {
++        glDeleteProgram(_shader_program);
++        _shader_program = 0;
++    }
++}
++
++// 描画範囲にべた書き処理
++void
++GLTextureDrawer::DrawTexture(GLTexture *tex, int scr_w, int scr_h, float position[], int tex_w, int tex_h, int opacity,
++                             const GLint *scissorBox, bool stencilTest)
++{
++	if (_shader_program && tex) {
++
++        glViewport(0, 0, scr_w, scr_h);
++
++        GLfloat u = tex_w == 0 ? 1.0 : (float)tex_w / tex->width();
++        GLfloat v = tex_h == 0 ? 1.0 : (float)tex_h / tex->height();
++
++		// UV補正
++    	GLfloat _uv[8];
++		_uv[0] = 0;
++		_uv[1] = v;
++		_uv[2] = 0;
++		_uv[3] = 0;
++		_uv[4] = u;
++		_uv[5] = v;
++		_uv[6] = u;
++		_uv[7] = 0;
++
++        // 描画調整
++		glDisable( GL_DEPTH_TEST );
++		glDisable( GL_CULL_FACE );
++		//glDisable( GL_BLEND );
++
++		// クリッピング状態 (GLESAdaptor の clip 指定時のみ有効化)
++		if (stencilTest) {
++			glEnable( GL_STENCIL_TEST );
++		} else {
++			glDisable( GL_STENCIL_TEST );
++		}
++		if (scissorBox) {
++			glEnable( GL_SCISSOR_TEST );
++			glScissor( scissorBox[0], scissorBox[1], scissorBox[2], scissorBox[3] );
++		} else {
++			glDisable( GL_SCISSOR_TEST );
++		}
++
++		// シェーダー設定
++		glUseProgram(_shader_program);
++		glEnableVertexAttribArray(_attr_position);
++    	glEnableVertexAttribArray(_attr_texCoord);
++		glUniform1i(_unif_texture, 0);
++        glUniform1f(_unif_opacity, opacity/255.0f);
++
++		// テクスチャをバインド (外部モジュールがアクティブユニットを変えていても良いように明示)
++		glActiveTexture(GL_TEXTURE0);
++		glBindTexture(GL_TEXTURE_2D, tex->id());
++		// パラメータ設定
++        glVertexAttribPointer(_attr_position, 2, GL_FLOAT, GL_FALSE, 0, (GLvoid*) position);
++        glVertexAttribPointer(_attr_texCoord, 2, GL_FLOAT, GL_FALSE, 0, (GLvoid*) _uv);
++		// 描画実行
++        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
++	}
++}
++
++

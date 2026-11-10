@@ -1,0 +1,26 @@
+# PaperVN 运行 SiglusEngine 视觉小说用的静态库：siglus_rs 的 game_launcher（含 siglus_* 接口）
+# 加上 PaperVN 自己的几个 C 接口。siglus_rs 源码不做修改，见 Tools/构建Siglus.sh。
+[package]
+name = "papervn_siglus"
+version = "0.1.0"
+edition = "2024"
+license = "MPL-2.0"
+publish = false
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+game_launcher = { path = "../../../../第三方源码/siglus_rs/crates/game_launcher" }
+siglus_scene_vm = { path = "../../../../第三方源码/siglus_rs/crates/siglus_scene_vm" }
+siglus_assets = { path = "../../../../第三方源码/siglus_rs/crates/siglus_assets" }
+siglus_key_recovery = { path = "../../../../第三方源码/siglus_rs/crates/siglus_key_recovery" }
+
+# 和 siglus_rs 的发布配置一致
+[profile.release]
+strip = true
+lto = "thin"
+codegen-units = 1
+opt-level = 3
+
+[workspace]

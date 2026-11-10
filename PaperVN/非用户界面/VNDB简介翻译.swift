@@ -1492,7 +1492,7 @@ nonisolated enum VNDB简介翻译投稿错误: LocalizedError {
 nonisolated struct VNDB简介翻译投稿服务: Sendable {
     static let 译文最大长度 = 20_000
     private static let endpoint = URL(
-        string: "https://papervn.jizpaper.com/api/translations/submissions"
+        string: "https://papervn.jizpaper.com/translations/submissions"
     )!
 
     private struct 请求: Encodable {
@@ -1529,7 +1529,7 @@ nonisolated struct VNDB简介翻译投稿服务: Sendable {
     private struct 空请求: Encodable {}
 
     func submit(
-        token: String,
+        token: String?,
         entry: VNDB简介翻译条目,
         language: 简介翻译投稿语言,
         translation: String,
@@ -1565,7 +1565,7 @@ nonisolated struct VNDB简介翻译投稿服务: Sendable {
         )
     }
 
-    func mySubmissions(token: String) async throws -> [VNDB简介翻译投稿记录] {
+    func mySubmissions(token: String?) async throws -> [VNDB简介翻译投稿记录] {
         let response: 列表响应 = try await request(
             url: Self.endpoint,
             method: "GET",
@@ -1575,7 +1575,7 @@ nonisolated struct VNDB简介翻译投稿服务: Sendable {
         return response.submissions
     }
 
-    func withdraw(token: String, id: String) async throws {
+    func withdraw(token: String?, id: String) async throws {
         let _: 单条响应 = try await request(
             url: Self.endpoint.appending(path: id).appending(path: "withdraw"),
             method: "POST",
@@ -1587,14 +1587,15 @@ nonisolated struct VNDB简介翻译投稿服务: Sendable {
     private func request<Response: Decodable, Body: Encodable>(
         url: URL,
         method: String,
-        token: String,
+        token: String?,
         body: Body?
     ) async throws -> Response {
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.timeoutInterval = 30
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
+        if let device = await 敏感内容网页设置.设备身份值 { request.setValue(device, forHTTPHeaderField: "X-PaperVN-Device") }
         if let body {
             request.setValue(
                 "application/json; charset=utf-8",

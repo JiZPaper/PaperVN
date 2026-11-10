@@ -187,8 +187,34 @@ nonisolated enum PaperVNConnect网络设置 {
         上游映射(
             直连基础地址: "https://store.steampowered.com",
             转发基础地址: "\(connect基础地址)/steam"
+        ),
+        上游映射(
+            直连基础地址: "https://api.themoviedb.org",
+            转发基础地址: "\(connect基础地址)/tmdb"
         )
     ]
+
+    /// 转发连续出错后暂停使用一段时间（5 分钟），期间请求直接走直连。
+    private enum 转发暂停 {
+        private static let 锁 = NSLock()
+        nonisolated(unsafe) private static var 失败次数 = 0
+        nonisolated(unsafe) private static var 暂停到: Date?
+
+        static var 暂停中: Bool {
+            锁.lock(); defer { 锁.unlock() }
+            guard let until = 暂停到 else { return false }
+            if until > Date() { return true }
+            暂停到 = nil
+            失败次数 = 0
+            return false
+        }
+
+        static func 记录失败() {
+            锁.lock(); defer { 锁.unlock() }
+            失败次数 += 1
+            if 失败次数 >= 2 { 暂停到 = Date().addingTimeInterval(5 * 60) }
+        }
+    }
 
     static func 请求应回退(statusCode: Int) -> Bool {
         statusCode == 403
@@ -309,6 +335,9 @@ nonisolated enum PaperVNConnect网络设置 {
                 return (data, httpResponse)
             } catch {
                 guard index < candidates.count - 1 else { throw error }
+                // 转发在网络层出错（TLS 握手失败、超时等）：之后一段时间直接走直连，
+                // 不然每个请求都要先等转发超时，同步会非常慢
+                if error is URLError { 转发暂停.记录失败() }
                 lastError = error
             }
         }
@@ -324,6 +353,7 @@ nonisolated enum PaperVNConnect网络设置 {
             throw URLError(.badURL)
         }
         guard 自动转发已启用,
+              !转发暂停.暂停中,
               let mapping = 上游映射表.first(where: {
                   地址(url.absoluteString, belongsTo: $0.直连基础地址)
               }) else {
@@ -742,7 +772,7 @@ final class VNDB服务: ObservableObject, VNDB搜索服务协议 {
     private let baseURL: String
     private let session: URLSession
     private let userListFields = """
-    id,vote,started,finished,notes,labels{id,label},\
+    id,lastmod,vote,started,finished,notes,labels{id,label},\
     releases{list_status,id,title,alttitle,released,languages{lang,title,latin,mtl,main},platforms},\
     vn{title,titles{lang,title,latin,official,main},image{url,thumbnail,dims,sexual,violence},rating,votecount,released}
     """
@@ -796,6 +826,11 @@ final class VNDB服务: ObservableObject, VNDB搜索服务协议 {
     private var prefetchedRecentVNIDs: Set<String> = []
     private var diskWriteTasks: [UUID: Task<Void, Never>] = [:]
     private var cacheWritesEnabled = true
+    /// VNDB 返回 429 后的冷却：期间新请求先等冷却结束，免得接着撞上限流
+    private var 限流冷却截止: ContinuousClock.Instant?
+    /// 冷却结束后逐个放行的请求时间，所有请求同时重发会再次超出限流
+    private var 冷却后放行时间: ContinuousClock.Instant?
+    private var 连续限流次数 = 0
     private var lastSearchCacheCleanupAt: Date?
     private let cacheDirectory: URL
 
@@ -976,6 +1011,18 @@ final class VNDB服务: ObservableObject, VNDB搜索服务协议 {
         return response
     }
 
+    /// 账户里可以作为标签的标签（不含状态与“已投票”）。带上令牌才会返回私有的标签。
+    func fetchUserListLabels(token: String, userID: String) async throws -> [用户列表标签信息] {
+        struct 响应: Decodable { let labels: [用户列表标签信息] }
+        var components = URLComponents(string: "\(baseURL)/ulist_labels")!
+        components.queryItems = [URLQueryItem(name: "user", value: userID)]
+        var request = URLRequest(url: components.url!)
+        request.setValue("Token \(token)", forHTTPHeaderField: "Authorization")
+        let data = try await perform(request, accepting: [200])
+        return try JSONDecoder().decode(响应.self, from: data).labels
+            .filter { 用户列表项目.用户列表标签.可作为标签($0.id) }
+    }
+
     func fetchAllUserList(
         token: String,
         userID: String,
@@ -984,6 +1031,8 @@ final class VNDB服务: ObservableObject, VNDB搜索服务协议 {
         isDescending: Bool = true,
         forceRefresh: Bool = false
     ) async throws -> [用户列表项目] {
+        // 没登录VNDB时，资料库中的视觉小说就是本地资料库（随 Paper Account 同步）里的
+        if token.isEmpty { return 本地资料库.shared.条目.compactMap(\.vndb) }
         var page = 1
         var values: [用户列表项目] = []
         repeat {
@@ -1248,7 +1297,11 @@ final class VNDB服务: ObservableObject, VNDB搜索服务协议 {
         vnID: String,
         forceRefresh: Bool = false
     ) async throws -> 用户列表项目? {
-        guard !token.isEmpty, !userID.isEmpty else {
+        if token.isEmpty {
+            guard 本地资料库.shared.所有者 != nil else { throw URLError(.userAuthenticationRequired) }
+            return 本地资料库.shared.条目.first { $0.id == 本地资料库条目.视觉小说ID(vnID) }?.vndb
+        }
+        guard !userID.isEmpty else {
             throw URLError(.userAuthenticationRequired)
         }
 
@@ -1286,7 +1339,10 @@ final class VNDB服务: ObservableObject, VNDB搜索服务协议 {
         userID: String,
         vnID: String
     ) -> 用户列表项目? {
-        userItemCacheEntry(
+        if userID.isEmpty {
+            return 本地资料库.shared.条目.first { $0.id == 本地资料库条目.视觉小说ID(vnID) }?.vndb
+        }
+        return userItemCacheEntry(
             for: userItemCacheKey(userID: userID, vnID: vnID)
         )?.value
     }
@@ -1315,25 +1371,51 @@ final class VNDB服务: ObservableObject, VNDB搜索服务协议 {
         let effectiveDescending = query.isEmpty && 排序 == .relevance
             ? effectiveSort.defaultIsDescending
             : 降序
-        let body: [String: Any] = [
-            "filters": filterObject,
-            "fields": fields,
-            "sort": effectiveSort.apiSort,
-            "reverse": effectiveDescending,
-            "results": min(max(每页, 1), 100),
-            "page": max(页码, 1),
-            "count": false
-        ]
+        let pageSize = min(max(每页, 1), 100)
+        func 请求(_ filters: Any, page: Int) async throws -> 搜索分页响应<视觉小说搜索结果> {
+            let body: [String: Any] = [
+                "filters": filters,
+                "fields": fields,
+                "sort": effectiveSort.apiSort,
+                "reverse": effectiveDescending,
+                "results": pageSize,
+                "page": max(page, 1),
+                "count": false
+            ]
+            let data = try await 执行搜索请求(
+                endpoint: "vn",
+                body: body,
+                cacheKey: "vn_search_\(搜索缓存键(query: query, body: body))"
+            )
+            return try JSONDecoder().decode(搜索分页响应<视觉小说搜索结果>.self, from: data)
+        }
 
+        guard effectiveSort == .released else {
+            return try await 请求(filterObject, page: 页码)
+        }
+        // 按发行日期排序时，VNDB 会把未定（TBA）排在最前面（降序时）。分两段：先翻完有日期的，再接着翻 TBA
+        let 有日期 = 搜索条件组合(filterObject, with: ["released", "<=", "2099-12-31"] as [Any])
+        let 未定 = 搜索条件组合(filterObject, with: ["released", ">", "2099-12-31"] as [Any])
+        let datedPages = try await 视觉小说页数(有日期, 每页: pageSize, query: query)
+        if 页码 <= datedPages {
+            let response = try await 请求(有日期, page: 页码)
+            // 有日期的最后一页之后还有 TBA，由下一页接着读
+            return 搜索分页响应(results: response.results, more: true)
+        }
+        return try await 请求(未定, page: 页码 - datedPages)
+    }
+
+    /// 符合条件的作品一共几页（只读数量，结果跟着搜索缓存一起缓存）。
+    private func 视觉小说页数(_ filters: Any, 每页: Int, query: String) async throws -> Int {
+        struct 数量: Decodable { let count: Int? }
+        let body: [String: Any] = ["filters": filters, "results": 0, "count": true]
         let data = try await 执行搜索请求(
             endpoint: "vn",
             body: body,
-            cacheKey: "vn_search_\(搜索缓存键(query: query, body: body))"
+            cacheKey: "vn_search_count_\(搜索缓存键(query: query, body: body))"
         )
-        return try JSONDecoder().decode(
-            搜索分页响应<视觉小说搜索结果>.self,
-            from: data
-        )
+        let count = (try JSONDecoder().decode(数量.self, from: data).count) ?? 0
+        return (count + 每页 - 1) / 每页
     }
 
     func 获取搜索筛选目录(
@@ -1562,6 +1644,36 @@ final class VNDB服务: ObservableObject, VNDB搜索服务协议 {
             from: data
         ).results
         return 按编号排序(results, ids: ids, id: \.id)
+    }
+
+    struct 视觉小说系列节点: Codable {
+        struct 关系: Codable {
+            let id: String
+            let relation: String
+            let relation_official: Bool?
+        }
+        let id: String
+        let title: String
+        let titles: [用户多语言标题]?
+        let released: String?
+        let image: 视觉小说图片?
+        let relations: [关系]?
+    }
+
+    /// 按编号批量获取视觉小说和它们的关系，用来找出同一系列的作品（见 `系列补全`）。
+    func 按编号获取系列关系(_ ids: [String]) async throws -> [视觉小说系列节点] {
+        guard !ids.isEmpty else { return [] }
+        let body: [String: Any] = [
+            "filters": 编号筛选(ids),
+            "fields": "title,titles{lang,title,latin,official,main},released,image{url,thumbnail,sexual,violence},relations{id,relation,relation_official}",
+            "results": min(ids.count, 100),
+        ]
+        let data = try await 执行搜索请求(
+            endpoint: "vn",
+            body: body,
+            cacheKey: "vn_search_series_\(搜索缓存键(query: "", body: body))"
+        )
+        return try JSONDecoder().decode(搜索分页响应<视觉小说系列节点>.self, from: data).results
     }
 
     /// 按编号批量获取角色，字段与搜索结果相同，按传入顺序返回。
@@ -2938,15 +3050,23 @@ final class VNDB服务: ObservableObject, VNDB搜索服务协议 {
         updateStarted: Bool,
         finished: String?,
         updateFinished: Bool,
-        existingLabels: [用户列表项目.用户列表标签]
+        existingLabels: [用户列表项目.用户列表标签],
+        addedTagIDs: Set<Int> = [],
+        removedTagIDs: Set<Int> = []
     ) async throws {
         var values: [String: Any] = [:]
 
         if let statusID = status?.labelID {
-            let retainedLabels = existingLabels
+            let retainedLabels = Set(existingLabels
                 .map(\.id)
-                .filter { !(1...5).contains($0) && $0 != 0 && $0 != 7 }
-            values["labels"] = Array(Set(retainedLabels + [statusID])).sorted()
+                .filter { !(1...5).contains($0) && $0 != 0 && $0 != 7 })
+                .union(addedTagIDs)
+                .subtracting(removedTagIDs)
+            values["labels"] = Array(retainedLabels.union([statusID])).sorted()
+        } else {
+            // 状态不变时只加上、去掉改动的标签，不覆盖PaperVN不认识的标签
+            if !addedTagIDs.isEmpty { values["labels_set"] = addedTagIDs.sorted() }
+            if !removedTagIDs.isEmpty { values["labels_unset"] = removedTagIDs.sorted() }
         }
         if updateVote {
             values["vote"] = vote ?? NSNull()
@@ -2960,6 +3080,71 @@ final class VNDB服务: ObservableObject, VNDB搜索服务协议 {
 
         guard !values.isEmpty else { return }
         try await patchUserList(token: token, vnID: vnID, values: values)
+    }
+
+    /// 回退时把作品整条写回：标签（含状态）、评分、日期与备注都按给定的值，资料库里没有这部作品时会加进去。
+    func restoreUserListEntry(
+        token: String,
+        vnID: String,
+        labels: [Int],
+        vote: Int?,
+        started: String?,
+        finished: String?,
+        notes: String?
+    ) async throws {
+        try await patchUserList(
+            token: token,
+            vnID: vnID,
+            values: [
+                "labels": Array(Set(labels)).sorted(),
+                "vote": vote ?? NSNull(),
+                "started": started ?? NSNull(),
+                "finished": finished ?? NSNull(),
+                "notes": notes ?? NSNull(),
+            ]
+        )
+    }
+
+    /// 一批作品在VNDB上的资料库条目信息，每次最多查100部。VNDB里没有的作品不在结果中。
+    func fetchUserListDetails(vnIDs: [String]) async throws -> [String: 用户列表项目.用户列表详细信息] {
+        struct 编号: Decodable { let id: String }
+        struct 响应<Row: Decodable>: Decodable { let results: [Row] }
+        var result: [String: 用户列表项目.用户列表详细信息] = [:]
+        let ids = Array(Set(vnIDs)).sorted()
+        for start in stride(from: 0, to: ids.count, by: 100) {
+            let batch = Array(ids[start..<min(start + 100, ids.count)])
+            var request = URLRequest(url: URL(string: "\(baseURL)/vn")!)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONSerialization.data(withJSONObject: [
+                "filters": batch.count == 1 ? ["id", "=", batch[0]] as [Any] : ["or"] + batch.map { ["id", "=", $0] as [Any] },
+                "fields": "id,title,titles{lang,title,latin,official,main},image{url,thumbnail,dims,sexual,violence},rating,votecount,released",
+                "results": 100,
+            ] as [String: Any])
+            let data = try await perform(request, accepting: [200])
+            // 同一份结果按顺序解出编号和作品信息
+            let keys = try JSONDecoder().decode(响应<编号>.self, from: data).results
+            let values = try JSONDecoder().decode(响应<用户列表项目.用户列表详细信息>.self, from: data).results
+            for (key, value) in zip(keys, values) { result[key.id] = value }
+        }
+        return result
+    }
+
+    /// 资料库条目需要的作品信息（不需要登录）。没登录VNDB时把作品加入本地资料库用。
+    func fetchUserListDetails(vnID: String) async throws -> 用户列表项目.用户列表详细信息 {
+        struct 响应: Decodable { let results: [用户列表项目.用户列表详细信息] }
+        var request = URLRequest(url: URL(string: "\(baseURL)/vn")!)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "filters": ["id", "=", vnID],
+            "fields": "title,titles{lang,title,latin,official,main},image{url,thumbnail,dims,sexual,violence},rating,votecount,released",
+        ])
+        let data = try await perform(request, accepting: [200])
+        guard let details = try JSONDecoder().decode(响应.self, from: data).results.first else {
+            throw URLError(.fileDoesNotExist)
+        }
+        return details
     }
 
     func updateUserStatus(
@@ -2998,7 +3183,15 @@ final class VNDB服务: ObservableObject, VNDB搜索服务协议 {
         token: String,
         vnID: String
     ) async throws {
+        // 没登录VNDB：只从本地资料库删除，登录VNDB后再同步过去
+        if token.isEmpty {
+            本地资料库.shared.本地删除视觉小说(vnID: vnID)
+            NotificationCenter.default.post(name: .paperVNLibraryDidChange, object: vnID)
+            return
+        }
         try await ensureListWritePermission(token: token)
+        // 记下在 PaperVN 中删除的作品：Bangumi 删不掉收藏，导入 Bangumi 的视觉小说时不能再把它加回来
+        本地资料库.shared.记录已删除视觉小说([本地资料库条目.视觉小说ID(vnID)])
 
         let url = URL(string: "\(baseURL)/ulist/\(vnID)")!
         var request = URLRequest(url: url)
@@ -3017,6 +3210,8 @@ final class VNDB服务: ObservableObject, VNDB搜索服务协议 {
         existingReleaseIDs: [String],
         selectedReleaseID: String?
     ) async throws {
+        // 发行版本只记录在VNDB上
+        guard !token.isEmpty else { return }
         try await ensureListWritePermission(token: token)
 
         for releaseID in existingReleaseIDs where releaseID != selectedReleaseID {
@@ -3345,7 +3540,7 @@ final class VNDB服务: ObservableObject, VNDB搜索服务协议 {
         page: Int
     ) -> String {
         let direction = isDescending ? "descending" : "ascending"
-        return "user_list_\(userID)_\(filter.rawValue)_\(sort.rawValue)_\(direction)_\(page)"
+        return "user_list_v2_\(userID)_\(filter.rawValue)_\(sort.rawValue)_\(direction)_\(page)"
     }
 
     private func userItemCacheKey(
@@ -3380,6 +3575,19 @@ final class VNDB服务: ObservableObject, VNDB搜索服务协议 {
         vnID: String,
         values: [String: Any]
     ) async throws {
+        // 没登录VNDB：写进本地资料库（随 Paper Account 同步），登录VNDB后再写入VNDB
+        if token.isEmpty {
+            try await 本地资料库.shared.本地写入视觉小说(vnID: vnID, values: values)
+            NotificationCenter.default.post(name: .paperVNLibraryDidChange, object: vnID)
+            return
+        }
+        // VNDB的文档说 null 可以清除字段，但 started、finished 传 null 会返回“Invalid 'finished' member.”，
+        // 整次写入失败（这两项的验证规则没有 default => undef）。日期为空时不发送这两项，VNDB上原有的日期保留。
+        var values = values
+        for key in ["started", "finished"] where values[key] is NSNull {
+            values.removeValue(forKey: key)
+        }
+        guard !values.isEmpty else { return }
         try await ensureListWritePermission(token: token)
 
         let url = URL(string: "\(baseURL)/ulist/\(vnID)")!
@@ -3412,10 +3620,17 @@ final class VNDB服务: ObservableObject, VNDB搜索服务协议 {
         accepting statusCodes: Set<Int>
     ) async throws -> Data {
         cacheWritesEnabled = true
+        try await 等待限流冷却()
         let (data, httpResponse) = try await PaperVNConnect网络设置.发送请求(
             request,
             session: session
         )
+
+        if httpResponse.statusCode == 429 {
+            记录限流(httpResponse)
+            throw VNDB服务错误.请求过于频繁
+        }
+        连续限流次数 = 0
 
         if httpResponse.statusCode == 401 {
             throw VNDB服务错误.token无效
@@ -3423,10 +3638,6 @@ final class VNDB服务: ObservableObject, VNDB搜索服务协议 {
 
         if httpResponse.statusCode == 403 {
             throw VNDB服务错误.缺少资料库写入权限
-        }
-
-        if httpResponse.statusCode == 429 {
-            throw VNDB服务错误.请求过于频繁
         }
 
         if [500, 502, 503, 504].contains(httpResponse.statusCode) {
@@ -3444,12 +3655,44 @@ final class VNDB服务: ObservableObject, VNDB搜索服务协议 {
 
         return data
     }
+
+    private func 等待限流冷却() async throws {
+        let clock = ContinuousClock()
+        while let 截止 = 限流冷却截止 {
+            let now = clock.now
+            if now >= 截止, 冷却后放行时间.map({ now >= $0 }) ?? true {
+                限流冷却截止 = nil
+                冷却后放行时间 = nil
+                return
+            }
+            // 冷却结束后每 0.5 秒放行一个请求
+            let 放行 = 冷却后放行时间.map { max(截止, $0.advanced(by: .milliseconds(500))) } ?? 截止
+            冷却后放行时间 = 放行
+            try await Task.sleep(until: 放行, clock: clock)
+            // 等待期间又被限流时冷却会延后，重新排队
+            if let 新截止 = 限流冷却截止, 新截止 > 截止 { continue }
+            return
+        }
+    }
+
+    private func 记录限流(_ response: HTTPURLResponse) {
+        连续限流次数 += 1
+        // 优先用 Retry-After；没有时按 3、6、12 秒递增，最多 30 秒
+        let 退避秒数 = min(30, 3 << min(连续限流次数 - 1, 4))
+        let 秒数 = response.value(forHTTPHeaderField: "Retry-After")
+            .flatMap(Int.init)
+            .map { min(max($0, 1), 60) } ?? 退避秒数
+        let 截止 = ContinuousClock.now.advanced(by: .seconds(秒数))
+        if 限流冷却截止.map({ 截止 > $0 }) ?? true {
+            限流冷却截止 = 截止
+            冷却后放行时间 = nil
+        }
+    }
 }
 
 enum VNDB探索服务错误: LocalizedError, Equatable, Sendable {
     case token无效
     case 请求过于频繁
-    case 推荐请求预算不足
     case 服务暂时不可用
     case 无效响应
     case 请求失败(statusCode: Int, message: String)
@@ -3460,8 +3703,6 @@ enum VNDB探索服务错误: LocalizedError, Equatable, Sendable {
             return String(localized: "VNDB Token无效或已过期，请重新登录。")
         case .请求过于频繁:
             return String(localized: "请求过于频繁，请稍后再试。")
-        case .推荐请求预算不足:
-            return String(localized: "推荐资料仍在准备中，请稍后再试。")
         case .服务暂时不可用:
             return String(localized: "VNDB服务暂时不可用，请稍后再试。")
         case .无效响应:
@@ -3534,15 +3775,6 @@ protocol VNDB探索服务协议: AnyObject {
     func 已缓存特征目录() -> [探索特征]?
     func 随机语录(强制刷新: Bool) async throws -> 探索语录?
 
-    func 生成推荐(
-        token: String,
-        userID: String,
-        排除ID: Set<String>,
-        数量: Int,
-        强制刷新: Bool
-    ) async throws -> [探索推荐]
-
-    func 已缓存推荐(userID: String, 排除ID: Set<String>) async -> [探索推荐]?
     func 清除缓存() async
 }
 
@@ -3566,47 +3798,6 @@ final class VNDB探索服务: VNDB探索服务协议 {
         let count: Int?
     }
 
-    private struct 推荐资料库快照: Codable {
-        let items: [探索用户列表项目]
-        let newestLastModified: Int?
-        let lastFullSyncAt: Date
-    }
-
-    private struct 推荐资料库角色快照: Codable {
-        var coveredVisualNovelIDs: Set<String>
-        var characters: [探索角色]
-    }
-
-    private final class 推荐请求预算 {
-        private let limit: Int
-        private let progressTotal: Int
-        private let progress: ((Int, Int) -> Void)?
-        private(set) var remaining: Int
-
-        init(
-            limit: Int,
-            progressTotal: Int? = nil,
-            progress: ((Int, Int) -> Void)? = nil
-        ) {
-            self.limit = max(0, limit)
-            self.progressTotal = max(1, progressTotal ?? limit)
-            self.progress = progress
-            remaining = max(0, limit)
-            progress?(0, self.progressTotal)
-        }
-
-        func consume(reserving minimumRemaining: Int = 0) -> Bool {
-            guard remaining > max(0, minimumRemaining) else { return false }
-            remaining -= 1
-            let completed = limit - remaining
-            progress?(
-                completed,
-                max(progressTotal, completed + 1)
-            )
-            return true
-        }
-    }
-
     private let session: URLSession
     private let baseURL: String
     private let cacheDirectory: URL
@@ -3614,7 +3805,6 @@ final class VNDB探索服务: VNDB探索服务协议 {
     private let now: @Sendable () -> Date
     private let randomInteger: @Sendable (ClosedRange<Int>) -> Int
     private var memoryCache: [String: Data] = [:]
-    private var recommendationModelIdentifier: String
     private var lastRequestStartedAt: ContinuousClock.Instant?
     private var rateLimitCooldownUntil: ContinuousClock.Instant?
     private var cacheWritesEnabled = true
@@ -3622,12 +3812,6 @@ final class VNDB探索服务: VNDB探索服务协议 {
     private var feedLifetime: TimeInterval {
         缓存策略.当前.exploreFeedLifetime
     }
-    private let recommendationLifetime: TimeInterval = 24 * 60 * 60
-    /// 推荐结果最多保留一周；展示顺序每天在界面层重新排列。
-    private let recommendationRefreshLifetime: TimeInterval = 7 * 24 * 60 * 60
-    private let recommendationMetadataLifetime: TimeInterval = 7 * 24 * 60 * 60
-    static let 推荐分析请求上限 = 100
-    private let recommendationRequestLimit = Int.max
     private let dailyLifetime: TimeInterval = 24 * 60 * 60
     private let taxonomyLifetime: TimeInterval = 7 * 24 * 60 * 60
 
@@ -3662,8 +3846,6 @@ final class VNDB探索服务: VNDB探索服务协议 {
                 )
         self.now = now
         self.randomInteger = randomInteger
-        self.recommendationModelIdentifier =
-            VNDB离线推荐模型加载器.模型标识() ?? "none"
         try? FileManager.default.createDirectory(
             at: self.cacheDirectory,
             withIntermediateDirectories: true
@@ -3678,15 +3860,6 @@ final class VNDB探索服务: VNDB探索服务协议 {
             resourceValues.isExcludedFromBackup = true
             try? directory.setResourceValues(resourceValues)
         }
-    }
-
-    func 推荐模型标识() -> String {
-        recommendationModelIdentifier
-    }
-
-    func 刷新推荐模型标识() {
-        recommendationModelIdentifier =
-            VNDB离线推荐模型加载器.模型标识() ?? "none"
     }
 
     func 视觉小说(
@@ -3734,6 +3907,26 @@ final class VNDB探索服务: VNDB探索服务协议 {
             if let cached { return cached.value.markingCache(.stale) }
             throw error
         }
+    }
+
+    /// 按编号批量读取视觉小说（“为你推荐”补齐标题和封面用），每次最多 100 部，按传入顺序返回。
+    func 视觉小说(编号 ids: [String]) async throws -> [探索视觉小说] {
+        var results: [String: 探索视觉小说] = [:]
+        for start in stride(from: 0, to: ids.count, by: 100) {
+            let chunk = Array(ids[start..<min(start + 100, ids.count)])
+            let response: 探索页面<探索视觉小说> = try await post(
+                endpoint: "vn",
+                body: [
+                    "filters": chunk.count == 1
+                        ? ["id", "=", chunk[0]]
+                        : ["or"] + chunk.map { ["id", "=", $0] as [Any] },
+                    "fields": Self.visualNovelFields,
+                    "results": chunk.count,
+                ]
+            )
+            for item in response.results { results[item.id] = item }
+        }
+        return ids.compactMap { results[$0] }
     }
 
     func 发行版本(
@@ -3803,6 +3996,59 @@ final class VNDB探索服务: VNDB探索服务协议 {
             lifetime: feedLifetime,
             force: 强制刷新
         )
+    }
+
+    /// Today的“今日生日”：今天过生日的主要角色，只取投票较多的视觉小说里的。
+    func 今日生日角色(月 month: Int, 日 day: Int, 强制刷新: Bool = false) async throws -> [探索角色] {
+        try await paged(
+            endpoint: "character",
+            key: "character_today_birthday_\(month)_\(day)",
+            filters: [
+                "and",
+                ["birthday", "=", [month, day]],
+                ["or", ["role", "=", "main"], ["role", "=", "primary"]],
+                ["vn", "=", ["votecount", ">=", 200]]
+            ] as [Any],
+            fields: Self.characterFields,
+            sort: "id",
+            reverse: true,
+            page: 1,
+            pageSize: 24,
+            lifetime: dailyLifetime,
+            force: 强制刷新
+        ).results
+    }
+
+    /// Today的角色生日：资料库里这些视觉小说中，在给定日期（月、日）过生日的角色。
+    func 生日角色(日期 dates: [(month: Int, day: Int)], 视觉小说 vnIDs: [String]) async throws -> [探索角色] {
+        guard !vnIDs.isEmpty, !dates.isEmpty else { return [] }
+        let ids = vnIDs.sorted()
+        // 缓存键要稳定（hashValue 每次启动都不同）
+        let digest = ids.joined(separator: ",").unicodeScalars.reduce(UInt64(5381)) { ($0 &* 33) &+ UInt64($1.value) }
+        let dateKey = dates.map { "\($0.month)-\($0.day)" }.joined(separator: "_")
+        let dateFilters = dates.map { ["birthday", "=", [$0.month, $0.day]] as [Any] }
+        return try await paged(
+            endpoint: "character",
+            key: "character_library_birthday_\(dateKey)_\(ids.count)_\(String(digest, radix: 36))",
+            filters: [
+                "and",
+                dateFilters.count == 1 ? dateFilters[0] : (["or"] as [Any]) + dateFilters.map { $0 as Any },
+                ["vn", "=", Self.任一编号(ids)] as [Any]
+            ] as [Any],
+            fields: Self.characterFields,
+            sort: "id",
+            reverse: false,
+            page: 1,
+            pageSize: 100,
+            lifetime: dailyLifetime,
+            force: false
+        ).results
+    }
+
+    /// “编号是其中之一”的筛选。只有一个编号时不包一层 or。
+    private static func 任一编号(_ ids: [String]) -> [Any] {
+        if ids.count == 1 { return ["id", "=", ids[0]] }
+        return (["or"] as [Any]) + ids.map { ["id", "=", $0] as Any }
     }
 
     func 角色详情(id: String, 强制刷新: Bool = false) async throws -> 探索角色? {
@@ -4120,202 +4366,6 @@ final class VNDB探索服务: VNDB探索服务协议 {
         }
     }
 
-    func 生成推荐(
-        token: String,
-        userID: String,
-        排除ID: Set<String> = [],
-        数量: Int = 12,
-        强制刷新: Bool = false
-    ) async throws -> [探索推荐] {
-        try await 生成推荐(
-            token: token,
-            userID: userID,
-            排除ID: 排除ID,
-            数量: 数量,
-            强制刷新: 强制刷新,
-            进度: nil
-        )
-    }
-
-    func 生成推荐(
-        token: String,
-        userID: String,
-        排除ID: Set<String>,
-        数量: Int,
-        强制刷新: Bool,
-        进度: ((Int, Int) -> Void)?
-    ) async throws -> [探索推荐] {
-        guard !token.isEmpty, !userID.isEmpty else { return [] }
-        guard await VNDB离线推荐计算中心.shared.有可用模型() else {
-            throw VNDB探索服务错误.推荐请求预算不足
-        }
-        let allExcludedIDs = 排除ID
-        let progressTotal = 100
-        var reportedProgress = 0
-        func reportProgress(_ completed: Int) {
-            let value = min(progressTotal, max(reportedProgress, completed))
-            guard value > reportedProgress || completed == 0 else { return }
-            reportedProgress = value
-            进度?(value, progressTotal)
-        }
-        reportProgress(0)
-        let limit = min(60, max(1, 数量))
-        let calibrationSignature = "none"
-        let modelCacheIdentity = safeFilename(for: 推荐模型标识())
-        let recommendationKey = "recommendations_v19_\(userID)_\(modelCacheIdentity)_\(calibrationSignature)"
-        let latestRecommendationKey = "recommendations_v19_latest_\(userID)_\(modelCacheIdentity)"
-        let tagShelvesKey = "recommendation_tag_shelves_v9_\(userID)_\(modelCacheIdentity)_\(calibrationSignature)"
-        let latestTagShelvesKey = "recommendation_tag_shelves_v9_latest_\(userID)_\(modelCacheIdentity)"
-        let cached: 缓存条目<[探索推荐]>? = loadCache(key: recommendationKey)
-        if !强制刷新, let cached,
-           isFresh(cached.savedAt, lifetime: recommendationRefreshLifetime) {
-            saveCache(cached.value, key: latestRecommendationKey)
-            let libraryIDs = Set(
-                (try? await allUserList(
-                    token: token,
-                    userID: userID,
-                    budget: 推荐请求预算(
-                        limit: recommendationRequestLimit,
-                        progressTotal: progressTotal,
-                        progress: { _, _ in reportProgress(12) }
-                    ),
-                    forceRefresh: false
-                ))?.map(\.id) ?? []
-            )
-            return cached.value.filter {
-                !allExcludedIDs.contains($0.id)
-                    && !libraryIDs.contains($0.id)
-            }
-            .prefix(limit).map { $0 }
-        }
-
-        do {
-            reportProgress(3)
-            let budget = 推荐请求预算(
-                limit: recommendationRequestLimit,
-                progressTotal: progressTotal,
-                progress: { _, _ in
-                    reportProgress(min(24, reportedProgress + 1))
-                }
-            )
-            let library = try await allUserList(
-                token: token,
-                userID: userID,
-                budget: budget,
-                forceRefresh: 强制刷新
-            )
-            reportProgress(24)
-            let libraryIDs = Set(library.map(\.id))
-            let excluded = allExcludedIDs.union(libraryIDs)
-            guard await VNDB离线推荐计算中心.shared.有可用模型() else {
-                throw VNDB探索服务错误.推荐请求预算不足
-            }
-            reportProgress(38)
-            let libraryCharacters: [探索角色]
-            let characterSnapshotKey =
-                "recommendation_library_characters_v3_\(userID)"
-            let savedCharacters: 推荐资料库角色快照 = loadCache(
-                key: characterSnapshotKey
-            )?.value ?? 推荐资料库角色快照(
-                coveredVisualNovelIDs: [],
-                characters: []
-            )
-            var charactersByID = Dictionary(
-                savedCharacters.characters.map { ($0.id, $0) },
-                uniquingKeysWith: { _, latest in latest }
-            )
-            var coveredVisualNovelIDs = savedCharacters.coveredVisualNovelIDs
-            let modelMissingVisualNovelIDs = await VNDB离线推荐计算中心.shared
-                .需要下载角色的作品ID(libraryIDs)
-            let missingVisualNovelIDs = modelMissingVisualNovelIDs
-                .subtracting(coveredVisualNovelIDs)
-            if !missingVisualNovelIDs.isEmpty {
-                let downloadedCharacters = try await recommendationCharacters(
-                    visualNovelIDs: Array(missingVisualNovelIDs),
-                    budget: budget
-                )
-                for character in downloadedCharacters {
-                    charactersByID[character.id] = character
-                }
-                coveredVisualNovelIDs.formUnion(missingVisualNovelIDs)
-            }
-            let updatedSnapshot = 推荐资料库角色快照(
-                coveredVisualNovelIDs: coveredVisualNovelIDs,
-                characters: Array(charactersByID.values)
-            )
-            saveCache(updatedSnapshot, key: characterSnapshotKey)
-            libraryCharacters = charactersByID.values.filter { character in
-                (character.visualNovels ?? []).contains {
-                    libraryIDs.contains($0.id)
-                }
-            }
-
-            if let context = try await VNDB离线推荐计算中心.shared.准备计算(
-                   library: library,
-                   downloadedCharacters: libraryCharacters,
-                   excludedIDs: excluded
-               ) {
-                reportProgress(68)
-                guard let result = try await VNDB离线推荐计算中心.shared.排序(
-                    context,
-                    excludedIDs: excluded,
-                    limit: limit
-                ) else {
-                    throw VNDB探索服务错误.推荐请求预算不足
-                }
-                reportProgress(94)
-                guard !result.recommendations.isEmpty else {
-                    throw VNDB探索服务错误.推荐请求预算不足
-                }
-                saveCache(result.recommendations, key: recommendationKey)
-                saveCache(result.recommendations, key: latestRecommendationKey)
-                saveCache(result.tagShelves, key: tagShelvesKey)
-                saveCache(result.tagShelves, key: latestTagShelvesKey)
-                reportProgress(100)
-                return Array(result.recommendations.prefix(limit))
-            }
-
-            throw VNDB探索服务错误.推荐请求预算不足
-        } catch {
-            throw error
-        }
-    }
-
-    func 已缓存推荐(
-        userID: String,
-        排除ID: Set<String> = []
-    ) -> [探索推荐]? {
-        let excludedIDs = 排除ID
-        let modelCacheIdentity = safeFilename(for: 推荐模型标识())
-        let latestKey = "recommendations_v19_latest_\(userID)_\(modelCacheIdentity)"
-        let current: 缓存条目<[探索推荐]>? = loadCache(
-            key: "recommendations_v19_\(userID)_\(modelCacheIdentity)_\(preferenceCalibrationSignature())"
-        )
-        let latest: 缓存条目<[探索推荐]>? = loadCache(
-            key: latestKey
-        )
-        if let current { saveCache(current.value, key: latestKey) }
-        return (current ?? latest).map {
-            $0.value.filter { !excludedIDs.contains($0.id) }
-        }
-    }
-
-    func 推荐缓存是否新鲜(userID: String) -> Bool {
-        let current: 缓存条目<[探索推荐]>? = loadCache(
-            key: "recommendations_v19_\(userID)_\(safeFilename(for: 推荐模型标识()))_\(preferenceCalibrationSignature())"
-        )
-        guard let current, !current.value.isEmpty else { return false }
-        return isFresh(current.savedAt, lifetime: recommendationRefreshLifetime)
-    }
-
-    func 推荐缓存生成日期(userID: String) -> Date? {
-        let current: 缓存条目<[探索推荐]>? = loadCache(
-            key: "recommendations_v19_\(userID)_\(safeFilename(for: 推荐模型标识()))_\(preferenceCalibrationSignature())"
-        )
-        guard let current, !current.value.isEmpty else { return nil }
-        return current.savedAt
-    }
-
     func cacheSizeInBytes() -> Int64 {
         let keys: Set<URLResourceKey> = [
             .isRegularFileKey,
@@ -4351,163 +4401,6 @@ final class VNDB探索服务: VNDB探索服务协议 {
             at: cacheDirectory,
             withIntermediateDirectories: true
         )
-    }
-
-    private func allUserList(
-        token: String,
-        userID: String,
-        budget: 推荐请求预算,
-        forceRefresh: Bool = false
-    ) async throws -> [探索用户列表项目] {
-        let key = "recommendation_library_snapshot_v2_\(userID)"
-        let current: 缓存条目<推荐资料库快照>? = loadCache(key: key)
-        let snapshot = current?.value
-        let snapshotSavedAt = current?.savedAt
-        if !forceRefresh, let snapshot, let snapshotSavedAt,
-           isFresh(snapshotSavedAt, lifetime: recommendationLifetime) {
-            return snapshot.items
-        }
-
-        let fullSyncLifetime: TimeInterval = 30 * 24 * 60 * 60
-        let needsFullSync = forceRefresh || snapshot == nil
-            || now().timeIntervalSince(snapshot?.lastFullSyncAt ?? .distantPast)
-                >= fullSyncLifetime
-        let watermark = snapshot?.newestLastModified
-        let overlapWatermark = watermark.map { max(0, $0 - 1) }
-        var valuesByID = needsFullSync
-            ? [:]
-            : Dictionary(
-                (snapshot?.items ?? []).map { ($0.id, $0) },
-                uniquingKeysWith: { _, updated in updated }
-            )
-        var page = 1
-        var hasMore = true
-        while hasMore {
-            try Task.checkCancellation()
-            guard budget.consume() else {
-                throw VNDB探索服务错误.推荐请求预算不足
-            }
-            let response: 探索用户列表响应 = try await post(
-                endpoint: "ulist",
-                body: [
-                    "user": userID,
-                    "filters": [],
-                    "fields": Self.userListFields,
-                    "sort": "lastmod",
-                    "reverse": true,
-                    "results": 100,
-                    "page": page,
-                    "count": false
-                ],
-                token: token
-            )
-            let changedItems = if needsFullSync {
-                response.results
-            } else if let overlapWatermark {
-                response.results.filter {
-                    ($0.lastModified ?? 0) >= overlapWatermark
-                }
-            } else {
-                response.results
-            }
-            for item in changedItems { valuesByID[item.id] = item }
-            hasMore = response.more
-            if !needsFullSync, let overlapWatermark,
-               response.results.contains(where: {
-                   ($0.lastModified ?? 0) < overlapWatermark
-               }) {
-                hasMore = false
-            }
-            page += 1
-        }
-        let values = valuesByID.values.sorted {
-            if ($0.lastModified ?? 0) != ($1.lastModified ?? 0) {
-                return ($0.lastModified ?? 0) > ($1.lastModified ?? 0)
-            }
-            return $0.id.localizedStandardCompare($1.id) == .orderedAscending
-        }
-        let savedSnapshot = 推荐资料库快照(
-            items: values,
-            newestLastModified: values.compactMap(\.lastModified).max(),
-            lastFullSyncAt: needsFullSync
-                ? now()
-                : (snapshot?.lastFullSyncAt ?? now())
-        )
-        saveCache(savedSnapshot, key: key)
-        return values
-    }
-
-    private func recommendationCharacters(
-        visualNovelIDs: [String],
-        budget: 推荐请求预算
-    ) async throws -> [探索角色] {
-        let ids = Array(Set(visualNovelIDs)).sorted()
-        guard !ids.isEmpty else { return [] }
-        var values: [探索角色] = []
-        var seen: Set<String> = []
-        let batches = stride(from: 0, to: ids.count, by: 20).map {
-            Array(ids[$0..<min($0 + 20, ids.count)])
-        }
-        for batch in batches {
-            try Task.checkCancellation()
-            let predicates: [Any] = batch.map {
-                ["vn", "=", ["id", "=", $0]] as [Any]
-            }
-            let visualNovelFilter: Any = predicates.count == 1
-                ? predicates[0]
-                : ["or"] + predicates
-            let filter: Any = [
-                "and",
-                visualNovelFilter,
-                [
-                    "or",
-                    ["role", "=", "main"],
-                    ["role", "=", "primary"]
-                ]
-            ]
-            var page = 1
-            var hasMore = true
-            while hasMore {
-                try Task.checkCancellation()
-                let key = "recommendation_library_characters_v3_\(batch.joined(separator: "_"))_page_\(page)"
-                let cached: 缓存条目<探索页面<探索角色>>? = loadCache(
-                    key: key
-                )
-                let response: 探索页面<探索角色>
-                if let cached,
-                   isFresh(cached.savedAt, lifetime: recommendationMetadataLifetime) {
-                    response = cached.value
-                } else {
-                    guard budget.consume() else {
-                        throw VNDB探索服务错误.推荐请求预算不足
-                    }
-                    do {
-                        response = try await post(
-                            endpoint: "character",
-                            body: [
-                                "filters": filter,
-                                "fields": Self.characterRecommendationFields,
-                                "sort": "id",
-                                "reverse": false,
-                                "results": 100,
-                                "page": page,
-                                "count": false
-                            ]
-                        )
-                        saveCache(response, key: key)
-                    } catch {
-                        guard let cached else { throw error }
-                        response = cached.value
-                    }
-                }
-                values.append(contentsOf: response.results.filter {
-                    seen.insert($0.id).inserted
-                })
-                hasMore = response.more
-                page += 1
-            }
-        }
-        return values
     }
 
     private func paged<Item: Codable>(
@@ -4831,10 +4724,6 @@ final class VNDB探索服务: VNDB探索服务协议 {
         return ["and", lhs, rhs]
     }
 
-    private func preferenceCalibrationSignature() -> String {
-        "none"
-    }
-
     private func loadCache<Value: Codable>(
         key: String
     ) -> 缓存条目<Value>? {
@@ -5001,625 +4890,6 @@ final class VNDB探索服务: VNDB探索服务协议 {
     tags{id,name,rating,spoiler,lie,category},developers{id,name},\
     relations{id,relation,relation_official}}
     """
-}
-
-enum 为你推荐偏好分析设置 {
-    static let 启用键 = "recommendationPreferenceAnalysisEnabled"
-    static let 最低物理内存字节: UInt64 = 4 * 1_024 * 1_024 * 1_024
-    static let 当前分析代次 = 15
-    private static let 完成代次键前缀 =
-        "recommendationPreferenceAnalysisCompletedGeneration."
-    private static let 完成模型键前缀 =
-        "recommendationPreferenceAnalysisCompletedModel."
-
-    static var 此设备支持: Bool {
-        是否支持(物理内存: ProcessInfo.processInfo.physicalMemory)
-    }
-
-    static var 已启用: Bool {
-        启用状态()
-    }
-
-    static func 是否支持(物理内存: UInt64) -> Bool {
-        物理内存 >= 最低物理内存字节
-    }
-
-    static func 启用状态(
-        defaults: UserDefaults = .standard,
-        物理内存: UInt64 = ProcessInfo.processInfo.physicalMemory
-    ) -> Bool {
-        guard 是否支持(物理内存: 物理内存) else { return false }
-        guard defaults.object(forKey: 启用键) != nil else { return true }
-        return defaults.bool(forKey: 启用键)
-    }
-
-    static func 应用设备限制(
-        defaults: UserDefaults = .standard,
-        物理内存: UInt64 = ProcessInfo.processInfo.physicalMemory
-    ) {
-        guard !是否支持(物理内存: 物理内存) else { return }
-        defaults.set(false, forKey: 启用键)
-    }
-
-    static func 已完成分析(
-        userID: String,
-        代次: Int = 当前分析代次,
-        模型标识: String? = nil,
-        defaults: UserDefaults = .standard
-    ) -> Bool {
-        guard defaults.integer(forKey: 完成代次键(userID: userID)) >= 代次 else {
-            return false
-        }
-        guard let 模型标识 else {
-            return true
-        }
-        return defaults.string(forKey: 完成模型键(userID: userID)) == 模型标识
-    }
-
-    static func 标记分析完成(
-        userID: String,
-        代次: Int = 当前分析代次,
-        模型标识: String? = nil,
-        defaults: UserDefaults = .standard
-    ) {
-        let key = 完成代次键(userID: userID)
-        defaults.set(max(defaults.integer(forKey: key), 代次), forKey: key)
-        if let 模型标识 {
-            defaults.set(模型标识, forKey: 完成模型键(userID: userID))
-        }
-    }
-
-    private static func 完成代次键(userID: String) -> String {
-        完成代次键前缀 + userID.lowercased()
-    }
-
-    private static func 完成模型键(userID: String) -> String {
-        完成模型键前缀 + userID.lowercased()
-    }
-}
-
-@MainActor
-final class 推荐后台分析中心: ObservableObject {
-    static let shared = 推荐后台分析中心()
-
-    @Published private(set) var isAnalyzing = false
-    @Published private(set) var analysisProgress = 0.0
-
-    private static let logger = Logger(
-        subsystem: "com.jizpaper.PaperVN",
-        category: "PreferenceAnalysis"
-    )
-
-    private static var 正在运行预览: Bool {
-        ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
-    }
-
-    private static var 可以提交持续处理任务: Bool {
-        UIApplication.shared.applicationState == .active
-    }
-
-    static let 后台任务通配标识 =
-        "com.jizpaper.PaperVN.preference-analysis.*"
-    private static let 后台任务标识前缀 =
-        "com.jizpaper.PaperVN.preference-analysis."
-
-    private struct 分析描述: Codable, Equatable {
-        let identifier: String
-        let userID: String
-        let forceRefresh: Bool
-        let createdAt: Date
-        let analysisGeneration: Int?
-        let modelIdentifier: String?
-    }
-
-    private struct 运行中分析 {
-        let descriptor: 分析描述
-        let task: Task<[探索推荐], Error>
-    }
-
-    private let service = VNDB探索服务.shared
-    private let defaults = UserDefaults.standard
-    private let pendingDescriptorKey = "pendingRecommendationPreferenceAnalysis"
-    private var activeAnalysis: 运行中分析?
-    private var libraryChangeRefreshTask: Task<Void, Never>?
-    private var changeObservers: [NSObjectProtocol] = []
-    private var isPausedForToday = false
-    private var completedRequestCount = 0
-    private var totalRequestCount = VNDB探索服务.推荐分析请求上限
-
-    private var didRegisterBackgroundTask = false
-    private var continuedTasks: [String: BGTask] = [:]
-
-    private init() {
-        guard !Self.正在运行预览 else { return }
-
-        for name in [Notification.Name.paperVNLibraryDidChange] {
-            changeObservers.append(
-                NotificationCenter.default.addObserver(
-                    forName: name,
-                    object: nil,
-                    queue: .main
-                ) { [weak self] _ in
-                    Task { @MainActor [weak self] in
-                        self?.安排资料变更重算()
-                    }
-                }
-            )
-        }
-    }
-
-    private func 安排资料变更重算() {
-        guard 为你推荐偏好分析设置.已启用 else { return }
-        libraryChangeRefreshTask?.cancel()
-        libraryChangeRefreshTask = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(700))
-            guard !Task.isCancelled,
-                  let self,
-                  let credentials = 读取VNDB已保存凭据() else { return }
-            self.停止分析()
-            _ = try? await self.执行分析(
-                token: credentials.token,
-                userID: credentials.userID,
-                forceRefresh: true
-            )
-        }
-    }
-
-    private func 当前模型标识() -> String {
-        service.推荐模型标识()
-    }
-
-    func 注册后台任务() {
-        guard !Self.正在运行预览, !didRegisterBackgroundTask else {
-            return
-        }
-        guard #available(iOS 26.0, *) else { return }
-        didRegisterBackgroundTask = BGTaskScheduler.shared.register(
-            forTaskWithIdentifier: Self.后台任务通配标识,
-            using: .main
-        ) { task in
-            guard let task = task as? BGContinuedProcessingTask else {
-                task.setTaskCompleted(success: false)
-                return
-            }
-            Task { @MainActor in
-                推荐后台分析中心.shared.接收后台任务(task)
-            }
-        }
-        if !didRegisterBackgroundTask {
-            Self.logger.error(
-                "Preference analysis background task registration failed"
-            )
-        }
-    }
-
-    func 启动需要的分析() {
-        guard !isPausedForToday,
-              !Self.正在运行预览,
-              为你推荐偏好分析设置.已启用,
-              VNDB离线推荐模型加载器.模型标识() != nil,
-              let credentials = 读取VNDB已保存凭据() else {
-            return
-        }
-        guard Self.可以提交持续处理任务 else { return }
-        let modelIdentifier = 当前模型标识()
-        let hasPendingAnalysis = 待处理分析描述().map {
-            $0.userID == credentials.userID
-                && $0.analysisGeneration
-                    == 为你推荐偏好分析设置.当前分析代次
-                && $0.modelIdentifier == modelIdentifier
-        } ?? false
-        let needsCurrentGeneration = !为你推荐偏好分析设置.已完成分析(
-            userID: credentials.userID,
-            模型标识: modelIdentifier
-        )
-        let hasStaleRecommendations = !service.推荐缓存是否新鲜(
-            userID: credentials.userID
-        )
-        guard hasPendingAnalysis
-                || needsCurrentGeneration
-                || hasStaleRecommendations else {
-            偏好分析实时活动中心.shared.结束(
-                success: true,
-                immediately: true
-            )
-            return
-        }
-        if activeAnalysis?.descriptor.userID == credentials.userID {
-            if let descriptor = 待处理分析描述(),
-               descriptor.userID == credentials.userID,
-               continuedTasks[descriptor.identifier] == nil {
-                提交后台活动(for: descriptor)
-            }
-            return
-        }
-
-        Task { [weak self] in
-            guard let self else { return }
-            _ = try? await self.分析(
-                token: credentials.token,
-                userID: credentials.userID,
-                forceRefresh: false
-            )
-        }
-    }
-
-    func 设置Today分析暂停(_ isPaused: Bool) {
-        guard !Self.正在运行预览 else { return }
-        guard isPausedForToday != isPaused else { return }
-        isPausedForToday = isPaused
-        if isPaused {
-            停止分析()
-        } else {
-            启动需要的分析()
-        }
-    }
-
-    func 分析(
-        token: String,
-        userID: String,
-        forceRefresh: Bool
-    ) async throws -> [探索推荐] {
-        try await 执行分析(
-            token: token,
-            userID: userID,
-            forceRefresh: forceRefresh
-        )
-    }
-
-    private func 执行分析(
-        token: String,
-        userID: String,
-        forceRefresh: Bool
-    ) async throws -> [探索推荐] {
-        guard 为你推荐偏好分析设置.已启用 else { return [] }
-        guard !Self.正在运行预览 else { return [] }
-        guard await VNDB离线推荐计算中心.shared.有可用模型() else {
-            return []
-        }
-
-        let needsCurrentGeneration = !为你推荐偏好分析设置.已完成分析(
-            userID: userID,
-            模型标识: 当前模型标识()
-        )
-        let effectiveForceRefresh = forceRefresh || needsCurrentGeneration
-
-        if let activeAnalysis, activeAnalysis.descriptor.userID == userID {
-            return try await activeAnalysis.task.value
-        }
-        if activeAnalysis != nil {
-            停止分析()
-        }
-
-        if !effectiveForceRefresh,
-           service.推荐缓存是否新鲜(userID: userID) {
-            if let pending = 待处理分析描述(), pending.userID == userID {
-                取消后台活动(pending.identifier)
-                清除待处理分析描述()
-            }
-            return try await service.生成推荐(
-                token: token,
-                userID: userID,
-                排除ID: [],
-                数量: 48,
-                强制刷新: false
-            )
-        }
-
-        let descriptor: 分析描述
-        if let pending = 待处理分析描述(),
-           pending.userID == userID,
-           pending.analysisGeneration == 为你推荐偏好分析设置.当前分析代次,
-           pending.modelIdentifier == 当前模型标识(),
-           !effectiveForceRefresh || pending.forceRefresh {
-            descriptor = pending
-        } else {
-            if let pending = 待处理分析描述() {
-                取消后台活动(pending.identifier)
-            }
-            descriptor = 分析描述(
-                identifier: 新分析标识(),
-                userID: userID,
-                forceRefresh: effectiveForceRefresh,
-                createdAt: Date(),
-                analysisGeneration: 为你推荐偏好分析设置.当前分析代次,
-                modelIdentifier: 当前模型标识()
-            )
-        }
-        let task = 启动分析(
-            descriptor: descriptor,
-            token: token,
-            submitBackgroundActivity: true
-        )
-        return try await task.value
-    }
-
-    func 停止分析() {
-        activeAnalysis?.task.cancel()
-        activeAnalysis = nil
-        isAnalyzing = false
-        analysisProgress = 0
-
-        guard !Self.正在运行预览 else { return }
-
-        偏好分析实时活动中心.shared.结束(
-            success: false,
-            immediately: true
-        )
-
-        if let descriptor = 待处理分析描述() {
-            取消后台活动(descriptor.identifier)
-        }
-        清除待处理分析描述()
-
-        for task in continuedTasks.values {
-            task.setTaskCompleted(success: false)
-        }
-        continuedTasks.removeAll()
-    }
-
-    private func 启动分析(
-        descriptor: 分析描述,
-        token: String,
-        submitBackgroundActivity: Bool
-    ) -> Task<[探索推荐], Error> {
-        completedRequestCount = 0
-        totalRequestCount = VNDB探索服务.推荐分析请求上限
-        isAnalyzing = true
-        analysisProgress = 0
-
-        let progress: (Int, Int) -> Void = { [weak self] completed, total in
-            self?.更新进度(completed: completed, total: total)
-        }
-        let recommendationService = service
-        let work = Task {
-            try await recommendationService.生成推荐(
-                token: token,
-                userID: descriptor.userID,
-                排除ID: [],
-                数量: 48,
-                强制刷新: descriptor.forceRefresh,
-                进度: progress
-            )
-        }
-        activeAnalysis = 运行中分析(descriptor: descriptor, task: work)
-
-        偏好分析实时活动中心.shared.开始(
-            totalRequestCount: totalRequestCount
-        )
-
-        if submitBackgroundActivity {
-            保存待处理分析描述(descriptor)
-            提交后台活动(for: descriptor)
-        }
-
-        Task { [weak self] in
-            do {
-                _ = try await work.value
-                let generatedAt = self?.service.推荐缓存生成日期(
-                    userID: descriptor.userID
-                )
-                let generatedFreshRecommendations = generatedAt.map {
-                    $0 >= descriptor.createdAt.addingTimeInterval(-1)
-                } ?? false
-                self?.完成分析(
-                    descriptor: descriptor,
-                    success: generatedFreshRecommendations
-                )
-            } catch {
-                self?.完成分析(descriptor: descriptor, success: false)
-            }
-        }
-        return work
-    }
-
-    private func 更新进度(completed: Int, total: Int) {
-        completedRequestCount = max(completedRequestCount, completed)
-        totalRequestCount = max(1, total)
-        analysisProgress = min(
-            Double(completedRequestCount) / Double(totalRequestCount),
-            1
-        )
-
-        偏好分析实时活动中心.shared.更新(
-            completed: completedRequestCount,
-            total: totalRequestCount
-        )
-        for task in continuedTasks.values {
-            guard #available(iOS 26.0, *),
-                  let task = task as? BGContinuedProcessingTask else {
-                continue
-            }
-            task.progress.totalUnitCount = Int64(totalRequestCount)
-            task.progress.completedUnitCount = Int64(
-                min(completedRequestCount, totalRequestCount)
-            )
-        }
-    }
-
-    private func 完成分析(descriptor: 分析描述, success: Bool) {
-        guard activeAnalysis?.descriptor == descriptor else { return }
-        activeAnalysis = nil
-
-        if success, 待处理分析描述() == descriptor {
-            清除待处理分析描述()
-        }
-        if success,
-           descriptor.analysisGeneration
-            == 为你推荐偏好分析设置.当前分析代次 {
-            为你推荐偏好分析设置.标记分析完成(
-                userID: descriptor.userID,
-                模型标识: descriptor.modelIdentifier ?? 当前模型标识()
-            )
-        }
-        if success {
-            NotificationCenter.default.post(
-                name: .paperVNRecommendationsDidUpdate,
-                object: descriptor.userID
-            )
-        }
-
-        if success {
-            更新进度(
-                completed: totalRequestCount,
-                total: totalRequestCount
-            )
-        }
-
-        偏好分析实时活动中心.shared.结束(success: success)
-        取消后台活动(descriptor.identifier)
-        let completedTaskIDs = continuedTasks.values.compactMap { task in
-            task.identifier == descriptor.identifier ? task.identifier : nil
-        }
-        for identifier in completedTaskIDs {
-            guard let task = continuedTasks.removeValue(forKey: identifier) else {
-                continue
-            }
-            task.setTaskCompleted(success: success)
-        }
-
-        if !success, 为你推荐偏好分析设置.已启用 {
-            重新排队分析(descriptor)
-        }
-
-        isAnalyzing = false
-    }
-
-    private func 保存待处理分析描述(_ descriptor: 分析描述) {
-        guard let data = try? JSONEncoder().encode(descriptor) else { return }
-        defaults.set(data, forKey: pendingDescriptorKey)
-    }
-
-    private func 待处理分析描述() -> 分析描述? {
-        guard let data = defaults.data(forKey: pendingDescriptorKey),
-              let descriptor = try? JSONDecoder().decode(
-                分析描述.self,
-                from: data
-              ) else {
-            return nil
-        }
-        return descriptor
-    }
-
-    private func 清除待处理分析描述() {
-        defaults.removeObject(forKey: pendingDescriptorKey)
-    }
-
-    private func 新分析标识() -> String {
-        Self.后台任务标识前缀 + UUID().uuidString.lowercased()
-    }
-
-    private func 提交后台活动(for descriptor: 分析描述) {
-        guard #available(iOS 26.0, *),
-              didRegisterBackgroundTask,
-              !Self.正在运行预览,
-              Self.可以提交持续处理任务 else {
-            return
-        }
-        let request = BGContinuedProcessingTaskRequest(
-            identifier: descriptor.identifier,
-            title: String(localized: "分析偏好"),
-            subtitle: String(
-                localized: "PaperVN需要一些时间分析你的偏好。"
-            )
-        )
-        request.strategy = .queue
-        do {
-            try BGTaskScheduler.shared.submit(request)
-            Self.logger.info(
-                "Preference analysis background task submitted: \(descriptor.identifier, privacy: .public)"
-            )
-        } catch {
-            Self.logger.error(
-                "Preference analysis background task submission failed: \(error.localizedDescription, privacy: .public)"
-            )
-        }
-    }
-
-    private func 取消后台活动(_ identifier: String) {
-        guard didRegisterBackgroundTask else { return }
-        BGTaskScheduler.shared.cancel(
-            taskRequestWithIdentifier: identifier
-        )
-    }
-
-    @available(iOS 26.0, *)
-    private func 接收后台任务(_ task: BGContinuedProcessingTask) {
-        Self.logger.info(
-            "Preference analysis background task started: \(task.identifier, privacy: .public)"
-        )
-        guard 为你推荐偏好分析设置.已启用,
-              let descriptor = 待处理分析描述(),
-              descriptor.identifier == task.identifier else {
-            task.setTaskCompleted(success: false)
-            return
-        }
-
-        continuedTasks[task.identifier] = task
-        task.progress.totalUnitCount = Int64(totalRequestCount)
-        task.progress.completedUnitCount = Int64(
-            min(completedRequestCount, totalRequestCount)
-        )
-        task.updateTitle(
-            String(localized: "分析偏好"),
-            subtitle: String(
-                localized: "PaperVN需要一些时间分析你的偏好。"
-            )
-        )
-        task.expirationHandler = { [weak task] in
-            Task { @MainActor in
-                guard let task else { return }
-                推荐后台分析中心.shared.后台任务到期(task)
-            }
-        }
-
-        if let activeAnalysis,
-           activeAnalysis.descriptor == descriptor {
-            return
-        }
-
-        guard let credentials = 读取VNDB已保存凭据(),
-              credentials.userID == descriptor.userID else {
-            continuedTasks[task.identifier] = nil
-            task.setTaskCompleted(success: false)
-            重新排队分析(descriptor)
-            return
-        }
-        _ = 启动分析(
-            descriptor: descriptor,
-            token: credentials.token,
-            submitBackgroundActivity: false
-        )
-    }
-
-    @available(iOS 26.0, *)
-    private func 后台任务到期(_ task: BGContinuedProcessingTask) {
-        continuedTasks[task.identifier] = nil
-        guard activeAnalysis?.descriptor.identifier == task.identifier else {
-            task.setTaskCompleted(success: false)
-            return
-        }
-        let descriptor = activeAnalysis!.descriptor
-        activeAnalysis?.task.cancel()
-        activeAnalysis = nil
-        isAnalyzing = false
-        task.setTaskCompleted(success: false)
-        重新排队分析(descriptor)
-    }
-
-    private func 重新排队分析(_ descriptor: 分析描述) {
-        guard 为你推荐偏好分析设置.已启用 else { return }
-        let retryDescriptor = 分析描述(
-            identifier: 新分析标识(),
-            userID: descriptor.userID,
-            forceRefresh: descriptor.forceRefresh,
-            createdAt: descriptor.createdAt,
-            analysisGeneration: descriptor.analysisGeneration,
-            modelIdentifier: descriptor.modelIdentifier
-        )
-        保存待处理分析描述(retryDescriptor)
-        提交后台活动(for: retryDescriptor)
-    }
 }
 
 nonisolated enum PaperVNConnect自动策略 {

@@ -210,8 +210,8 @@ struct 沉浸封面文字取样Tests {
     }
 
     @Test
-    func 标题下方的几项信息统一颜色() throws {
-        // 发行日期单看偏暗、其余偏亮：四项统一取让最难看清那一项更清楚的颜色。
+    func 标题与下方的几项信息统一颜色() throws {
+        // 发行日期单看偏暗、其余偏亮：标题与四项统一取让最难看清那一项更清楚的颜色。
         let metrics: [String: 沉浸取样亮度统计] = [
             "metadata": 均匀统计(0.5),
             "metadata.title": 均匀统计(0.5),
@@ -221,7 +221,7 @@ struct 沉浸封面文字取样Tests {
             "metadata.status": 均匀统计(0.5)
         ]
         let groups = Dictionary(uniqueKeysWithValues: metrics.keys.map { ($0, "metadata") })
-        let unified = Dictionary(uniqueKeysWithValues: ["rating", "length", "release", "status"].map {
+        let unified = Dictionary(uniqueKeysWithValues: ["title", "rating", "length", "release", "status"].map {
             ("metadata.\($0)", "metadata.stats")
         })
         for background in [沉浸详情背景色调.light, .dark] {
@@ -232,10 +232,51 @@ struct 沉浸封面文字取样Tests {
     }
 
     @Test
-    func 深色模式透明玻璃自身提亮() {
-        // 真机截图拟合：浅色模式不改变背景，深色模式明显提亮。
+    func 标签统一颜色与着色() throws {
+        // 近黑处单看要白字，但标签必须全部同色、玻璃着色也一致。
+        let metrics: [String: 沉浸取样亮度统计] = [
+            "traits": 均匀统计(0.6),
+            "traits.item.0": 均匀统计(0.7),
+            "traits.item.1": 均匀统计(0.65),
+            "traits.item.2": 均匀统计(0.3),
+            "traits.item.3": 均匀统计(0.005)
+        ]
+        let groups = Dictionary(uniqueKeysWithValues: metrics.keys.map { ($0, "traits") })
+        let unified = Dictionary(uniqueKeysWithValues: (0..<4).map { ("traits.item.\($0)", "traits.items") })
+        for background in [沉浸详情背景色调.light, .dark] {
+            let results = 判定.协调(统计: metrics, 分组: groups, 统一: unified, 背景: background)
+            let items = unified.keys.compactMap { results[$0] }
+            #expect(items.count == 4)
+            #expect(Set(items.map(\.usesDarkText)).count == 1)
+            #expect(Set(items.map(\.glassTint)).count == 1)
+            #expect(Set(items.map(\.needsContrastShadow)).count == 1)
+            #expect(results["traits"]?.usesDarkText == items.first?.usesDarkText)
+        }
+    }
+
+    @Test
+    func 取样区域定义把标题与标签设为统一颜色() {
+        for layout in [沉浸封面文字分析布局.visualNovel, .character] {
+            let definitions = 沉浸封面取样区域.定义列表(
+                for: layout,
+                itemCounts: ["tags": 3, "traits": 3, "profile": 2]
+            )
+            let unified = Dictionary(uniqueKeysWithValues: definitions.map { ($0.key, $0.unified) })
+            #expect(unified["metadata.title"] == "metadata.stats")
+            for definition in definitions where definition.key.contains(".item.") {
+                #expect(definition.unified == "\(definition.group).items")
+            }
+        }
+    }
+
+    @Test
+    func 透明玻璃自身提亮() {
+        // 真机截图拟合：浅色模式按线性亮度放大，深色模式向白色混合。
         #expect(沉浸取样校准常量.表面提亮(.透明玻璃, background: .light) == 0)
         #expect(沉浸取样校准常量.表面提亮(.透明玻璃, background: .dark) > 0.15)
+        #expect(沉浸取样校准常量.表面增益(.透明玻璃, background: .light) > 1.3)
+        #expect(沉浸取样校准常量.表面增益(.透明玻璃, background: .dark) == 1)
+        #expect(沉浸取样校准常量.表面增益(.提亮材质, background: .light) == 1)
     }
 
     // MARK: 渐变方案

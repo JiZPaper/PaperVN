@@ -89,6 +89,7 @@ struct 简介翻译参与按钮: View {
     }
 
     @ObservedObject var auth: 用户登录
+    @ObservedObject private var paperAccount = PaperAccount账户.shared
     let entry: VNDB简介翻译条目
     let targetLanguage: 简介翻译语言
     let knownHasTranslation: Bool?
@@ -100,8 +101,6 @@ struct 简介翻译参与按钮: View {
     @State private var isPreparingSubmission = false
     @State private var submissionRecords: [VNDB简介翻译投稿记录]?
     @State private var showsFeedback = false
-    @State private var didSubmitFeedback = false
-    @State private var showsFeedbackConfirmation = false
 
     private var hasTranslation: Bool? {
         resolvesIndependently ? resolvedHasTranslation : knownHasTranslation
@@ -140,30 +139,9 @@ struct 简介翻译参与按钮: View {
                 )
                 .environmentObject(auth)
             }
-            .sheet(isPresented: $showsFeedback, onDismiss: {
-                guard didSubmitFeedback else { return }
-                didSubmitFeedback = false
-                showsFeedbackConfirmation = true
-            }) {
-                快速反馈页面(
-                    title: String(
-                        localized: "简介翻译问题：\(entry.displayName)"
-                    ),
-                    description: feedbackTemplate,
-                    clientInfo: [
-                        "translationEntry": entry.id,
-                        "translationType": entry.type.rawValue,
-                        "translationLanguage": targetLanguage.rawValue
-                    ],
-                    onSubmitted: { didSubmitFeedback = true }
-                )
-                .environmentObject(auth)
-                .平台近全屏弹窗()
-            }
-            .alert("反馈已提交", isPresented: $showsFeedbackConfirmation) {
-                Button("好") {}
-            } message: {
-                Text("我们将在查看后展示你的反馈。请勿重复提交相同反馈。")
+            .sheet(isPresented: $showsFeedback) {
+                数据维护提交页面(内容: .简介翻译错误(条目: entry, 语言: targetLanguage))
+                    .平台近全屏弹窗()
             }
     }
 
@@ -203,31 +181,17 @@ struct 简介翻译参与按钮: View {
         }
     }
 
-    private var feedbackTemplate: String {
-        [
-            String(localized: "条目：\(entry.displayName)（\(entry.id)）"),
-            String(localized: "语言：\(targetLanguage.title)"),
-            "",
-            String(localized: "问题："),
-            ""
-        ].joined(separator: "\n")
-    }
-
     private func open() {
         if hasTranslation == true {
             showsFeedback = true
             return
         }
         guard !isPreparingSubmission else { return }
-        guard auth.isLoggedIn, !auth.token.isEmpty else {
-            submissionRecords = []
-            showsSubmission = true
-            return
-        }
         isPreparingSubmission = true
         Task {
+            let token = try? await paperAccount.可选访问令牌()
             let records = try? await VNDB简介翻译投稿服务()
-                .mySubmissions(token: auth.token)
+                .mySubmissions(token: token)
             submissionRecords = records?.filter {
                 $0.entryID == entry.id
                     && $0.type == entry.type
@@ -241,6 +205,7 @@ struct 简介翻译参与按钮: View {
 
 struct 简介翻译投稿页面: View {
     @EnvironmentObject private var auth: 用户登录
+    @ObservedObject private var paperAccount = PaperAccount账户.shared
     @Environment(\.dismiss) private var dismiss
 
     let entry: VNDB简介翻译条目
@@ -342,9 +307,7 @@ struct 简介翻译投稿页面: View {
     }
 
     private var canSubmit: Bool {
-        auth.isLoggedIn
-            && !auth.token.isEmpty
-            && !isReadOnly
+        !isReadOnly
             && !trimmedTranslation.isEmpty
             && trimmedTranslation.count <= VNDB简介翻译投稿服务.译文最大长度
             && hasChanges
@@ -438,12 +401,12 @@ struct 简介翻译投稿页面: View {
                     }
 
                     Section {
-                        if auth.isLoggedIn {
-                            LabeledContent("译者", value: auth.username)
-                        } else {
-                            Text("需要登录VNDB账户以提交翻译。")
-                                .foregroundStyle(.secondary)
-                        }
+                        LabeledContent(
+                            "译者",
+                            value: paperAccount.isLoggedIn
+                                ? paperAccount.资料?.nickname ?? String(localized: "未设置昵称")
+                                : String(localized: "匿名")
+                        )
                     } footer: {
                         Text("")
                     }
@@ -478,12 +441,11 @@ struct 简介翻译投稿页面: View {
                             ProgressView()
                         } else {
                             Button(action: submit) {
-                                Image(systemName: "arrow.up")
+                                Label("提交", systemImage: "arrow.up")
                             }
                             .液态玻璃醒目按钮(in: Circle())
                             .buttonBorderShape(.circle)
                             .tint(.blue)
-                            .accessibilityLabel("提交")
                             .disabled(!canSubmit)
                         }
                     }
@@ -560,10 +522,9 @@ struct 简介翻译投稿页面: View {
     private func loadEntryRecordsIfNeeded() async {
         guard existing == nil,
               entryRecords == nil,
-              auth.isLoggedIn,
-              !auth.token.isEmpty,
+              let token = try? await paperAccount.可选访问令牌(),
               let submissions = try? await VNDB简介翻译投稿服务()
-                .mySubmissions(token: auth.token),
+                .mySubmissions(token: token),
               !Task.isCancelled else {
             return
         }
@@ -637,7 +598,7 @@ struct 简介翻译投稿页面: View {
         } footer: {
             switch existing.status {
             case .pending:
-                Text("更改后将重新提交以供审核。")
+                Text("你的更改将重新提交以供审核。")
             case .rejected:
                 Text("更改后可重新提交以供审核。")
             case .accepted:
@@ -668,7 +629,7 @@ struct 简介翻译投稿页面: View {
             defer { isSubmitting = false }
             do {
                 submittedResult = try await VNDB简介翻译投稿服务().submit(
-                    token: auth.token,
+                    token: try await paperAccount.可选访问令牌(),
                     entry: entry,
                     language: language,
                     translation: trimmedTranslation,
@@ -677,319 +638,6 @@ struct 简介翻译投稿页面: View {
                 await onSubmitted()
             } catch {
                 errorMessage = error.localizedDescription
-            }
-        }
-    }
-}
-
-struct 简介翻译贡献页面: View {
-    @ObservedObject var auth: 用户登录
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.locale) private var locale
-    @Environment(\.openURL) private var openURL
-
-    @State private var submissions: [VNDB简介翻译投稿记录] = []
-    @State private var isLoading = false
-    @State private var errorMessage: String?
-    @State private var selectedSubmission: VNDB简介翻译投稿记录?
-    @State private var pendingWithdrawal: VNDB简介翻译投稿记录?
-    @State private var showsWithdrawalConfirmation = false
-    @State private var withdrawalError: String?
-
-    private var canLoad: Bool {
-        auth.isLoggedIn && !auth.token.isEmpty
-    }
-
-    var body: some View {
-        NavigationStack {
-            Group {
-                if canLoad {
-                    submissionList
-                } else {
-                    ContentUnavailableView {
-                        Label(
-                            "需要登录",
-                            systemImage: "person.crop.circle.badge.exclamationmark"
-                        )
-                    } description: {
-                        Text("登录VNDB账户以贡献翻译")
-                    }
-                }
-            }
-            .navigationTitle("贡献翻译")
-            .平台柔和滚动边缘(for: .top)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                    }
-                    .accessibilityLabel("关闭")
-                }
-            }
-        }
-        .sheet(item: $selectedSubmission) { submission in
-            简介翻译投稿页面(
-                existing: submission,
-                displayName: 简介翻译条目名称.显示名称(for: submission)
-            ) {
-                await reload()
-            }
-            .environmentObject(auth)
-        }
-        .alert("要撤回翻译吗？", isPresented: $showsWithdrawalConfirmation) {
-            Button("保持", role: .cancel) {
-                pendingWithdrawal = nil
-            }
-            Button("撤回翻译", role: .destructive) {
-                withdraw()
-            }
-        } message: {
-            Text("撤回后无法重新提交以供审核。")
-        }
-        .alert(
-            "无法撤回翻译",
-            isPresented: Binding(
-                get: { withdrawalError != nil },
-                set: { if !$0 { withdrawalError = nil } }
-            )
-        ) {
-            Button("好") { withdrawalError = nil }
-        } message: {
-            Text(verbatim: withdrawalError ?? "")
-        }
-    }
-
-    private var submissionList: some View {
-        List {
-            if isLoading && submissions.isEmpty {
-                Section {
-                    ForEach(0..<3, id: \.self) { _ in
-                        placeholderRow
-                    }
-                    .accessibilityHidden(true)
-                } header: {
-                    HStack(spacing: 8) {
-                        ProgressView()
-                            .controlSize(.small)
-                        Text("正在载入…")
-                    }
-                    .textCase(nil)
-                    .accessibilityElement(children: .combine)
-                }
-            } else if let errorMessage {
-                Section {
-                    平台内容不可用视图(
-                        "无法载入",
-                        systemImage: "exclamationmark.triangle",
-                        description: Text(verbatim: errorMessage)
-                    )
-                }
-            } else if submissions.isEmpty {
-                Section {
-                    平台内容不可用视图(
-                        "无已提交翻译",
-                        systemImage: "character.bubble"
-                    )
-                } footer: {
-                    contributionHint
-                }
-            } else {
-                Section {
-                    ForEach(submissions) { submission in
-                        submissionRow(submission)
-                        .contextMenu {
-                            contextMenuActions(for: submission)
-                        }
-                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                            if submission.status == .pending {
-                                Button {
-                                    requestWithdrawal(submission)
-                                } label: {
-                                    Label("撤回翻译", systemImage: "arrow.uturn.backward")
-                                }
-                                .tint(.red)
-                            }
-                        }
-                    }
-                } footer: {
-                    contributionHint
-                }
-            }
-        }
-        .平台分组列表样式()
-        .task(id: auth.token) {
-            await reload()
-        }
-        .refreshable {
-            await reload()
-        }
-    }
-
-    @ViewBuilder
-    private func submissionRow(_ submission: VNDB简介翻译投稿记录) -> some View {
-        if submission.status == .withdrawn {
-            row(submission)
-                .accessibilityElement(children: .combine)
-        } else {
-            Button {
-                selectedSubmission = submission
-            } label: {
-                row(submission)
-            }
-            .buttonStyle(.plain)
-            .accessibilityHint(
-                submission.isEditable ? "轻点修改翻译" : "轻点查看翻译"
-            )
-        }
-    }
-
-    @ViewBuilder
-    private func contextMenuActions(
-        for submission: VNDB简介翻译投稿记录
-    ) -> some View {
-        if submission.isEditable {
-            Button {
-                selectedSubmission = submission
-            } label: {
-                Label("编辑翻译", systemImage: "pencil")
-            }
-        } else if submission.status == .accepted {
-            Button {
-                selectedSubmission = submission
-            } label: {
-                Label("查看翻译", systemImage: "doc.text")
-            }
-        }
-
-        Button {
-            UIPasteboard.general.string = submission.translation
-        } label: {
-            Label("拷贝译文", systemImage: "doc.on.doc")
-        }
-
-        if let url = URL(string: "https://vndb.org/\(submission.entryID)") {
-            Button {
-                openURL(url)
-            } label: {
-                Label("在VNDB中查看", systemImage: "safari")
-            }
-        }
-
-        if submission.status == .pending {
-            Divider()
-            Button(role: .destructive) {
-                requestWithdrawal(submission)
-            } label: {
-                Label("撤回翻译", systemImage: "arrow.uturn.backward")
-            }
-        }
-    }
-
-    private var contributionHint: some View {
-        Text("")
-    }
-
-    private func row(_ submission: VNDB简介翻译投稿记录) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                多语言列表文本(
-                    简介翻译条目名称.显示名称(for: submission),
-                    层级: .主标题,
-                    系统字体粗细: .semibold
-                )
-                .lineLimit(2)
-
-                Spacer(minLength: 0)
-
-                if let date = submission.submittedDate {
-                    Text(
-                        date.formatted(
-                            .dateTime.year().month().day().locale(locale)
-                        )
-                    )
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .layoutPriority(1)
-                }
-            }
-
-            Text(verbatim: submission.translation)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .lineLimit(3)
-
-            HStack {
-                HStack(spacing: 6) {
-                    Text(verbatim: submission.entryID)
-                    Text(verbatim: "·")
-                    Text(verbatim: submission.languageTitle)
-                        .lineLimit(1)
-                }
-
-                Spacer(minLength: 0)
-
-                Text(verbatim: submission.statusText)
-            }
-            .font(.caption)
-            .foregroundStyle(.secondary)
-        }
-        .padding(.vertical, 4)
-        .contentShape(Rectangle())
-    }
-
-    private var placeholderRow: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(verbatim: "Placeholder Title")
-                .font(.body.weight(.semibold))
-            Text(verbatim: String(repeating: "Placeholder ", count: 12))
-                .font(.subheadline)
-                .lineLimit(2)
-            Text(verbatim: "v00000 · Placeholder")
-                .font(.caption)
-        }
-        .redacted(reason: .placeholder)
-        .padding(.vertical, 4)
-    }
-
-    private func reload() async {
-        guard canLoad else {
-            submissions = []
-            return
-        }
-        isLoading = true
-        defer { isLoading = false }
-        do {
-            submissions = try await VNDB简介翻译投稿服务().mySubmissions(
-                token: auth.token
-            )
-            errorMessage = nil
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-
-    private func requestWithdrawal(_ submission: VNDB简介翻译投稿记录) {
-        guard submission.status == .pending else { return }
-        pendingWithdrawal = submission
-        showsWithdrawalConfirmation = true
-    }
-
-    private func withdraw() {
-        guard let submission = pendingWithdrawal else { return }
-        pendingWithdrawal = nil
-        Task {
-            do {
-                try await VNDB简介翻译投稿服务().withdraw(
-                    token: auth.token,
-                    id: submission.id
-                )
-                await reload()
-            } catch {
-                withdrawalError = error.localizedDescription
             }
         }
     }

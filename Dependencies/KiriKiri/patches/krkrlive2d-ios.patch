@@ -1,0 +1,141 @@
+diff --git a/src/Live2D.cpp b/src/Live2D.cpp
+index d599b1e..eb233ed 100644
+--- a/src/Live2D.cpp
++++ b/src/Live2D.cpp
+@@ -1,3 +1,6 @@
++#include "PaperVNGLContext.h"
++#define GLES_SILENCE_DEPRECATION 1
++#include <OpenGLES/ES3/gl.h>
+ #include <ncbind.hpp>
+ #include <memory>
+ 
+@@ -36,7 +39,7 @@ public:
+ 
+   void Close() {
+     if (mStream) {
+-      mStream->Destruct();
++      delete mStream;
+       mStream = nullptr;
+       mSize = 0;
+       mPosition = 0;
+@@ -49,7 +52,12 @@ public:
+     // Win32 の IStream ではなく iTJSBinaryStream を使うことで、
+     // 新旧いずれの tp_stub でもコンパイルできる。
+     ttstr name = convertUtf8StringToTtstr(filename, strlen(filename));
+-    mStream = TVPCreateStream(name, TJS_BS_READ);
++    // PaperVN：krkr2 找不到文件时抛异常，驱动要靠返回失败试下一个名字
++    try {
++      mStream = TVPCreateStream(name, TJS_BS_READ);
++    } catch (...) {
++      mStream = nullptr;
++    }
+     if (mStream) {
+       mSize = (size_t)mStream->GetSize();
+       mPosition = 0;
+@@ -158,20 +166,17 @@ Live2DDevice::Live2DDevice(tTJSVariant glbase)
+  , mSurfaceWidth(0)
+  , mSurfaceHeight(0)
+ {
+-  tTJSVariantClosure clo = glbase.AsObjectClosureNoAddRef();
+-  tTJSVariant iface_v;
+-  if (TJS_FAILED(clo.PropGet(0, TJS_W("GLGetProcAddress"), NULL, &iface_v, NULL)))
+-      TVPThrowExceptionMessage(TJS_W("Can't Retrive GLGetProcAddress interface"));
+-  GetGLProcAddressFunc glGetProcInterface = reinterpret_cast<GetGLProcAddressFunc>((tjs_int64)iface_v);
+-
++  // PaperVN：iOS 版驱动直接用 OpenGL ES，不需要 GLGetProcAddress，也就不要求 krkrgles
++  // 所有 GL 调用都在 PaperVNGLContext 的上下文里进行
++  PaperVNGLScope glScope;
+   ILive2DDevice::InitParam param;
+   memset(&param, 0, sizeof(param));
+-  param.getProcAddress = glGetProcInterface;
+   mLive2DDevice = GetRuntime()->CreateDevice(param);
+ }
+ 
+ Live2DDevice::~Live2DDevice()
+ {
++  PaperVNGLScope glScope;
+   if (mLive2DDevice) {
+     mLive2DDevice->Release();
+     mLive2DDevice = nullptr;
+@@ -181,6 +186,7 @@ Live2DDevice::~Live2DDevice()
+ void
+ Live2DDevice::onBeginScene(int surfaceWidth, int surfaceHeight)
+ {
++  PaperVNGLScope glScope;
+   mSurfaceWidth  = surfaceWidth;
+   mSurfaceHeight = surfaceHeight;
+   if (mLive2DDevice) {
+@@ -191,6 +197,7 @@ Live2DDevice::onBeginScene(int surfaceWidth, int surfaceHeight)
+ void
+ Live2DDevice::onEndScene()
+ {
++  PaperVNGLScope glScope;
+   if (mLive2DDevice) {
+     mLive2DDevice->OnEndScene();
+   }
+@@ -199,6 +206,7 @@ Live2DDevice::onEndScene()
+ void
+ Live2DDevice::prepareShaders()
+ {
++  PaperVNGLScope glScope;
+   if (mLive2DDevice) {
+     mLive2DDevice->PrepareShaders();
+   }
+@@ -207,12 +215,14 @@ Live2DDevice::prepareShaders()
+ ILive2DPlayer *
+ Live2DDevice::CreatePlayer(const char *filename)
+ {
++  PaperVNGLScope glScope;
+   return mLive2DDevice ? mLive2DDevice->CreatePlayer(filename) : nullptr;
+ }
+ 
+ ILive2DPlayer *
+ Live2DDevice::CreatePlayer(const ILive2DModel *model)
+ {
++  PaperVNGLScope glScope;
+   return mLive2DDevice ? mLive2DDevice->CreatePlayer(model) : nullptr;
+ }
+ 
+@@ -286,6 +296,7 @@ void Live2DPlayer::alloc()
+ 
+ void Live2DPlayer::free()
+ {
++  PaperVNGLScope glScope;
+   if (mModel) {
+     mModel->Release();
+     mModel = 0;
+@@ -293,6 +304,17 @@ void Live2DPlayer::free()
+ }
+ 
+ void Live2DPlayer::render() {
++  PaperVNGLScope glScope;
++  // PaperVN：Canvas 和 krkrgles 共用这个上下文，把驱动假定的默认状态恢复出来
++  glBindVertexArray(0);
++  glBindBuffer(GL_ARRAY_BUFFER, 0);
++  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
++  glDisable(GL_SCISSOR_TEST);
++  glDisable(GL_STENCIL_TEST);
++  glDisable(GL_DEPTH_TEST);
++  glActiveTexture(GL_TEXTURE0);
++  glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
++  for (GLuint i = 0; i < 8; i++) glDisableVertexAttribArray(i);
+   if (mDevice && mModel) {
+     int width = mDevice->SurfaceWidth();
+     int height = mDevice->SurfaceHeight();
+@@ -332,6 +354,7 @@ void Live2DPlayer::loadModel(tTJSVariant model) {
+ }
+ 
+ Live2DPlayer *Live2DPlayer::clone() {
++  PaperVNGLScope glScope;
+   Live2DPlayer *instance = new Live2DPlayer(mDeviceObj);
+   instance->mFilename = mFilename;
+   instance->mScale = mScale;
+@@ -401,7 +424,7 @@ static void setFloatProp(iTJSDispatch2 *obj, const tjs_char *name,
+ }
+ 
+ // オブジェクトに文字列を格納
+-static void setStrProp(iTJSDispatch2 *obj, const tjs_char *name, ttstr &value) {
++static void setStrProp(iTJSDispatch2 *obj, const tjs_char *name, const ttstr &value) {
+   tTJSVariant var = value;
+   obj->PropSet(TJS_MEMBERENSURE, name, NULL, &var, obj);
+ }
